@@ -1,25 +1,49 @@
-
 #!/usr/bin/env bash
+# ==============================================================================
+# 스크립트명: deploy_frontend.sh
+# 목    적: 다운로드된 React 번들(dist)을 EC2의 Nginx 웹 서버 디렉토리로 동기화 배포
+# 실    행: GitHub Actions deploy 잡 러너(EC2 Self-hosted Runner)에서 호출됨
+# 전제 조건: 러너 실행 사용자에게 sudo NOPASSWD 권한 부여 필요 (nginx, rsync)
+# ==============================================================================
+
+# 엄격 모드(Strict Mode) 설정: 에러 발생 또는 정의되지 않은 변수 사용 시 즉시 중단
 set -euo pipefail
 
+# 1. 경로 설정
+#    - PROJECT_ROOT: EC2 워크스페이스 상의 저장소 최상위 경로
+#    - DIST_DIR: build 잡에서 다운로드받은 React 정적 파일 경로
+#    - NGINX_DIR: Nginx가 정적 웹 사이트를 서빙하는 루트 디렉토리 (기본값: /usr/share/nginx/html)
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-
 DIST_DIR="$PROJECT_ROOT/FrontEnd/dist"
 NGINX_DIR="/usr/share/nginx/html"
 
-echo "===== 배포 파일 검사 ====="
+# 2. 배포 사전 무결성 검증 (Pre-deployment Check)
+#    - test -s: 다운로드된 번들에 index.html이 정상적으로 존재하는지 확인 (빈 파일 방지)
+#    - test -d: Nginx 웹 루트 디렉토리가 EC2에 실제로 존재하는지 확인
+echo "===== [1/4] 배포 전 파일 및 디렉토리 검사 ====="
 test -s "$DIST_DIR/index.html"
 test -d "$NGINX_DIR"
 
-echo "===== Nginx 설정 검사 ====="
+# 3. Nginx 설정 구문 사전 검사
+#    - sudo -n: 비밀번호 입력 프롬프트 없이 실행 (암호 요구 시 에러를 내며 즉시 중단)
+#    - nginx -t: Nginx 설정 파일(/etc/nginx/nginx.conf 등)에 문법 오류가 없는지 사전 점검
+echo "===== [2/4] Nginx 설정 구문 검사 (nginx -t) ====="
 sudo -n nginx -t
 
-echo "===== React 배포 ====="
+# 4. React 정적 파일 동기화 배포 (rsync 사용)
+#    - -a (archive): 파일 속성(권한, 타임스탬프, 심볼릭 링크 등) 유지 및 재귀 복사
+#    - -v (verbose): 전송되는 파일 목록 상세 출력 (Actions 로그 확인용)
+#    - --delete: 원본($DIST_DIR)에 없는 대상($NGINX_DIR)의 이전 해시 파일들을 자동 삭제 (오래된 캐시 파일 청소)
+#    - --exclude='/.well-known/': Let's Encrypt SSL/TLS 인증서 자동 갱신용 폴더 보존
+#    - "$DIST_DIR/": 뒤에 슬래시(/)를 붙여 폴더 자체가 아닌 폴더 '내부 내용물'을 복사하도록 지정
+echo "===== [3/4] React 정적 파일 배포 (rsync) ====="
 sudo -n rsync -av --delete \
   --exclude='/.well-known/' \
   "$DIST_DIR/" "$NGINX_DIR/"
 
-echo "===== 배포 결과 확인 ====="
-test -s "$DIST_DIR/index.html"
+# 5. 배포 사후 검증 (Post-deployment Check)
+#    - Nginx 서빙 디렉토리에 index.html이 정상적으로 복사/배포되었는지 최종 확인
+echo "===== [4/4] 배포 결과 확인 ====="
+test -s "$NGINX_DIR/index.html"
 
-echo "React 배포 완료"
+echo ">> React 프론트엔드 Nginx 배포 완료!"
