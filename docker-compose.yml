@@ -1,3 +1,12 @@
+# ==============================================================================
+# Docker Compose: 환경별(local, dev, op/production) 통합 오케스트레이션
+# ==============================================================================
+# 실행 예시:
+#   - 운영(OP):   APP_ENV=production docker compose up -d --build  (기본값)
+#   - 개발(DEV):  APP_ENV=development docker compose up -d --build
+#   - 로컬(LOCAL): APP_ENV=local docker compose up -d --build
+# ==============================================================================
+
 services:
   # ----------------------------------------------------------------------------
   # 1. NestJS 백엔드 서비스
@@ -6,16 +15,18 @@ services:
     build:
       context: ./BackEnd
       dockerfile: Dockerfile
+      args:
+        - APP_ENV=${APP_ENV:-production}
     container_name: travel-backend
     restart: always
     environment:
-      - NODE_ENV=production
-      - APP_ENV=production
+      - NODE_ENV=${NODE_ENV:-production}
+      - APP_ENV=${APP_ENV:-production}
       - PORT=3001
       - HOST=0.0.0.0
-    # .env.production 파일이 있으면 환경변수로 로드 (없어도 오류 방지)
+    # 선택된 환경(APP_ENV)에 맞는 .env 파일 자동 로드 (.env.production / .env.development / .env.local)
     env_file:
-      - path: ./BackEnd/.env.production
+      - path: ./BackEnd/.env.${APP_ENV:-production}
         required: false
     # 호스트 OS(EC2)에서 구동 중인 PostgreSQL 접속 지원
     extra_hosts:
@@ -30,6 +41,8 @@ services:
     build:
       context: ./FrontEnd
       dockerfile: Dockerfile
+      args:
+        - APP_ENV=${APP_ENV:-production}
     container_name: travel-frontend
     restart: always
     ports:

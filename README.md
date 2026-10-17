@@ -137,3 +137,58 @@ npm run db:check -- prod    # 운영(PROD) DB 연결 확인
 2. 저장소에는 `.env.*.example` 템플릿만 공유됩니다.
 3. EC2 서버 배포 시 운영 환경 파일(`.env.production`)은 서버 내부에서 직접 생성/관리합니다.
 4. 웹 통신 TLS 및 DB SSL 적용 여부는 각 환경 파일의 `ENABLE_TLS` 및 `DB_SSL` 플래그로 선택 제어됩니다.
+
+---
+
+## 🐳 Docker 컨테이너 실행 가이드 (환경 분리 지원)
+
+본 프로젝트는 Docker 및 Docker Compose를 통해 프론트엔드(React + Nginx)와 백엔드(NestJS)를 컨테이너화하여 일관된 환경에서 실행할 수 있습니다. `APP_ENV` 환경변수를 통해 **운영(op/production)**, **개발(dev/development)**, **로컬(local)** 환경을 자유롭게 스위칭하여 구동할 수 있습니다.
+
+### 1. 환경별 실행 명령어
+
+#### 🐧 Linux / EC2 / macOS / Git Bash
+```bash
+# 1) 운영(OP) 환경 실행 (기본값: .env.production / travel_prod DB 연결)
+APP_ENV=production docker compose up -d --build
+# 또는 그냥 실행 (기본값이 production으로 설정됨)
+docker compose up -d --build
+
+# 2) 개발(DEV) 환경 실행 (.env.development / travel_test DB 연결)
+APP_ENV=development docker compose up -d --build
+
+# 3) 로컬(LOCAL) 환경 실행 (.env.local / travel_local DB 연결)
+APP_ENV=local docker compose up -d --build
+```
+
+#### 🪟 Windows PowerShell
+```powershell
+# 1) 운영(OP) 환경 실행
+$env:APP_ENV="production"; docker compose up -d --build
+
+# 2) 개발(DEV) 환경 실행
+$env:APP_ENV="development"; docker compose up -d --build
+
+# 3) 로컬(LOCAL) 환경 실행
+$env:APP_ENV="local"; docker compose up -d --build
+```
+
+### 2. 컨테이너 상태 점검 및 관리
+
+```bash
+# 실행 중인 컨테이너 상태 확인
+docker compose ps
+
+# 프론트엔드 및 백엔드 실시간 통합 로그 확인
+docker compose logs -f
+
+# 백엔드 로그만 확인
+docker compose logs -f backend
+
+# 전체 컨테이너 정상 종료
+docker compose down
+```
+
+### 3. Docker 네트워크 및 DB 통신
+* **프론트엔드 (Nginx)**: 포트 `80`을 외부에 노출하며, `/api/` 요청을 내부 도커 네트워크를 통해 `http://backend:3001`로 리버스 프록시합니다.
+* **백엔드 (NestJS)**: 포트 `3001`에서 구동되며, 호스트 머신에서 실행 중인 PostgreSQL DB와 `host.docker.internal:5432` 또는 EC2 퍼블릭 IP(`32.236.200.229:5432`)를 통해 안전하게 통신합니다.
+
