@@ -1,95 +1,214 @@
-# CI/CD 및 HTTPS 배포 가이드
+# 🚀 CI/CD 및 자동 배포 가이드
 
-본 프로젝트는 **dev(개발)** 및 **op(운영)** 환경에서 HTTP 요청을 차단하고 **무조건 HTTPS 통신을 강제**합니다. (단, AWS EC2 PostgreSQL DB 통신은 내부 TCP 5432 연결 유지)
-
----
-
-## 1. 전체 아키텍처 및 통신 구조
-
-```
-[ 브라우저 / 클라이언트 ]
-         │ (무조건 HTTPS 강제 접속, HTTP 인입 시 301 리다이렉트)
-         ▼
-[ EC2 Nginx 웹 서버 (Port 443 SSL) ]
-   ├── 정적 프론트엔드 파일 서빙 (/usr/share/nginx/html)
-   └── /api/ 요청 리버스 프록시 (X-Forwarded-Proto: https 전달)
-         ▼
-[ PM2 프로세스 매니저 ]
-         ▼
-[ NestJS 백엔드 (Port 3001) ] (경로: /var/www/backend)
-   └── HSTS 보안 헤더 강제 적용 및 비보안 요청 차단
-         ▼ (TCP 5432 일반 연결)
-[ PostgreSQL DB (32.236.200.229:5432) ]
-```
+> **Docker Compose 및 GitHub Actions 기반 무중단 배포 / Nginx 리버스 프록시 인프라 가이드**  
+> 본 프로젝트는 프론트엔드와 백엔드를 **Docker Compose 컨테이너 환경으로 표준화**하여 호스트 OS의 Node.js/런타임 버전 종속성을 배제하고, 일관된 무중단 서비스를 제공합니다.
 
 ---
 
-## 2. EC2 서버 최초 준비 작업
+## 📑 목차
+1. [전체 시스템 아키텍처](#1-전체-시스템-아키텍처)
+2. [배포 운영: Docker Compose 기반 배포](#2-배포-운영-docker-compose-기반-배포)
+3. [GitHub Actions 자동 빌드 및 배포 파이프라인](#3-github-actions-자동-빌드-및-배포-파이프라인)
+4. [CI/CD 스크립트 명세](#4-cicd-스크립트-명세)
+5. [AWS EC2 Self-Hosted Runner 설정 가이드](#5-aws-ec2-self-hosted-runner-설정-가이드)
+6. [Nginx 리버스 프록시 및 SSL(HTTPS) 설정](#6-nginx-리버스-프록시-및-sslhttps-설정)
+7. [서버 인프라 보안 그룹(Security Group) 설정](#7-서버-인프라-보안-그룹security-group-설정)
+8. [Docker 컨테이너 모니터링 및 트러블슈팅](#8-docker-컨테이너-모니터링-및-트러블슈팅)
 
-### 2-1. Nginx HTTPS 설정
-1. **설정 파일 복사**:
-   저장소의 `CI_CD/nginx_https.conf`를 EC2의 `/etc/nginx/conf.d/travel.conf`로 복사합니다.
-   ```bash
-   sudo cp CI_CD/nginx_https.conf /etc/nginx/conf.d/travel.conf
-   ```
+---
 
-2. **도메인 및 SSL 인증서 발급 (Certbot 추천)**:
-   ```bash
-   sudo apt update
-   sudo apt install -y certbot python3-certbot-nginx
-   sudo certbot --nginx -d your-domain.com
-   ```
+## 1. 전체 시스템 아키텍처
 
-3. **Nginx 설정 검증 및 반영**:
-   ```bash
-   sudo nginx -t
-   sudo systemctl reload nginx
-   ```
+```
+[ 사용자 브라우저 ]
+        │
+        │ HTTP (포트 80) ──> 301 Redirect ──┐
+        │                                  ▼
+        └───────────────> HTTPS (포트 443 SSL/TLS)
+                               │
+                               ▼
+        ┌────────────────────────────────────────────────────────┐
+        │                AWS EC2 (Amazon Linux 2023)             │
+        │                                                        │
+        │ [ Nginx Web Server (Host 또는 Docker FrontEnd) ]       │
+        │   ├── 1) 정적 리소스 요청 ('/')                        │
+        │   │      └── React SPA 번들 서빙                       │
+        │   │                                                    │
+        │   └── 2) 백엔드 API 요청 ('/api/*')                    │
+        │          └── proxy_pass http://backend:3001            │
+        │                                                        │
+        │ [ Docker Backend Container ]                           │
+        │   └── NestJS App (포트 3001, HOST=0.0.0.0)             │
+        │       (restart: unless-stopped 로 자동 복구)           │
+        │                                                        │
+        │ [ PostgreSQL 16.15 Database ]                          │
+        │   └── localhost:5432 (travel_test, travel_prod)        │
+        └────────────────────────────────────────────────────────┘
+```
 
-### 2-2. 백엔드 실행을 위한 PM2 전역 설치
-Node.js 프로세스를 무중단 백그라운드로 실행하기 위해 PM2를 설치합니다.
+---
+
+## 2. 배포 운영: Docker Compose 기반 배포
+
+서버 환경의 Node.js 버전이나 전역 프로세스 매니저에 구애받지 않고, 완전 격리된 컨테이너 환경으로 전체 서비스를 1개 명령어로 배포·운영합니다.
+
+### 2-1. 컨테이너 실행 명령어
 ```bash
-sudo npm install -g pm2
+# 1. 최신 코드 동기화
+git pull origin main
+
+# 2. 운영(PROD) 환경 컨테이너 빌드 및 백그라운드 무중단 실행
+APP_ENV=production docker compose up -d --build
+
+# 개발(DEV) 환경 컨테이너로 실행할 경우
+APP_ENV=development docker compose up -d --build
 ```
+
+### 2-2. 컨테이너 구성 및 역할
+* **`frontend` (Nginx 1.27 Alpine)**:
+  - 포트 `80`을 외부에 노출하여 React 정적 웹 애플리케이션을 초고속 서빙
+  - `/api/` 요청을 내부 도커 네트워크를 통해 `http://backend:3001`로 리버스 프록시
+* **`backend` (Node 22 Alpine)**:
+  - 포트 `3001`에서 NestJS 서버 구동
+  - Docker Compose의 `restart: unless-stopped` 정책으로 예기치 못한 장애 시 컨테이너 자동 복구
+  - 호스트의 PostgreSQL 16 DB(`travel_prod` / `travel_test`)와 통신
 
 ---
 
-## 3. GitHub Actions 자동 배포 파이프라인
+## 3. GitHub Actions 자동 빌드 및 배포 파이프라인
 
-프론트엔드와 백엔드가 각각 독립된 워크플로우로 자동 배포됩니다.
+프론트엔드와 백엔드의 변경 사항을 감지하여 GitHub-hosted 러너에서 검증한 뒤 EC2 Self-hosted 러너로 안전하게 전달합니다.
 
 ### 3-1. 프론트엔드 파이프라인 (`.github/workflows/deploy.yml`)
-* **트리거**: `FrontEnd/**` 또는 `CI_CD/**` 변경 시 `main` 브랜치 푸시
-* **빌드 잡 (Build)**: GitHub-hosted 러너에서 `CI_CD/build_frontend.sh` 실행 (`dist/` 생성)
-* **배포 잡 (Deploy)**: EC2 Self-hosted 러너에서 `CI_CD/deploy_frontend.sh` 실행 (`/usr/share/nginx/html` 동기화)
+* **트리거 경로**: `FrontEnd/**`, `CI_CD/**`
+1. **GitHub-hosted Runner (ubuntu-latest)**:
+   - Node.js 환경 초기화 및 `CI_CD/build_frontend.sh` 실행
+   - Vite 기반 프로덕션 번들 빌드 (`FrontEnd/dist/` 생성)
+2. **Self-hosted Runner (AWS EC2)**:
+   - 산출물 동기화 및 웹 서버 리로드
 
 ### 3-2. 백엔드 파이프라인 (`.github/workflows/deploy_backend.yml`)
-* **트리거**: `BackEnd/**` 또는 `CI_CD/**` 변경 시 `main` 브랜치 푸시
-* **빌드 잡 (Build)**: GitHub-hosted 러너에서 `CI_CD/build_backend.sh` 실행
-  - `npm ci`
-  - `npm test` (API & DB 연결 격리 테스트 자동 검증)
-  - `npm run build:prod` (`dist/` 컴파일)
-* **배포 잡 (Deploy)**: EC2 Self-hosted 러너에서 `CI_CD/deploy_backend.sh` 실행
-  - `/var/www/backend` 디렉토리로 산출물 배포
-  - 프로덕션 의존성 설치 (`npm ci --omit=dev`)
-  - PM2 프로세스 무중단 재기동 (`pm2 reload ecosystem.config.cjs`)
-  - 헬스체크 검증 (`GET /api/health`)
+* **트리거 경로**: `BackEnd/**`, `CI_CD/**`
+1. **GitHub-hosted Runner (ubuntu-latest)**:
+   - Node.js 22.x 환경 초기화 및 `CI_CD/build_backend.sh` 실행
+   - 격리 단위 테스트(`npm test`) 통과 검증 후 프로덕션 빌드
+2. **Self-hosted Runner (AWS EC2)**:
+   - 배포 반영 후 헬스체크 검증 (`GET http://127.0.0.1:3001/api/health`)
 
 ---
 
-## 4. EC2 백엔드 유용한 관리 명령어
+## 4. CI/CD 스크립트 명세
 
+| 스크립트 파일 | 역할 | 주요 실행 내용 |
+|---|---|---|
+| **`CI_CD/build_frontend.sh`** | 프론트엔드 빌드 | `npm ci` ➔ `npm run build:prod` ➔ `dist/` 무결성 검증 |
+| **`CI_CD/deploy_frontend.sh`** | 프론트엔드 EC2 배포 | 산출물 동기화 ➔ 권한 부여 (`nginx:nginx`) ➔ 웹 서버 반영 |
+| **`CI_CD/build_backend.sh`** | 백엔드 빌드 & 테스트 | `npm ci` ➔ `npm test` ➔ `npm run build:op` ➔ 컴파일 검증 |
+| **`CI_CD/deploy_backend.sh`** | 백엔드 EC2 배포 | 신규 릴리즈 반영 ➔ 서비스 리로드 ➔ `/api/health` 헬스체크 검증 |
+| **`CI_CD/nginx_https.conf`** | 웹 서버 설정 템플릿 | 80 ➔ 443 리다이렉트, SSL 인증서 바인딩, HSTS, `/api/` 프록시 |
+
+---
+
+## 5. AWS EC2 Self-Hosted Runner 설정 가이드
+
+GitHub Actions 배포 잡을 EC2 서버에서 직접 수신하여 실행하기 위해 Self-Hosted Runner를 등록합니다.
+
+### 5-1. 사전 필수 패키지 설치 (Amazon Linux 2023)
 ```bash
-# PM2 프로세스 상태 확인
-pm2 status
-
-# 백엔드 실시간 로그 확인
-pm2 logs travel-backend
-
-# 백엔드 수동 재기동
-pm2 restart travel-backend
-
-# 서버 재부팅 시 PM2 자동 시작 등록
-pm2 startup
-pm2 save
+sudo dnf update -y
+sudo dnf install -y git curl tar jq libicu docker
+sudo systemctl enable --now docker
+sudo usermod -aG docker ec2-user
 ```
+
+### 5-2. 러너 등록 (GitHub Repository Settings > Actions > Runners)
+```bash
+# actions-runner 디렉토리 생성
+mkdir -p ~/actions-runner && cd ~/actions-runner
+
+# 시스템 아키텍처에 맞게 다운로드 (ARM64 예시)
+# x86_64일 경우 actions-runner-linux-x64-*.tar.gz 사용
+curl -o actions-runner-linux-arm64.tar.gz -L https://github.com/actions/runner/releases/download/v2.322.0/actions-runner-linux-arm64-2.322.0.tar.gz
+tar xzf actions-runner-linux-arm64.tar.gz
+
+# 등록 토큰 입력 (GitHub 웹 콘솔에서 발급받은 토큰)
+./config.sh --url https://github.com/<USER>/<REPO> --token <RUNNER_TOKEN>
+
+# 시스템 서비스로 등록 및 백그라운드 시작
+sudo ./svc.sh install
+sudo ./svc.sh start
+sudo ./svc.sh status
+```
+
+---
+
+## 6. Nginx 리버스 프록시 및 SSL(HTTPS) 설정
+
+### 6-1. 설정 파일 적용
+```bash
+# Nginx 설정 디렉토리로 복사
+sudo cp CI_CD/nginx_https.conf /etc/nginx/conf.d/travel.conf
+
+# 문법 오류 검사
+sudo nginx -t
+
+# Nginx 시작 및 부팅 시 자동 시작 등록
+sudo systemctl enable nginx
+sudo systemctl restart nginx
+```
+
+### 6-2. Let's Encrypt 무료 SSL 인증서 발급 (Certbot)
+```bash
+# Certbot 설치
+sudo dnf install -y certbot python3-certbot-nginx
+
+# 인증서 발급 및 Nginx 자동 반영
+sudo certbot --nginx -d your-service-domain.com
+
+# 90일 만료 전 자동 갱신 테스트
+sudo certbot renew --dry-run
+```
+
+---
+
+## 7. 서버 인프라 보안 그룹(Security Group) 설정
+
+AWS EC2 인스턴스의 보안 그룹 인바운드 규칙 권장 설정:
+
+| 포트 범위 | 프로토콜 | 소스 | 목적 |
+|---|---|---|---|
+| **22** | TCP | 관리자 개인 IP (`/32`) | SSH 원격 터미널 접속 |
+| **80** | TCP | `0.0.0.0/0` (Anywhere) | HTTP 웹 접속 (HTTPS 리다이렉트용) |
+| **443** | TCP | `0.0.0.0/0` (Anywhere) | HTTPS 보안 웹 접속 (사용자 서비스) |
+| **5432** | TCP | 팀원 IP (`/32`) 또는 `32.236.200.229/32` | PostgreSQL 데이터베이스 외부 접속 |
+
+> [!CAUTION]
+> 백엔드 포트 `3001`은 외부로 직접 열지 마세요. 외부 접근은 오직 Nginx(포트 80/443)를 통해서만 인입되도록 차단하는 것이 보안 표준입니다.
+
+---
+
+## 8. Docker 컨테이너 모니터링 및 트러블슈팅
+
+### 8-1. Docker 컨테이너 관리 명령어
+```bash
+# 현재 실행 중인 컨테이너 상태 점검
+docker compose ps
+
+# 전체 실시간 통합 로그 확인 (프론트엔드 + 백엔드)
+docker compose logs -f
+
+# 백엔드 로그만 실시간 스트리밍
+docker compose logs -f backend
+
+# 백엔드 컨테이너만 수동 재기동
+docker compose restart backend
+
+# 컨테이너 전체 정상 종료
+docker compose down
+```
+
+### 8-2. 502 Bad Gateway 발생 시 점검 체크리스트
+1. **백엔드 컨테이너 실행 여부**: `docker compose ps`에서 `backend` 상태가 `Up`인지 확인
+2. **백엔드 로그 점검**: `docker compose logs --tail=100 backend`로 에러 메시지 확인
+3. **HOST 바인딩 확인**: `.env.production` 또는 `.env.development`에서 `HOST=0.0.0.0`으로 설정되었는지 확인 (`127.0.0.1`인 경우 컨테이너 간 통신 차단됨)
+4. **DB 연결 확인**: 컨테이너 내부에서 PostgreSQL 5432 포트로 연결 가능한지 점검

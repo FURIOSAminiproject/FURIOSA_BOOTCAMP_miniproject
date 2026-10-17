@@ -8,6 +8,20 @@
 
 ---
 
+## 📑 프로젝트 문서 바로가기
+
+각 서브시스템별 상세 가이드 및 아키텍처 문서는 아래 링크에서 확인하실 수 있습니다:
+
+| 분류 | 문서 링크 | 핵심 내용 |
+|---|---|---|
+| 🎨 **FrontEnd** | [FrontEnd 가이드](./FrontEnd/README.md) | React 19, Tailwind v4, Leaflet 지도, 컴포넌트 구조, Nginx 리버스 프록시 |
+| 🚀 **BackEnd** | [BackEnd 가이드](./BackEnd/README.md) | NestJS 11, TypeORM, 7인 멀티에이전트, Fail-Safe 폴백 엔진, Docker 컨테이너 운영 |
+| 🗄️ **DataBase** | [DataBase 가이드](./DataBase/README.md) | AWS EC2 PostgreSQL 16, DEV(`travel_test`) & PROD(`travel_prod`), 계정 및 권한 SQL |
+| 🚢 **CI/CD** | [CI/CD 가이드](./CI_CD/README.md) | GitHub Actions, Self-hosted 러너, Nginx HTTPS 및 HSTS, Docker Compose 배포 |
+| 📁 **ETC** | [ETC 가이드](./ETC/README.md) | 팀 회의록 템플릿, 패키지 버전 스냅샷, 협업 컨벤션 |
+
+---
+
 ## 🏗️ 시스템 아키텍처 & 기술 스택
 
 ### 운영 및 도커 배포 아키텍처 (Port 80 / 443)
@@ -24,39 +38,57 @@
      [ Google Gemini AI (GenAI SDK) ]                      [ AWS EC2 PostgreSQL 16.15 ]
      - 7인 멀티에이전트 여행 일정 설계                      - 32.236.200.229:5432
      - 장소별 감성 수필 및 시 생성                         - TEST(travel_test) / PROD(travel_prod)
+     - Graceful Degradation 내장 절차적 폴백 엔진
 ```
-*(참고: 로컬에서 개발 서버를 직접 띄울 때(`npm run dev`)만 프론트엔드가 3000번 포트로 열립니다.)*
-
 
 ### Tech Stack
 | 분류 | 기술 |
 |---|---|
-| **FrontEnd** | React 19, TypeScript, Vite 8, TailwindCSS 4, Leaflet (지도), Lucide React, Motion |
-| **BackEnd** | NestJS 11, TypeScript, TypeORM, Express, Node.js 22, Google GenAI SDK |
+| **FrontEnd** | React 19, TypeScript, Vite 8, Tailwind CSS v4, Leaflet (지도), Lucide React, Motion |
+| **BackEnd** | NestJS 11, TypeScript, TypeORM, Express, Node.js 22 LTS, Google GenAI SDK |
 | **Database** | PostgreSQL 16.15 (AWS EC2), DBeaver |
-| **CI/CD & Infra** | GitHub Actions, AWS EC2, Nginx |
+| **CI/CD & Infra** | GitHub Actions, AWS EC2 (Amazon Linux 2023), Nginx, Docker & Docker Compose |
 
 ---
 
-## 📁 디렉토리 구조
+## 📁 전체 디렉토리 구조
 
 ```
 FURIOSA_BOOTCAMP_miniproject/
-├── BackEnd/              # NestJS 백엔드 서버
+├── FrontEnd/                         # React 19 + TypeScript + Vite 8
 │   ├── src/
-│   │   ├── database/     # TypeORM 연결 모듈 & DB 진단(check)
-│   │   ├── travel/       # Gemini AI 멀티에이전트 여행 설계 & 수필/시 생성
-│   │   └── main.ts       # NestJS 부트스트랩 & 환경별 TLS 제어
-│   ├── scripts/          # 환경별 빌드/실행/DB검사 유틸 (start, build, check-db)
-│   └── test/             # 단위 & 통합 테스트
-├── FrontEnd/             # React 프론트엔드
+│   │   ├── components/               # 여행신청폼, 일정표, Leaflet 지도, 감성시 섹션, 관리자 대시보드
+│   │   ├── services/api.ts           # 백엔드 REST API 연동 클라이언트
+│   │   └── types/travel.ts           # 프론트엔드 공통 타입 정의
+│   ├── Dockerfile                    # Nginx Alpine 기반 경량 컨테이너
+│   ├── nginx.conf                    # SPA 라우팅 및 /api/ 프록시 Nginx 설정
+│   └── README.md                     # [프론트엔드 상세 가이드]
+├── BackEnd/                          # NestJS 11 + TypeORM + Gemini Multi-Agent
 │   ├── src/
-│   │   ├── components/   # UI 컴포넌트, 여행 일정표, Leaflet 지도
-│   │   └── services/     # 백엔드 API 연동 클라이언트 (api.ts)
-│   └── vite.config.ts    # 환경별 프록시 설정
-├── DataBase/             # AWS EC2 PostgreSQL 접속 안내 및 DBeaver 설정 가이드
-├── CI_CD/                # GitHub Actions 워크플로우 & Nginx 설정 가이드
-└── README.md             # 프로젝트 종합 가이드
+│   │   ├── database/                 # TypeORM 연결 모듈 & DB 진단(check) CLI
+│   │   ├── travel/                   # 7인 AI 멀티에이전트, 감성 문학 리뷰, 절차적 폴백 엔진
+│   │   └── main.ts                   # 부트스트랩 (포트 바인딩, CORS, HSTS)
+│   ├── scripts/                      # 환경별 start, build, check-db 유틸
+│   ├── Dockerfile                    # Node 22 Alpine 멀티스테이지 컨테이너
+│   └── README.md                     # [백엔드 상세 가이드]
+├── DataBase/                         # AWS EC2 PostgreSQL 16 접속 정보 & 계정/권한 안내
+│   └── README.md                     # [데이터베이스 상세 가이드]
+├── CI_CD/                            # GitHub Actions 자동 배포 & Nginx HTTPS 설정
+│   ├── build_frontend.sh             # 프론트엔드 빌드 스크립트
+│   ├── deploy_frontend.sh            # 프론트엔드 EC2 배포 스크립트
+│   ├── build_backend.sh              # 백엔드 빌드 & 테스트 스크립트
+│   ├── deploy_backend.sh             # 백엔드 EC2 무중단 배포 스크립트
+│   ├── nginx_https.conf              # SSL 리버스 프록시 설정 템플릿
+│   └── README.md                     # [CI/CD 상세 가이드]
+├── ETC/                              # 프로젝트 회의록 및 운영 자료
+│   ├── 회의록/                        # 회의록 템플릿 및 날짜별 회의 기록
+│   ├── Package_list.txt              # 프로젝트 설치 패키지 목록
+│   └── README.md                     # [ETC 상세 가이드]
+├── .github/workflows/                # GitHub Actions 워크플로우 정의
+│   ├── deploy.yml                    # 프론트엔드 CI/CD
+│   └── deploy_backend.yml            # 백엔드 CI/CD
+├── docker-compose.yml                # 프론트엔드 + 백엔드 통합 오케스트레이션
+└── README.md                         # [프로젝트 종합 가이드]
 ```
 
 ---
@@ -64,32 +96,28 @@ FURIOSA_BOOTCAMP_miniproject/
 ## ⚡ 빠른 시작 (Quick Start)
 
 ### 1. BackEnd 실행
-
 ```powershell
 cd BackEnd
 
-# 패키지 설치
+# 의존성 설치
 npm install
 
 # 환경 파일 준비 (.example 복사)
 cp .env.development.example .env.development
-# .env.development 파일에 GEMINI_API_KEY 및 DB 정보 확인
 
 # 개발 서버 실행 (포트 3001)
 npm run start:dev
 ```
 
 ### 2. FrontEnd 실행
-
 새 터미널을 열고 실행합니다:
-
 ```powershell
 cd FrontEnd
 
-# 패키지 설치
+# 의존성 설치
 npm install
 
-# 개발 서버 실행 (포트 80)
+# 개발 서버 실행 (포트 80 통일)
 npm run dev
 # 또는 npm run start:dev
 ```
@@ -104,15 +132,15 @@ npm run dev
 
 | 환경 | 환경 파일 | 백엔드 빌드 | 백엔드 실행 | 프론트엔드 빌드 | 프론트엔드 실행 | DB 대상 |
 |---|---|---|---|---|---|---|
-| **로컬 (local)** | `.env.local` | `npm run build:local` | `npm run start:local` | `npm run build:local` | `npm run start:local` (또는 `dev:local`) | 로컬 PostgreSQL (`travel_local`) |
-| **개발 (dev)** | `.env.development` | `npm run build:dev` | `npm run start:dev` | `npm run build:dev` | `npm run start:dev` (또는 `dev`) | AWS 공유 DB (`travel_test`) |
+| **로컬 (local)** | `.env.local` | `npm run build:local` | `npm run start:local` | `npm run build:local` | `npm run start:local` | 로컬 PostgreSQL (`travel_local`) |
+| **개발 (dev)** | `.env.development` | `npm run build:dev` | `npm run start:dev` | `npm run build:dev` | `npm run start:dev` | AWS 공유 DB (`travel_test`) |
 | **운영 (op)** | `.env.production` | `npm run build:op` | `npm run start:op` | `npm run build:op` | `npm run start:op` | AWS 운영 DB (`travel_prod`) |
 
 ---
 
-## 🔍 DB 연결 진단 (TypeORM)
+## 🔍 DB 연결 사전 진단 (TypeORM)
 
-사전 빌드(`npm run build`) 없이 TypeScript 스크립트를 즉시 실행하여 각 환경의 DB 접속 상태를 진단할 수 있습니다:
+사전 빌드(`npm run build`) 없이 TypeScript 스크립트를 즉시 실행하여 각 환경의 DB 접속 상태를 1초 만에 진단할 수 있습니다:
 
 ```powershell
 cd BackEnd
@@ -129,69 +157,57 @@ npm run db:check -- prod    # 운영(PROD) DB 연결 확인
 |---|---|---|
 | `GET` | `/api/health` | 백엔드 서버 상태 점검 |
 | `GET` | `/api/health/db` | DB 연결 상태 점검 (`SELECT 1`) |
-| `POST` | `/api/travel/plans` | Gemini 기반 7인 멀티에이전트 여행 일정 및 코스 생성 |
-| `POST` | `/api/travel/poetic-reviews` | 추천 맛집/명소 감성 수필 및 시 문학 리뷰 생성 |
-
----
-
-## 🔒 보안 및 환경변수 원칙
-
-1. **실제 `.env.*` 파일은 Git에 절대 커밋되지 않습니다.** (`.gitignore` 적용)
-2. 저장소에는 `.env.*.example` 템플릿만 공유됩니다.
-3. EC2 서버 배포 시 운영 환경 파일(`.env.production`)은 서버 내부에서 직접 생성/관리합니다.
-4. 웹 통신 TLS 및 DB SSL 적용 여부는 각 환경 파일의 `ENABLE_TLS` 및 `DB_SSL` 플래그로 선택 제어됩니다.
+| `POST` | `/api/travel/plans` | Gemini 7인 멀티에이전트 여행 일정 및 코스 생성 (Fail-Safe 폴백 지원) |
+| `POST` | `/api/travel/poetic-reviews` | 추천 명소/맛집 감성 수필 및 시 문학 리뷰 생성 |
 
 ---
 
 ## 🐳 Docker 컨테이너 실행 가이드 (환경 분리 지원)
 
-본 프로젝트는 Docker 및 Docker Compose를 통해 프론트엔드(React + Nginx)와 백엔드(NestJS)를 컨테이너화하여 일관된 환경에서 실행할 수 있습니다. `APP_ENV` 환경변수를 통해 **운영(op/production)**, **개발(dev/development)**, **로컬(local)** 환경을 자유롭게 스위칭하여 구동할 수 있습니다.
+Docker Compose를 통해 프론트엔드(React + Nginx)와 백엔드(NestJS)를 컨테이너화하여 일관된 환경에서 실행할 수 있습니다. `APP_ENV` 환경변수를 통해 환경을 스위칭합니다.
 
-### 1. 환경별 실행 명령어
+### 환경별 실행 명령어
 
 #### 🐧 Linux / EC2 / macOS / Git Bash
 ```bash
-# 1) 운영(OP) 환경 실행 (기본값: .env.production / travel_prod DB 연결)
+# 운영(OP) 환경 실행 (기본값: .env.production / travel_prod DB 연결)
 APP_ENV=production docker compose up -d --build
-# 또는 그냥 실행 (기본값이 production으로 설정됨)
+# 또는 기본 실행 (기본값이 production으로 설정됨)
 docker compose up -d --build
 
-# 2) 개발(DEV) 환경 실행 (.env.development / travel_test DB 연결)
+# 개발(DEV) 환경 실행 (.env.development / travel_test DB 연결)
 APP_ENV=development docker compose up -d --build
 
-# 3) 로컬(LOCAL) 환경 실행 (.env.local / travel_local DB 연결)
+# 로컬(LOCAL) 환경 실행 (.env.local / travel_local DB 연결)
 APP_ENV=local docker compose up -d --build
 ```
 
 #### 🪟 Windows PowerShell
 ```powershell
-# 1) 운영(OP) 환경 실행
+# 운영(OP) 환경 실행
 $env:APP_ENV="production"; docker compose up -d --build
 
-# 2) 개발(DEV) 환경 실행
+# 개발(DEV) 환경 실행
 $env:APP_ENV="development"; docker compose up -d --build
 
-# 3) 로컬(LOCAL) 환경 실행
+# 로컬(LOCAL) 환경 실행
 $env:APP_ENV="local"; docker compose up -d --build
 ```
 
-### 2. 컨테이너 상태 점검 및 관리
-
+### 컨테이너 관리 명령어
 ```bash
 # 실행 중인 컨테이너 상태 확인
 docker compose ps
 
-# 프론트엔드 및 백엔드 실시간 통합 로그 확인
+# 전체 실시간 로그 확인
 docker compose logs -f
 
-# 백엔드 로그만 확인
-docker compose logs -f backend
-
-# 전체 컨테이너 정상 종료
+# 전체 컨테이너 종료
 docker compose down
 ```
 
-### 3. Docker 네트워크 및 DB 통신
-* **프론트엔드 (Nginx)**: 포트 `80`을 외부에 노출하며, `/api/` 요청을 내부 도커 네트워크를 통해 `http://backend:3001`로 리버스 프록시합니다.
-* **백엔드 (NestJS)**: 포트 `3001`에서 구동되며, 호스트 머신에서 실행 중인 PostgreSQL DB와 `host.docker.internal:5432` 또는 EC2 퍼블릭 IP(`32.236.200.229:5432`)를 통해 안전하게 통신합니다.
+---
 
+## 🛡️ 시스템 안정성 (Graceful Degradation)
+- **API Key 독립 동작**: `GEMINI_API_KEY`가 없거나 Quota 초과 시에도 백엔드가 중단되지 않고 내장된 절차적 엔진(`generateProceduralKoreanPlan`)으로 실감나는 한국어 맞춤 일정과 시/수필을 즉시 생성하여 제공합니다.
+- **Port 80 단일 창구**: 외부 클라이언트는 복잡한 포트 구분 없이 포트 80(또는 HTTPS 443) 단일 창구로 웹과 API 서비스를 모두 원활하게 이용할 수 있습니다.
