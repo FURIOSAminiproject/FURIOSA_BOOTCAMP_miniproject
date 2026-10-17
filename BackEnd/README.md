@@ -41,7 +41,7 @@ npm run db:check -- dev
 
 Vite는 예약된 mode 이름 local 대신 localdev를 사용하고 .env.local 파일에 명시적으로 매핑합니다.
 Vite 자동 환경 파일 로딩은 끄고 선택한 파일 하나만 읽습니다. 다른 환경의 .local 파일이 섞이지 않습니다.
-BACKEND_URL은 개발/preview 프록시 전용이며 브라우저는 /api만 호출합니다. 기본 FrontEnd 포트는 3000, NestJS는 3001입니다.
+BACKEND_URL은 개발/preview 프록시 전용이며 브라우저는 /api만 호출합니다. 기본 FrontEnd 포트는 80, NestJS는 3001입니다.
 운영 정적 웹 서버에서는 /api를 NestJS로 연결하는 리버스 프록시가 필요합니다.
 
 ## API / Gemini
