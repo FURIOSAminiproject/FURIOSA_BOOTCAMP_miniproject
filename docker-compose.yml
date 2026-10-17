@@ -1,0 +1,44 @@
+services:
+  # ----------------------------------------------------------------------------
+  # 1. NestJS 백엔드 서비스
+  # ----------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./BackEnd
+      dockerfile: Dockerfile
+    container_name: travel-backend
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - APP_ENV=production
+      - PORT=3001
+      - HOST=0.0.0.0
+    # .env.production 파일이 있으면 환경변수로 로드 (없어도 오류 방지)
+    env_file:
+      - path: ./BackEnd/.env.production
+        required: false
+    # 호스트 OS(EC2)에서 구동 중인 PostgreSQL 접속 지원
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - travel-network
+
+  # ----------------------------------------------------------------------------
+  # 2. React + Nginx 프론트엔드 및 리버스 프록시 서비스
+  # ----------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./FrontEnd
+      dockerfile: Dockerfile
+    container_name: travel-frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - travel-network
+
+networks:
+  travel-network:
+    driver: bridge
