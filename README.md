@@ -17,6 +17,7 @@
 | 🎨 **FrontEnd** | [FrontEnd 가이드](./FrontEnd/README.md) | React 19, Tailwind v4, Leaflet 지도, 컴포넌트 구조, Nginx 리버스 프록시 |
 | 🚀 **BackEnd** | [BackEnd 가이드](./BackEnd/README.md) | NestJS 11, TypeORM, 7인 멀티에이전트, Fail-Safe 폴백 엔진, Docker 컨테이너 운영 |
 | 🗄️ **DataBase** | [DataBase 가이드](./DataBase/README.md) | AWS EC2 PostgreSQL 16, DEV(`travel_test`) & PROD(`travel_prod`), 계정 및 권한 SQL |
+| 🐳 **Docker** | [Docker 가이드](./Docker/README.md) | 초심자 개념 총정리, 멀티스테이지 빌드, 환경 분리, 네트워크 아키텍처, Compose 명령어 |
 | 🚢 **CI/CD** | [CI/CD 가이드](./CI_CD/README.md) | GitHub Actions, Self-hosted 러너, Nginx HTTPS 및 HSTS, Docker Compose 배포 |
 | 📁 **ETC** | [ETC 가이드](./ETC/README.md) | 팀 회의록 템플릿, 패키지 버전 스냅샷, 협업 컨벤션 |
 
@@ -73,6 +74,8 @@ FURIOSA_BOOTCAMP_miniproject/
 │   └── README.md                     # [백엔드 상세 가이드]
 ├── DataBase/                         # AWS EC2 PostgreSQL 16 접속 정보 & 계정/권한 안내
 │   └── README.md                     # [데이터베이스 상세 가이드]
+├── Docker/                           # 컨테이너 가상화 및 통합 오케스트레이션 가이드
+│   └── README.md                     # [Docker 상세 가이드 (초심자용 개념 & 실전)]
 ├── CI_CD/                            # GitHub Actions 자동 배포 & Nginx HTTPS 설정
 │   ├── build_frontend.sh             # 프론트엔드 빌드 스크립트
 │   ├── deploy_frontend.sh            # 프론트엔드 EC2 배포 스크립트
@@ -163,6 +166,8 @@ npm run db:check -- prod    # 운영(PROD) DB 연결 확인
 ---
 
 ## 🐳 Docker 컨테이너 실행 가이드 (환경 분리 지원)
+
+> 💡 **초심자 가이드**: Docker를 처음 접하는 팀원을 위한 기본 개념(이미지, 컨테이너, Dockerfile, Compose)과 멀티스테이지 빌드 원리, 네트워크 아키텍처 및 상세 트러블슈팅은 [**Docker 상세 가이드**](./Docker/README.md)에 친절하게 정리되어 있습니다.
 
 Docker Compose를 통해 프론트엔드(React + Nginx)와 백엔드(NestJS)를 컨테이너화하여 일관된 환경에서 실행할 수 있습니다. `APP_ENV` 환경변수를 통해 환경을 스위칭합니다.
 
