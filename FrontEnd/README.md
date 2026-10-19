@@ -1,101 +1,109 @@
-# 🎨 길벗 AI 여행사 - FrontEnd
+# 길벗 AI 여행사 FrontEnd
 
-React 19와 Vite 8 기반의 모던 웹 프론트엔드 프로젝트입니다. 7인의 AI 멀티에이전트가 설계한 맞춤 여행 일정을 시각적으로 탐색하고 관리자가 검토/인가할 수 있는 직관적인 UI/UX를 제공합니다.
+React 기반 여행 신청·일정 조회·지도·관리자 승인 시연 UI입니다. 실제 일정 생성은 NestJS API에 요청합니다.
 
+## 기술 스택
 
+`package.json`에 선언된 범위 기준입니다. 실제 설치 버전은 `package-lock.json`을 확인합니다.
 
-## 🛠️ 기술 스택 (Tech Stack)
+| 라이브러리 | 선언 버전 |
+|---|---|
+| React / React DOM | `^19.0.1` |
+| TypeScript | `^7.0.2` |
+| Vite | `^8.3.0` |
+| Tailwind CSS / @tailwindcss/vite | `^4.3.3` |
+| Leaflet / @types/leaflet | `^1.9.4` / `^1.9.22` |
+| Motion | `^12.23.24` |
+| Lucide React | `^0.546.0` |
 
-| 구분 | 기술 / 라이브러리 | 버전 | 주요 용도 |
-|---|---|---|---|
-| **Core** | React | 19.0.1 | 컴포넌트 기반 UI 렌더링 |
-| **Language** | TypeScript | 7.0.2 | 타입 안정성 보장 |
-| **Build Tool** | Vite | 8.3.0 | 초고속 HMR 및 프로덕션 번들링 |
-| **Styling** | Tailwind CSS | 4.3.3 | 유틸리티 퍼스트 CSS 프레임워크 |
-| **Map** | Leaflet / @types/leaflet | 1.9.4 | 여행 동선 및 장소 마커 인터랙티브 지도 시각화 |
-| **Animation** | Motion (Framer Motion) | 12.23.24 | 카드 플립, 모달 페이드인 등 마이크로 애니메이션 |
-| **Icons** | Lucide React | 0.546.0 | 모던 SVG 아이콘 세트 |
-| **Web Server** | Nginx (Alpine) | - | 도커 및 프로덕션 정적 서빙 & API 리버스 프록시 |
+## 구조와 구현 범위
 
----
-
-## 📁 디렉토리 및 컴포넌트 구조
-
-```
+```text
 FrontEnd/
 ├── src/
-│   ├── components/                 # 주요 UI 컴포넌트
-│   │   ├── Header.tsx              # 상단 네비게이션 및 환경 상태 표시
-│   │   ├── HeroBanner.tsx          # 메인 랜딩 히어로 배너 및 프로모션
-│   │   ├── TravelRequestForm.tsx   # 고객 여행 의뢰서 입력 폼 (예산, 동행자, 스타일 등)
-│   │   ├── TravelPlanDetail.tsx    # AI 여행 일정 상세표, 일자별 코스, 비용 분석
-│   │   ├── TravelMapView.tsx       # Leaflet 기반 여행지 인터랙티브 지도
-│   │   ├── PoeticReviewSection.tsx # '풍류시객' 에이전트의 맛집/카페 감성 수필 & 시
-│   │   ├── AgentTeamIntro.tsx      # 7인 AI 멀티에이전트 역할 소개 카드
-│   │   ├── AdminDashboard.tsx      # 관리자 여행사 종합 관제 대시보드
-│   │   ├── AdminApprovalModal.tsx  # 일정 승인/수정요청/반려 관리자 인가 모달
-│   │   ├── PrintVoucher.tsx        # 여행 확정서 인쇄/PDF 출력 뷰
-│   │   └── ShareModal.tsx          # 카카오톡/링크 공유 모달
-│   ├── data/
-│   │   └── presetData.ts           # 프리셋 예시 데이터 및 지역별 명소 좌표
-│   ├── services/
-│   │   ├── api.ts                  # 백엔드 NestJS API 공통 통신 클라이언트
-│   │   ├── aiTravelAgent.ts        # 7인 AI 에이전트 작업 오케스트레이션 및 스트리밍 시각화
-│   │   └── poetryService.ts        # 풍류시객 감성 시/수필 재생성 클라이언트
-│   ├── types/
-│   │   └── travel.ts               # 여행 요청, 일정, 에이전트 등 TypeScript 인터페이스
-│   ├── App.tsx                     # 메인 애플리케이션 상태 관리 및 라우팅
-│   ├── main.tsx                    # React 진입점
-│   └── index.css                   # 글로벌 스타일 및 Tailwind 지시자
-├── Dockerfile                      # 프론트엔드 Nginx 멀티스테이지 도커파일
-├── nginx.conf                      # 컨테이너 내부 Nginx 서빙 & API 프록시 설정
-├── vite.config.ts                  # Vite 빌드 및 개발 프록시 설정
-└── package.json                    # 프로젝트 의존성 및 스크립트 정의
+│   ├── components/
+│   │   ├── Header.tsx
+│   │   ├── HeroBanner.tsx
+│   │   ├── TravelRequestForm.tsx
+│   │   ├── TravelPlanDetail.tsx
+│   │   ├── TravelMapView.tsx
+│   │   ├── PoeticReviewSection.tsx
+│   │   ├── AgentTeamIntro.tsx
+│   │   ├── AgentOrchestrationView.tsx
+│   │   ├── AdminDashboard.tsx
+│   │   ├── AdminApprovalModal.tsx
+│   │   ├── PrintVoucher.tsx
+│   │   └── ShareModal.tsx
+│   ├── data/presetData.ts
+│   ├── services/api.ts
+│   ├── services/aiTravelAgent.ts
+│   ├── services/poetryService.ts
+│   ├── types/travel.ts
+│   ├── App.tsx
+│   ├── main.tsx
+│   └── index.css
+├── Dockerfile
+├── docker-entrypoint.sh
+├── nginx.conf
+├── nginx_http.conf
+├── nginx_ssl.conf
+├── vite.config.ts
+└── package.json
 ```
 
----
+`aiTravelAgent.ts`에는 길라잡이·명소박사·미식가·안식처·동선지기·설계사·감수관·풍류시객의 8개 역할이 정의되어 있습니다. 진행 뷰는 고정 로그와 지연을 표시한 뒤 `/api/travel/plans`에 POST합니다. 서버 이벤트 스트리밍이나 역할별 독립 AI 호출은 없습니다.
 
-## 🚀 환경별 실행 및 빌드 명령어
+`App.tsx`의 일정·통계·승인 상태는 React 메모리에 저장되며 새로고침하면 프리셋으로 초기화됩니다. 관리자 모드는 기본 `true`이고 서버 인증·권한 검사와 승인 저장 API는 없습니다. 수정 요청 시에는 일정 생성 API를 다시 호출합니다. 공유 모달은 현재 페이지 URL을 복사하며, 카카오 알림톡 전송은 UI 시뮬레이션입니다. 일정별 공유 URL이나 실제 알림톡 발송 API는 없습니다.
 
-본 프로젝트는 **포트 80**을 기본 웹 포트로 사용하며, 환경변수 파일(`.env.*`)을 통해 대상을 제어합니다:
+## 실행 및 환경
 
-| 환경 | 환경 파일 | 개발/실행 명령어 | 빌드 명령어 | 비고 |
-|---|---|---|---|---|
-| **로컬 (local)** | `.env.local` | `npm run start:local` (또는 `dev:local`) | `npm run build:local` | 로컬 백엔드(`127.0.0.1:3001`) 프록시 |
-| **개발 (dev)** | `.env.development` | `npm run start:dev` (또는 `dev`) | `npm run build:dev` | 개발 백엔드 연동 |
-| **운영 (op/prod)** | `.env.production` | `npm run start:prod` (또는 `preview`) | `npm run build:prod` | 운영 정적 번들 빌드 (`dist/` 생성) |
+로컬 Node.js는 22.12 이상인 22.x 버전을 사용하고 이 폴더에서 명령을 실행합니다. 잠금 파일의 Vite 8.3.4가 요구하는 Node 버전은 `^20.19.0 || >=22.12.0`이며, 프로젝트 CI와 Dockerfile은 Node 22를 선택합니다.
 
 ```bash
-# 의존성 설치
 npm install
-
-# 개발 서버 구동 (기본 포트: 80)
-npm run dev
-
-# 프로덕션 번들 빌드
-npm run build:prod
+npm run start:local
 ```
 
----
+| 환경 | 읽는 환경 파일 | 빌드 | 실행 |
+|---|---|---|---|
+| 로컬 | `.env.local` | `npm run build:local` | `npm run start:local` |
+| 개발 | `.env.development` | `npm run build:dev` | `npm run start:dev` 또는 `npm run dev` |
+| 운영 | `.env.production` | `npm run build:prod` | `npm run start:prod` 또는 `npm run preview` |
 
-## 🐳 Docker 컨테이너 구동
+`build:op` / `start:op`도 운영 별칭입니다. 운영 실행은 먼저 생성된 `dist/`가 필요합니다. Vite preview는 로컬 빌드 확인용이며 배포 컨테이너에서는 Nginx가 서빙합니다.
 
-`Dockerfile`과 `nginx.conf`를 통해 Nginx Alpine 기반의 초경량 컨테이너로 실행됩니다:
+Vite는 포트 80으로 시작을 시도합니다. `strictPort`를 지정하지 않았으므로 포트 점유 시 다른 포트를 선택할 수 있습니다. 실제 접속 주소는 실행 로그를 확인합니다.
+
+Vite 설정은 선택한 환경 파일을 직접 파싱하고 시스템 환경변수를 우선합니다. `localdev` 모드는 `.env.local`로 매핑하며 Vite 기본 환경 파일 로딩은 비활성화되어 있습니다. 직접 파싱한 값은 프록시 구성에 사용하고 클라이언트 코드에 따로 주입하지 않습니다. 단, 실행 프로세스에 이미 설정된 `VITE_*` 변수는 Vite 기본 규칙에 따라 클라이언트에 노출될 수 있습니다.
+
+```env
+BACKEND_URL=http://127.0.0.1:3001
+ENABLE_TLS=false
+```
+
+`BACKEND_URL`을 생략하면 `ENABLE_TLS=true`일 때 `https://127.0.0.1:3001`, 그 외에는 HTTP를 프록시 대상으로 사용합니다. 이 설정은 Vite의 `/api` 프록시에 적용되며 개발 서버 자체의 HTTPS를 켜지 않습니다. 개발 및 preview 모두 `/fastapi` 프록시는 없습니다.
+
+## API 및 검증
+
+`api.ts`는 `/api` 경로에 JSON POST를 보내고 180초 타임아웃을 사용합니다. 일정 생성과 단일 장소 문학 리뷰를 요청하며, FastAPI 추천 API는 현재 사용하지 않습니다.
 
 ```bash
-# 프론트엔드 단독 이미지 빌드
-docker build -t travel-frontend .
-
-# 프론트엔드 컨테이너 실행 (포트 80)
-docker run -d -p 80:80 --name travel-frontend travel-frontend
+npm run lint
+npm run build
 ```
 
----
+`lint`는 `tsc --noEmit` 타입 검사입니다. Vite 빌드 자체와 타입 검사는 별도입니다.
 
-## 🔄 Nginx 리버스 프록시 연동 원리
+## Docker
 
-브라우저는 모든 요청을 프론트엔드 웹 서버(포트 80 / 443)로 전달하며, Nginx가 URL 패턴에 따라 분기 처리합니다:
-* `/` (웹 페이지 및 정적 파일): `/usr/share/nginx/html`에 번들링된 React SPA 파일 서빙
-* `/api/` (백엔드 API 호출): NestJS 서버(`http://backend:3001` 또는 `127.0.0.1:3001`)로 리버스 프록시 포워딩
-* `/fastapi/` (AI 엔진 API 호출): FastAPI 서버(`http://fastapi:8000` 또는 `127.0.0.1:8000`)로 리버스 프록시 포워딩
-* 이 구조로 인해 브라우저 단의 **CORS 문제가 원천 차단**됩니다.
+서비스명 `backend`, `fastapi`를 해석할 수 있도록 저장소 루트의 Compose로 실행합니다. NestJS DB 환경 파일이 먼저 필요합니다.
+
+```bash
+APP_ENV=development docker compose up -d --build
+```
+
+Dockerfile은 Node 22에서 소스를 빌드하고 `nginx:alpine`으로 서빙합니다. 현재 빌드에는 `src/`가 복사되며 로컬 `.env.*`와 `public/`는 복사되지 않습니다. 이미지 내부의 기본 환경 파일은 Dockerfile에서 생성합니다. `BACKEND_URL`은 실행 중인 Nginx 프록시 대상을 변경하지 않습니다.
+
+컨테이너 시작 시 `docker-entrypoint.sh`가 마운트된 인증서를 감지해 `nginx_http.conf` 또는 `nginx_ssl.conf`를 적용합니다. `/api/`는 `http://backend:3001`, `/fastapi/`는 접두사를 제거해 `http://fastapi:8000`으로 보냅니다. 브라우저는 동일 출처로 호출할 수 있습니다. 443 포트 공개만으로 HTTPS가 활성화되지는 않습니다.
+
+단독 `docker run`으로 정적 화면을 확인할 수는 있지만 API에는 공유 네트워크와 해당 서비스명이 필요합니다. [Docker 안내](../Docker/README.md)와 [배포 안내](../CI_CD/FrontEnd/README.md)를 참고합니다.

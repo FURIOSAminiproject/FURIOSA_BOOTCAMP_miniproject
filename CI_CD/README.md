@@ -1,279 +1,151 @@
-# 🚀 CI/CD 및 자동 배포 가이드
+# CI/CD 및 인프라 운영 안내
 
-> **Docker Compose 및 GitHub Actions 기반 무중단 배포 / Nginx 리버스 프록시 인프라 가이드**  
-> 본 프로젝트는 프론트엔드와 백엔드를 **Docker Compose 컨테이너 환경으로 표준화**하여 호스트 OS의 Node.js/런타임 버전 종속성을 배제하고, 일관된 무중단 서비스를 제공합니다.
+현재 자동 배포는 GitHub Actions에서 검증한 뒤 EC2 Self-hosted 러너에서 Docker Compose 이미지를 다시 빌드하고 컨테이너를 교체하는 방식입니다. 단일 컨테이너 교체에 따른 일시 중단이 가능하며 자동 롤백은 없습니다.
 
+## 배포 구성
 
-
-## 📑 목차
-1. [전체 시스템 아키텍처](#1-전체-시스템-아키텍처)
-2. [배포 운영: Docker Compose 기반 배포](#2-배포-운영-docker-compose-기반-배포)
-3. [GitHub Actions 자동 빌드 및 배포 파이프라인](#3-github-actions-자동-빌드-및-배포-파이프라인)
-4. [CI/CD 스크립트 명세](#4-cicd-스크립트-명세)
-5. [AWS EC2 Self-Hosted Runner 설정 가이드](#5-aws-ec2-self-hosted-runner-설정-가이드)
-6. [Nginx 리버스 프록시 및 SSL(HTTPS) 설정](#6-nginx-리버스-프록시-및-sslhttps-설정)
-7. [서버 인프라 보안 그룹(Security Group) 설정](#7-서버-인프라-보안-그룹security-group-설정)
-8. [Docker 컨테이너 모니터링 및 트러블슈팅](#8-docker-컨테이너-모니터링-및-트러블슈팅)
-
----
-
-## 1. 전체 시스템 아키텍처
-
-```
-[ 사용자 브라우저 ]
-        │
-        │ HTTP (포트 80) ──> 301 Redirect ──┐
-        │                                  ▼
-        └───────────────> HTTPS (포트 443 SSL/TLS)
-                               │
-                               ▼
-        ┌────────────────────────────────────────────────────────┐
-        │                AWS EC2 (Amazon Linux 2023)             │
-        │                                                        │
-        │ [ 호스트 OS / Let's Encrypt Certbot ]                  │
-        │   └── /etc/letsencrypt/live/... (호스트 단일 관리)     │
-        │   └── certbot renew --deploy-hook "docker exec ..."    │
-        │                                                        │
-        │ [ travel-frontend 컨테이너 (Nginx Alpine) ]            │
-        │   ├── 볼륨 마운트: /etc/letsencrypt:ro                 │
-        │   ├── 1) 정적 리소스 요청 ('/') -> React SPA 서빙      │
-        │   ├── 2) 백엔드 API 요청 ('/api/*') -> NestJS:3001     │
-        │   └── 3) AI 추론 요청 ('/fastapi/*') -> FastAPI:8000   │
-        │                                                        │
-        │ [ travel-backend 컨테이너 (NestJS Node 22) ]           │
-        │   └── 포트 3001 (BFF & 비즈니스 로직)                  │
-        │                                                        │
-        │ [ travel-fastapi 컨테이너 (Python 3.12 FastAPI) ]      │
-        │   └── 포트 8000 (경량 AI 마이크로서비스)               │
-        │                                                        │
-        │ [ PostgreSQL 16 Database ] (호스트 OS 직접 구동)       │
-        │   └── localhost:5432 (travel_test, travel_prod)        │
-        └────────────────────────────────────────────────────────┘
+```text
+인터넷 :80 / :443 → travel-frontend (Nginx)
+                     ├─ /          → React 정적 번들
+                     ├─ /api/      → backend:3001
+                     └─ /fastapi/  → fastapi:8000 (접두사 제거)
+호스트 127.0.0.1:3001 → travel-backend
+호스트 127.0.0.1:8000 → travel-fastapi
+travel-backend        → 별도로 준비한 PostgreSQL
 ```
 
----
+세 서비스는 Compose의 `travel-network`를 사용합니다. DB 컨테이너는 정의되어 있지 않습니다. 컨테이너에서 `127.0.0.1`은 자기 자신이므로 호스트 DB는 `host.docker.internal` 또는 접근 가능한 DB 주소를 지정합니다.
 
-## 2. 배포 운영: Docker Compose 기반 배포
-
-서버 환경의 Node.js 버전이나 전역 프로세스 매니저에 구애받지 않고, 완전 격리된 컨테이너 환경으로 전체 서비스를 1개 명령어로 배포·운영합니다.
-
-### 2-1. 컨테이너 실행 명령어
-```bash
-# 1. 최신 코드 동기화
-git pull origin main
-
-# 2. 운영(PROD) 환경 컨테이너 빌드 및 백그라운드 무중단 실행
-APP_ENV=production docker compose up -d --build
-
-# 개발(DEV) 환경 컨테이너로 실행할 경우
-APP_ENV=development docker compose up -d --build
-```
-
-### 2-2. 컨테이너 구성 및 역할
-* **`frontend` (Nginx 1.27 Alpine)**:
-  - 포트 `80` 및 `443`을 외부에 노출하여 React 정적 웹 애플리케이션을 초고속 서빙
-  - 호스트의 `/etc/letsencrypt`를 볼륨 마운트하여 컨테이너 시작 시 SSL 인증서를 자동 감지
-  - `/api/` 요청을 `http://backend:3001`로, `/fastapi/` 요청을 `http://fastapi:8000`으로 리버스 프록시
-* **`backend` (Node 22 Alpine)**:
-  - 포트 `3001`에서 NestJS 서버 구동
-  - Docker Compose의 `restart: always` 정책으로 예기치 못한 장애 시 컨테이너 자동 복구
-  - 호스트의 PostgreSQL 16 DB(`travel_prod` / `travel_test`)와 통신
-* **`fastapi` (Python 3.12 Slim)**:
-  - 포트 `8000`에서 FastAPI AI 마이크로서비스 구동
-  - 비동기 고속 데이터 처리 및 여행지 추천 인터페이스 서빙
-
----
-
-## 3. GitHub Actions 자동 빌드 및 배포 파이프라인
-
-프론트엔드와 백엔드의 변경 사항을 감지하여 GitHub-hosted 러너에서 검증한 뒤 EC2 Self-hosted 러너로 안전하게 전달합니다.
-
-### 3-1. 프론트엔드 파이프라인 (`.github/workflows/deploy.yml`)
-* **트리거 경로**: `FrontEnd/**`, `CI_CD/FrontEnd/**`
-* **상세 문서**: [프론트엔드 CI/CD 가이드](./FrontEnd/README.md)
-1. **GitHub-hosted Runner (ubuntu-latest)**:
-   - Node.js 환경 초기화 및 `CI_CD/FrontEnd/build.sh` 실행
-   - Vite 기반 프로덕션 번들 빌드 (`FrontEnd/dist/` 생성 및 무결성 검증)
-2. **Self-hosted Runner (AWS EC2)**:
-   - `CI_CD/FrontEnd/deploy.sh` 실행
-   - 호스트 Nginx 충돌 방지 및 `docker compose up -d --build frontend` 무중단 컨테이너 배포
-
-### 3-2. NestJS 백엔드 파이프라인 (`.github/workflows/deploy_backend.yml`)
-* **트리거 경로**: `BackEnd/nestjs/**`, `CI_CD/BackEnd/nestjs/**`
-* **상세 문서**: [NestJS CI/CD 가이드](./BackEnd/nestjs/README.md)
-1. **GitHub-hosted Runner (ubuntu-latest)**:
-   - Node.js 22.x 환경 초기화 및 `CI_CD/BackEnd/nestjs/build.sh` 실행
-   - 격리 단위 테스트(`npm test`) 통과 검증 후 프로덕션 컴파일 및 `backend-dist` 아티팩트 업로드
-2. **Self-hosted Runner (AWS EC2)**:
-   - `CI_CD/BackEnd/nestjs/deploy.sh` 실행
-   - Docker Compose `backend` 컨테이너 무중단 재기동 후 `/api/health` 헬스체크 검증 (최대 5회)
-
-### 3-3. FastAPI AI 엔진 파이프라인 (`.github/workflows/deploy_fastapi.yml`)
-* **트리거 경로**: `BackEnd/fastapi/**`, `CI_CD/BackEnd/fastapi/**`
-* **상세 문서**: [FastAPI CI/CD 가이드](./BackEnd/fastapi/README.md)
-1. **GitHub-hosted Runner (ubuntu-latest)**:
-   - Python 3.12 환경 초기화 및 `CI_CD/BackEnd/fastapi/build.sh` 실행
-   - 의존성 설치, 바이트코드 문법 검사(`py_compile`) 및 모듈 임포트 검증
-2. **Self-hosted Runner (AWS EC2)**:
-   - `CI_CD/BackEnd/fastapi/deploy.sh` 실행
-   - Docker Compose `fastapi` 컨테이너 무중단 재기동 후 `/health` 헬스체크 검증 (최대 5회)
-
----
-
-## 4. 디렉토리 구조 및 CI/CD 스크립트 명세
-
-```
-CI_CD/
-├── FrontEnd/                         # 🎨 프론트엔드 배포 파이프라인
-│   ├── build.sh                      # Vite 번들 빌드 및 index.html 검증
-│   ├── deploy.sh                     # Docker Compose 무중단 컨테이너 배포 및 헬스체크
-│   └── README.md                     # [프론트엔드 CI/CD 상세 가이드]
-├── BackEnd/                          # 🚀 백엔드 멀티 파이프라인 허브
-│   ├── nestjs/                       # NestJS 배포 파이프라인 (Node 22, npm test, :3001)
-│   │   ├── build.sh
-│   │   ├── deploy.sh
-│   │   └── README.md
-│   ├── fastapi/                      # FastAPI 배포 파이프라인 (Python 3.12, :8000)
-│   │   ├── build.sh
-│   │   ├── deploy.sh
-│   │   └── README.md
-│   └── README.md                     # [백엔드 CI/CD 마스터 가이드]
-├── nginx_https.conf                  # 🌐 SSL 리버스 프록시 설정 템플릿
-└── README.md                         # 🚢 CI/CD 종합 인프라 가이드
-```
-
-| 스크립트 파일 | 역할 | 주요 실행 내용 |
+| 서비스 | 이미지/런타임 | 공개 포트 |
 |---|---|---|
-| **`CI_CD/FrontEnd/build.sh`** | 프론트엔드 빌드 | `npm ci` ➔ `npm run build` ➔ `dist/index.html` 무결성 검증 |
-| **`CI_CD/FrontEnd/deploy.sh`** | 프론트엔드 EC2 배포 | 호스트 Nginx 점검 ➔ 소스 tar.gz 자동 백업 ➔ `docker compose up -d --build frontend` ➔ 포트 80/443 헬스체크 |
-| **`CI_CD/BackEnd/nestjs/build.sh`** | NestJS 빌드 & 테스트 | `npm ci` ➔ `npm test`(Fail-Fast) ➔ `npm run build:prod` 컴파일 |
-| **`CI_CD/BackEnd/nestjs/deploy.sh`** | NestJS EC2 배포 | 산출물 검증 ➔ 소스 tar.gz 자동 백업 ➔ `docker compose up -d --build backend` ➔ `:3001/api/health` 헬스체크 |
-| **`CI_CD/BackEnd/fastapi/build.sh`** | FastAPI 빌드 & 문법 검증 | `pip install` ➔ `python3 -m py_compile` 문법 검사 ➔ 앱 인스턴스 검증 |
-| **`CI_CD/BackEnd/fastapi/deploy.sh`** | FastAPI EC2 배포 | 사전 검사 ➔ 소스 tar.gz 자동 백업 ➔ `docker compose up -d --build fastapi` ➔ `:8000/health` 헬스체크 |
-| **`CI_CD/nginx_https.conf`** | 웹 서버 설정 템플릿 | 80 ➔ 443 리다이렉트, SSL 인증서 바인딩, HSTS, `/api/` 프록시 |
+| frontend | Node 22 빌드 → `nginx:alpine` | 80, 443 |
+| backend | `node:22-alpine`, `node dist/main.js` | 호스트 루프백 3001 |
+| fastapi | `python:3.12-slim`, Uvicorn | 호스트 루프백 8000 |
 
----
+모든 서비스에 `restart: always`가 적용됩니다. 프로세스 종료에 대한 재시작 정책이며, HTTP 실패 시 즉시 복구하거나 무중단을 보장하는 정책은 아닙니다. FastAPI만 Dockerfile HEALTHCHECK가 있고, Compose의 `depends_on`은 서비스 준비 상태까지 기다리도록 설정되어 있지 않습니다.
 
-## 5. AWS EC2 Self-Hosted Runner 설정 가이드
+## 워크플로우
 
-GitHub Actions 배포 잡을 EC2 서버에서 직접 수신하여 실행하기 위해 Self-Hosted Runner를 등록합니다.
+모두 `main` push의 경로 조건 또는 `workflow_dispatch`로 실행됩니다. 각 워크플로우는 자기 파일 변경도 감지합니다.
 
-### 5-1. 사전 필수 패키지 설치 (Amazon Linux 2023)
+| 워크플로우 | 감시 경로 | 클라우드 검증 | EC2 스크립트 |
+|---|---|---|---|
+| [deploy.yml](../.github/workflows/deploy.yml) | `FrontEnd/**`, `CI_CD/FrontEnd/**` | Node 22, npm ci, Vite 빌드 | [FrontEnd/deploy.sh](FrontEnd/deploy.sh) |
+| [deploy_backend.yml](../.github/workflows/deploy_backend.yml) | `BackEnd/nestjs/**`, `CI_CD/BackEnd/nestjs/**` | Node 22, npm ci, 테스트, TS 빌드 | [BackEnd/nestjs/deploy.sh](BackEnd/nestjs/deploy.sh) |
+| [deploy_fastapi.yml](../.github/workflows/deploy_fastapi.yml) | `BackEnd/fastapi/**`, `CI_CD/BackEnd/fastapi/**` | Python 3.12, 의존성, 문법·임포트 검사 | [BackEnd/fastapi/deploy.sh](BackEnd/fastapi/deploy.sh) |
+
+루트 `docker-compose.yml`, `CI_CD/nginx_https.conf`, `BackEnd/` 루트 NestJS 파일만 바뀌면 현재 push 경로 조건으로는 배포되지 않습니다. 필요한 워크플로우를 수동 실행합니다.
+
+빌드 잡은 `ubuntu-latest`, 배포 잡은 `[self-hosted, linux]`입니다. 프론트/NestJS는 각각 `frontend-dist`/`backend-dist`를 업로드·다운로드하지만 실제 이미지는 EC2에서 Dockerfile로 소스를 다시 빌드합니다. 다운로드한 `dist/`를 그대로 최종 이미지에 넣는 구조는 아닙니다. EC2에도 빌드 리소스와 이미지·패키지 다운로드 접근이 필요합니다.
+
+동시성 그룹은 `frontend-production`, `backend-production`, `fastapi-production`으로 서로 다릅니다. 같은 그룹의 동시 실행을 제한하고 `cancel-in-progress: false`로 실행 중 작업의 자동 취소를 끕니다. 이 설정을 모든 push가 순서대로 배포되는 대기열로 해석하지 않습니다. 세 파이프라인 사이의 동시 실행은 막지 않습니다.
+
+## EC2 및 Self-hosted 러너 준비
+
+1. Git, curl, tar, Docker Engine 및 Docker Compose 플러그인을 준비합니다. `env_file.required: false` 구문을 지원하는 Compose 2.24.0 이상을 사용합니다.
+2. Docker 데몬을 시작하고 러너 실행 계정에 Docker 사용 권한을 부여합니다.
+3. GitHub 저장소 Settings → Actions → Runners에서 서버 아키텍처에 맞는 러너 다운로드·등록 명령을 확인합니다. 등록 토큰은 저장소에 기록하지 않습니다.
+4. 러너에 `self-hosted`, `linux` 라벨이 있는지 확인하고 서비스로 실행합니다.
+5. 러너가 체크아웃하는 경로와 별개로 환경 파일·인증서를 보관합니다. 예시 작업 경로는 `/home/ec2-user/actions-runner/_work/FURIOSA_BOOTCAMP_miniproject/FURIOSA_BOOTCAMP_miniproject`이며 설치 위치에 따라 달라집니다.
+
 ```bash
-sudo dnf update -y
-sudo dnf install -y git curl tar jq libicu docker
+docker --version
+docker compose version
 sudo systemctl enable --now docker
 sudo usermod -aG docker ec2-user
 ```
 
-### 5-2. 러너 등록 (GitHub Repository Settings > Actions > Runners)
+그룹 변경 후 러너 프로세스에도 새 권한이 적용되도록 세션 또는 서비스를 재시작합니다. 프론트 배포 스크립트는 호스트 Nginx가 실행 중이면 `sudo systemctl stop/disable nginx`를 시도합니다. 실패는 무시되므로 권한 부족 시 포트 충돌이 남을 수 있습니다.
+
+## 환경 파일
+
+Compose의 `APP_ENV` 기본값은 `production`입니다. `local`, `development`, `production`으로 지정합니다.
+
+| 대상 | 읽는 파일 | 비고 |
+|---|---|---|
+| NestJS 컨테이너 | `BackEnd/nestjs/.env.${APP_ENV}` | Compose가 변수로 주입, 파일은 선택적이나 DB 값은 앱 기동에 필수 |
+| FastAPI 컨테이너 | `BackEnd/fastapi/.env` | APP_ENV별 파일 자동 선택 없음 |
+| FrontEnd 이미지 | Dockerfile이 생성한 기본 `.env.${APP_ENV}` | 호스트 `.env.*`는 이미지로 복사하지 않음 |
+
+NestJS 배포 스크립트는 대상 환경 파일이 없으면 다음 순서로 찾아 복사합니다. 전부 없으면 배포를 중단합니다.
+
+1. `/home/ec2-user/.env.${APP_ENV}`
+2. `/home/ec2-user/FURIOSA_BOOTCAMP_miniproject/BackEnd/nestjs/.env.${APP_ENV}`
+3. `/home/ec2-user/FURIOSA_BOOTCAMP_miniproject/BackEnd/.env.${APP_ENV}`
+4. `$HOME/.env.${APP_ENV}`
+
+홈 경로에 보관한 파일은 권한을 제한합니다. FastAPI 배포에는 위와 같은 외부 환경 파일 자동 복사 로직이 없으므로 설정이 필요하면 배포 전에 별도로 준비합니다. 다른 워크플로우의 checkout으로 작업 폴더 파일이 정리될 수 있으므로 워크스페이스만 영구 보관 장소로 사용하지 않습니다.
+
+Compose가 NestJS에 `HOST=0.0.0.0`, `PORT=3001`, `APP_ENV`, `NODE_ENV`를 명시하며 env_file 값보다 우선합니다. `NODE_ENV` 기본값은 APP_ENV와 별개로 `production`입니다.
+
+## 수동 배포
+
+저장소 루트에서 환경 파일을 준비한 후 실행합니다.
+
 ```bash
-# actions-runner 디렉토리 생성
-mkdir -p ~/actions-runner && cd ~/actions-runner
-
-# 시스템 아키텍처에 맞게 다운로드 (ARM64 예시)
-# x86_64일 경우 actions-runner-linux-x64-*.tar.gz 사용
-curl -o actions-runner-linux-arm64.tar.gz -L https://github.com/actions/runner/releases/download/v2.322.0/actions-runner-linux-arm64-2.322.0.tar.gz
-tar xzf actions-runner-linux-arm64.tar.gz
-
-# 등록 토큰 입력 (GitHub 웹 콘솔에서 발급받은 토큰)
-./config.sh --url https://github.com/<USER>/<REPO> --token <RUNNER_TOKEN>
-
-# 시스템 서비스로 등록 및 백그라운드 시작
-sudo ./svc.sh install
-sudo ./svc.sh start
-sudo ./svc.sh status
+APP_ENV=production docker compose up -d --build
+# 개발 환경
+APP_ENV=development docker compose up -d --build
 ```
 
-### 5-3. 🚨 EC2 디렉토리 구조 및 운영 환경변수(`.env.production`) 영구 보존 수칙
+PowerShell:
 
-GitHub Actions Self-hosted Runner는 격리된 전용 워크스페이스에서 빌드와 배포를 수행합니다:
-
-* **러너 실제 작업 경로 (배포 소스 위치)**:
-  ```
-  /home/ec2-user/actions-runner/_work/FURIOSA_BOOTCAMP_miniproject/FURIOSA_BOOTCAMP_miniproject
-  ```
-* **운영 환경변수(`.env.production`) 영구 보존 원칙**:
-  * Git 저장소에는 보안상 `.env` 파일이 포함되지 않으며, `actions/checkout` 시 워크스페이스가 클린업될 수 있습니다.
-  * 따라서 배포 스크립트([deploy.sh](file:///c:/furiosa-miniproject/FURIOSA_BOOTCAMP_miniproject/CI_CD/BackEnd/nestjs/deploy.sh))는 배포 시마다 아래 우선순위로 `.env` 파일을 자동 탐색하여 워크스페이스로 주입합니다:
-    1. `/home/ec2-user/.env.production` (최우선 권장 경로 ⭐)
-    2. `$HOME/.env.production`
-  * **수칙**: EC2 홈 디렉토리에 반드시 환경변수 파일을 영구 보관해 두어야 워크스페이스가 초기화되어도 안전하게 자동 복사됩니다:
-    ```bash
-    # 홈 디렉토리 영구 보존 위치에 설정 파일 배치
-    cp /path/to/.env.production /home/ec2-user/.env.production
-    chmod 600 /home/ec2-user/.env.production
-    ```
-
----
-
-## 6. Nginx 리버스 프록시 및 SSL(HTTPS) 설정
-
-### 6-1. 설정 파일 적용
-```bash
-# Nginx 설정 디렉토리로 복사
-sudo cp CI_CD/nginx_https.conf /etc/nginx/conf.d/travel.conf
-
-# 문법 오류 검사
-sudo nginx -t
-
-# Nginx 시작 및 부팅 시 자동 시작 등록
-sudo systemctl enable nginx
-sudo systemctl restart nginx
+```powershell
+$env:APP_ENV="production"
+docker compose up -d --build
 ```
 
-### 6-2. Let's Encrypt 무료 SSL 인증서 발급 (Certbot)
+## HTTPS와 인증서
+
+현재 웹 서버는 컨테이너 Nginx입니다. 호스트 Nginx를 함께 80/443에 실행하면 충돌합니다. [nginx_https.conf](nginx_https.conf)는 호스트 Nginx용 별도 템플릿이며 현재 Compose에서는 사용하지 않습니다. 해당 템플릿은 `/api/`만 프록시하고 `/fastapi/` 경로는 포함하지 않습니다.
+
+Compose는 아래 호스트 경로를 읽기 전용으로 마운트합니다.
+
+| 변수 | 호스트 기본 경로 | 컨테이너 경로 |
+|---|---|---|
+| SSL_CERT_PATH | `/etc/letsencrypt` | `/etc/letsencrypt` |
+| CERTBOT_WWW_PATH | `/var/www/certbot` | `/var/www/certbot` |
+
+`FrontEnd/docker-entrypoint.sh`가 시작 시 `live/` 아래 인증서·개인키를 찾으면 HTTPS와 HTTP→HTTPS 리다이렉트를 활성화합니다. 없으면 HTTP만 제공합니다. 여러 도메인이 있을 때 선택할 인증서를 지정하는 기능은 없으므로 감지 결과를 로그에서 확인합니다. 인증서 파일과 키는 같은 인증서 쌍이어야 합니다.
+
+호스트에 Certbot을 준비하고 도메인 DNS와 80 포트 접근을 확인한 뒤 webroot 방식으로 발급합니다. 기본 마운트 경로 예시입니다.
+
 ```bash
-# Certbot 설치
-sudo dnf install -y certbot python3-certbot-nginx
-
-# 인증서 발급 및 Nginx 자동 반영
-sudo certbot --nginx -d your-service-domain.com
-
-# 90일 만료 전 자동 갱신 테스트
+sudo mkdir -p /var/www/certbot
+docker compose up -d --build
+sudo certbot certonly --webroot -w /var/www/certbot -d your-service-domain.com
+# 최초 발급 후 시작 스크립트가 HTTPS 설정을 선택하도록 재시작
+docker compose restart frontend
 sudo certbot renew --dry-run
 ```
 
----
+갱신 자동 실행과 배포 훅은 저장소가 설치하지 않습니다. 호스트에서 별도로 설정합니다. HTTPS 모드로 실행 중인 컨테이너는 갱신 후 `docker exec travel-frontend nginx -s reload`로 인증서를 다시 읽게 할 수 있습니다. 처음 HTTP에서 HTTPS로 전환하거나 인증서 경로가 달라지면 `docker compose restart frontend`로 템플릿 선택을 다시 수행합니다. 커스텀 마운트 경로를 쓰면 Certbot webroot도 해당 호스트 경로에 맞춥니다.
 
-## 7. 서버 인프라 보안 그룹(Security Group) 설정
+## 헬스체크·백업·복구
 
-AWS EC2 인스턴스의 보안 그룹 인바운드 규칙 권장 설정:
+배포 스크립트는 기동 후 3초 대기하고 첫 시도를 포함해 최대 5회, 실패 사이 2초 간격으로 HTTP 응답을 확인합니다. 호스트 요청 실패 시 컨테이너 내부 요청도 시도합니다. 각 HTTP 요청의 최대 소요 시간을 별도로 제한하지 않으므로 전체 검증 시간이 고정되어 있지는 않습니다.
 
-| 포트 범위 | 프로토콜 | 소스 | 목적 |
-|---|---|---|---|
-| **22** | TCP | 관리자 개인 IP (`/32`) | SSH 원격 터미널 접속 |
-| **80** | TCP | `0.0.0.0/0` (Anywhere) | HTTP 웹 접속 (HTTPS 리다이렉트용) |
-| **443** | TCP | `0.0.0.0/0` (Anywhere) | HTTPS 보안 웹 접속 (사용자 서비스) |
-| **5432** | TCP | 팀원 IP (`/32`) 또는 `32.236.200.229/32` | PostgreSQL 데이터베이스 외부 접속 |
+- FrontEnd: HTTP, HTTPS 또는 컨테이너 wget 응답. HTTP 리다이렉트도 성공으로 판정될 수 있어 외부 HTTPS나 API 연동까지 검증하지 않습니다.
+- NestJS: `/api/health`. DB 쿼리 검증은 별도 `/api/health/db`로 수행합니다.
+- FastAPI: `/health`. 실제 모델 추론을 검증하는 검사가 아닙니다.
 
-> [!CAUTION]
-> 백엔드 포트 `3001`은 외부로 직접 열지 마세요. 외부 접근은 오직 Nginx(포트 80/443)를 통해서만 인입되도록 차단하는 것이 보안 표준입니다.
+실패 시 최근 로그 50줄을 출력하고 종료 코드 1을 반환합니다. 이전 이미지로 자동 복원하지 않습니다.
 
----
+백업은 `backups/frontend`, `backups/backend`, `backups/fastapi`에 tar.gz로 생성하며 각 종류 최신 1개만 유지합니다. `.env*`와 의존성 폴더 등은 제외합니다. 백업 시점은 checkout 및 아티팩트 다운로드 이후이므로 압축 대상은 현재 작업 폴더이며 이전 운영 버전을 보장하지 않습니다. 러너 cleanup으로 백업도 제거될 수 있습니다. 확실한 복구에는 별도로 보관한 정상 커밋·이미지와 환경 파일이 필요합니다.
 
-## 8. Docker 컨테이너 모니터링 및 트러블슈팅
+## 운영 점검
 
-### 8-1. Docker 컨테이너 관리 명령어
 ```bash
-# 현재 실행 중인 컨테이너 상태 점검
 docker compose ps
-
-# 전체 실시간 통합 로그 확인 (프론트엔드 + 백엔드)
-docker compose logs -f
-
-# 백엔드 로그만 실시간 스트리밍
-docker compose logs -f backend
-
-# 백엔드 컨테이너만 수동 재기동
-docker compose restart backend
-
-# 컨테이너 전체 정상 종료
-docker compose down
+docker compose logs --tail=100 frontend backend fastapi
+curl http://127.0.0.1:3001/api/health
+curl http://127.0.0.1:3001/api/health/db
+curl http://127.0.0.1:8000/health
+docker exec travel-frontend nginx -t
 ```
 
-### 8-2. 502 Bad Gateway 발생 시 점검 체크리스트
-1. **백엔드 컨테이너 실행 여부**: `docker compose ps`에서 `backend` 상태가 `Up`인지 확인
-2. **백엔드 로그 점검**: `docker compose logs --tail=100 backend`로 에러 메시지 확인
-3. **HOST 바인딩 확인**: `.env.production` 또는 `.env.development`에서 `HOST=0.0.0.0`으로 설정되었는지 확인 (`127.0.0.1`인 경우 컨테이너 간 통신 차단됨)
-4. **DB 연결 확인**: 컨테이너 내부에서 PostgreSQL 5432 포트로 연결 가능한지 점검
+보안 그룹은 서비스 웹 포트 80/443, 관리자 SSH와 필요한 DB 접근 범위에 맞춰 설정합니다. 3001/8000은 Compose에서 호스트 루프백에만 공개합니다. 502 발생 시 컨테이너 상태·DNS·실제 DB 연결을 확인합니다. Compose가 HOST를 덮어쓰므로 환경 파일 HOST만 수정해서 Compose 바인딩을 바꾸지는 못합니다.
+
+- [FrontEnd 배포](FrontEnd/README.md)
+- [백엔드 배포 구성](BackEnd/README.md)
+- [Docker 실행 및 네트워크](../Docker/README.md)

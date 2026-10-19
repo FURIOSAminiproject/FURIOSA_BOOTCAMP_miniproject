@@ -1,60 +1,47 @@
-# 🚀 BackEnd 마스터 허브 가이드 (Multi-Backend Architecture)
+# BackEnd 구성 안내
 
-> **길벗 AI 여행사의 백엔드는 역할에 따라 2개의 전문 백엔드 서비스(NestJS & FastAPI)로 분리되어 유기적으로 협업합니다.**
+현재 통합 실행과 자동 배포는 `nestjs/`와 `fastapi/`를 사용합니다.
 
----
+| 위치 | 역할 | 기본 포트 |
+|---|---|---|
+| `nestjs/` | 일정·문학 리뷰 생성, PostgreSQL 연결 및 진단 | 3001 |
+| `fastapi/` | 별도 샘플 추천 API 및 헬스체크 | 8000 |
+| `BackEnd/` 루트의 `src/`, `scripts/`, `test/`, `package.json`, `Dockerfile` | 별도로 남아 있는 NestJS 구성 | 3001 |
 
-## 📑 백엔드 서브시스템 구성
+루트 NestJS 구성과 `nestjs/`는 자동 동기화되지 않습니다. 현재 Compose 빌드 경로는 `BackEnd/nestjs`이고 GitHub Actions 감시 경로도 `BackEnd/nestjs/**`입니다. 루트 파일만 수정하면 현재 NestJS 자동 배포가 실행되지 않습니다. `CI_CD/BackEnd/` 루트 스크립트 또한 현재 워크플로우가 호출하는 스크립트와 다릅니다.
 
-```
-BackEnd/
-├── nestjs/             # [메인 웹 & 비즈니스 로직 서버] NestJS 11 + TypeORM + PostgreSQL + Gemini Multi-Agent
-│   ├── src/
-│   ├── test/
-│   ├── scripts/
-│   ├── Dockerfile
-│   └── README.md
-│
-└── fastapi/            # [AI 마이크로서비스] Python 3.12 + FastAPI
-    ├── main.py
-    ├── requirements.txt
-    ├── Dockerfile
-    └── README.md
+## 처리 흐름
+
+```text
+React → /api/travel/plans → NestJS → Gemini 통합 일정 생성 / 절차적 폴백
+                                 └→ 장소별 문학 리뷰 생성 / 폴백
+Nginx → /fastapi/* → FastAPI 샘플 API
+NestJS → TypeORM → PostgreSQL 연결 및 진단
 ```
 
----
+일정 생성에 독립된 7개 AI 에이전트가 협업하는 구조는 없습니다. 프론트에는 문학 역할을 포함한 8개 역할과 진행 시각화가 정의되어 있습니다. FastAPI는 현재 NestJS나 프론트의 일정 생성에서 호출하지 않습니다.
 
-## 🏛️ 마이크로서비스 역할 분담 및 통신 구조
+DB는 기동 시 연결하지만 일정·승인 데이터 저장은 구현되지 않았습니다. 승인·반려는 프론트 메모리 상태이며 서버 인증·관리자 권한 검사도 없습니다.
 
-```mermaid
-flowchart TD
-    Client[React FrontEnd / Nginx<br/>Port 80 / 443] -->|/api/* :3001| NestJS[NestJS 백엔드<br/>BFF & 비즈니스 로직]
-    Client -->|/fastapi/* :8000| FastAPI[FastAPI AI 엔진<br/>경량 비동기 마이크로서비스]
-    NestJS -->|TypeORM Connection| DB[(AWS EC2 PostgreSQL 16<br/>Port 5432)]
-    NestJS -->|Gemini SDK & Fallback| Gemini[Google Gemini AI]
-```
+## 실행
 
-| 서브시스템 | 기술 스택 | 포트 | 주요 역할 |
-|---|---|---|---|
-| **`BackEnd/nestjs`** | NestJS 11, TypeScript, TypeORM, Express | `3001` | • 프론트엔드 BFF (Backend For Frontend)<br/>• 사용자 요청 검증 및 DB 연결 진단<br/>• 7인 AI 멀티에이전트 파이프라인 조율<br/>• 절차적 한국어 일정/시/수필 폴백 엔진 |
-| **`BackEnd/fastapi`** | FastAPI, Python 3.12, Uvicorn, Pydantic | `8000` | • 비동기 고속 데이터 처리 마이크로서비스<br/>• 서비스 헬스체크 (`/health`)<br/>• 여행지 추천 샘플 엔드포인트 (`/api/v1/recommend`) |
+아래 경로 이동 명령은 각각 저장소 루트에서 시작합니다. NestJS는 환경 파일 또는 시스템 환경변수로 DB 접속 정보를 준비해야 합니다.
 
----
-
-
-## ⚡ 빠른 실행 명령어 (Quick Start)
-
-### NestJS 실행
 ```bash
 cd BackEnd/nestjs
 npm install
-npm run start:dev     # 핫 리로드 개발 서버 (포트 3001)
-npm test               # 격리 테스트 실행
+npm run db:check -- local
+npm run start:local
 ```
 
-### FastAPI 실행
+FastAPI는 별도 터미널에서 실행합니다.
+
 ```bash
 cd BackEnd/fastapi
 pip install -r requirements.txt
 uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
+
+- [NestJS 설정·API·테스트](nestjs/README.md)
+- [FastAPI 샘플 API](fastapi/README.md)
+- [백엔드 CI/CD](../CI_CD/BackEnd/README.md)
