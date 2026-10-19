@@ -10,6 +10,12 @@ dist/
 build/
 coverage/
 
+# 배포 백업 아카이브 (Deployment Backups)
+backups/
+*.tar.gz
+*.tar
+*.zip
+
 # 환경 변수 및 보안 설정 파일 (All variants of .env & env.*)
 # .env, .env.local, .env.development, env.production 등 모든 변형 포함
 .env

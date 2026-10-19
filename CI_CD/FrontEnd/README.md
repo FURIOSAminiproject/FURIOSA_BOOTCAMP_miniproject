@@ -158,17 +158,34 @@ test -d "$NGINX_DIR"                         # 웹 서버 서빙 폴더가 존�
 
 # 3. Nginx 설정 문법 오류 사전 검사
 #    * 배포 직전에 웹 서버 설정에 오타나 오류가 없는지 미리 점검합니다.
-echo "===== [2/4] Nginx 설정 구문 검사 (nginx -t) ====="
+echo "===== [2/5] Nginx 설정 구문 검사 (nginx -t) ====="
 sudo -n nginx -t
 
-# 4. rsync를 통한 스마트 동기화 배포
-echo "===== [3/4] React 정적 파일 배포 (rsync) ====="
+# 4. 기존 운영 버전 자동 백업 (최신 1개 보관)
+#    * 새 코드를 배포하기 전, 기존 Nginx 웹 서빙 파일을 tar.gz로 백업하여 만약의 장애 시 즉시 롤백 가능하게 합니다.
+#    * 최신 1개만 유지하여 EC2 서버 용량을 낭비하지 않습니다.
+echo "===== [3/5] 기존 운영 프론트엔드 코드 백업 (Backup) ====="
+BACKUP_DIR="${PROJECT_ROOT}/backups/frontend"
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+BACKUP_FILE="${BACKUP_DIR}/frontend_backup_${TIMESTAMP}.tar.gz"
+
+mkdir -p "$BACKUP_DIR"
+if [ -f "$NGINX_DIR/index.html" ]; then
+    echo ">> 기존 Nginx 웹 루트 파일들을 백업합니다: $BACKUP_FILE"
+    sudo -n tar --exclude='.well-known' -czf "$BACKUP_FILE" -C "$NGINX_DIR" .
+    sudo -n chown "$(id -u):$(id -g)" "$BACKUP_FILE" 2>/dev/null || true
+    # 최신 1개만 유지 (이전 백업 삭제)
+    ls -dt "$BACKUP_DIR"/frontend_backup_*.tar.gz 2>/dev/null | tail -n +2 | xargs -r rm -f || true
+fi
+
+# 5. rsync를 통한 스마트 동기화 배포
+echo "===== [4/5] React 정적 파일 배포 (rsync) ====="
 sudo -n rsync -av --delete \
   --exclude='/.well-known/' \
   "$DIST_DIR/" "$NGINX_DIR/"
 
-# 5. 최종 사후 검증
-echo "===== [4/4] 배포 결과 확인 ====="
+# 6. 최종 사후 검증
+echo "===== [5/5] 배포 결과 확인 ====="
 test -s "$NGINX_DIR/index.html"
 
 echo ">> React 프론트엔드 Nginx 배포 완료!"

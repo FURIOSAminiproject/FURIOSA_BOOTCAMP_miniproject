@@ -18,19 +18,41 @@ echo "프로젝트 루트: $PROJECT_ROOT"
 echo "배포 환경: $APP_ENV"
 
 # 2. 빌드 산출물 무결성 검증
-echo "===== [2/4] 빌드 산출물 검증 ====="
+echo "===== [2/5] 빌드 산출물 검증 ====="
 test -s "$SOURCE_DIR/dist/main.js"
 test -s "$SOURCE_DIR/package.json"
 
-# 3. Docker Compose 백엔드 컨테이너 빌드 및 재기동
-echo "===== [3/4] Docker Compose 백엔드 컨테이너 기동 ====="
+# 3. 기존 백엔드 코드 및 빌드 산출물 백업 (Rollback 방어용)
+#    - 새 컨테이너를 빌드/배포하기 전, 현재 백엔드 소스 및 빌드 파일을 tar.gz로 압축 보관
+#    - node_modules 및 .env는 용량 및 보안상 제외
+#    - 최신 1개 백업만 유지하여 EC2 디스크 공간을 최소화
+echo "===== [3/5] 기존 백엔드 코드 백업 (Backup) ====="
+BACKUP_DIR="${PROJECT_ROOT}/backups/backend"
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+BACKUP_FILE="${BACKUP_DIR}/backend_backup_${TIMESTAMP}.tar.gz"
+
+mkdir -p "$BACKUP_DIR"
+if [ -d "$SOURCE_DIR" ]; then
+    echo ">> 기존 백엔드 디렉토리를 백업합니다: $BACKUP_FILE"
+    tar --exclude='node_modules' --exclude='.env*' -czf "$BACKUP_FILE" -C "$PROJECT_ROOT" BackEnd
+    echo ">> [완료] 백엔드 백업 생성 성공 (크기: $(du -h "$BACKUP_FILE" | cut -f1))"
+
+    # 최신 1개 백업만 유지하고 이전 백업 파일 자동 삭제
+    echo ">> 이전 백업 정리 (최신 1개만 유지)..."
+    ls -dt "$BACKUP_DIR"/backend_backup_*.tar.gz 2>/dev/null | tail -n +2 | xargs -r rm -f || true
+else
+    echo ">> 백엔드 디렉토리가 없어 백업 단계를 건너뜁니다."
+fi
+
+# 4. Docker Compose 백엔드 컨테이너 빌드 및 재기동
+echo "===== [4/5] Docker Compose 백엔드 컨테이너 기동 ====="
 cd "$PROJECT_ROOT"
 
 # 백엔드 컨테이너 빌드 및 백그라운드 무중단 실행
 APP_ENV="$APP_ENV" docker compose up -d --build backend
 
-# 4. 백엔드 헬스체크 검증 (Health Check)
-echo "===== [4/4] 백엔드 헬스체크 검증 (GET /api/health) ====="
+# 5. 백엔드 헬스체크 검증 (Health Check)
+echo "===== [5/5] 백엔드 헬스체크 검증 (GET /api/health) ====="
 echo ">> 컨테이너 초기화 대기 (3초)..."
 sleep 3
 

@@ -120,9 +120,9 @@ CI_CD/
 | 스크립트 파일 | 역할 | 주요 실행 내용 |
 |---|---|---|
 | **`CI_CD/FrontEnd/build.sh`** | 프론트엔드 빌드 | `npm ci` ➔ `npm run build` ➔ `dist/index.html` 무결성 검증 |
-| **`CI_CD/FrontEnd/deploy.sh`** | 프론트엔드 EC2 배포 | 산출물 검증 ➔ `nginx -t` ➔ `rsync -av --delete` 동기화 |
+| **`CI_CD/FrontEnd/deploy.sh`** | 프론트엔드 EC2 배포 | 산출물 검증 ➔ 기존 파일 tar.gz 자동 백업(최신 1개 유지) ➔ `nginx -t` ➔ `rsync -av --delete` 동기화 |
 | **`CI_CD/BackEnd/build.sh`** | 백엔드 빌드 & 테스트 | `npm ci` ➔ `npm test`(Fail-Fast) ➔ `npm run build:prod` 컴파일 |
-| **`CI_CD/BackEnd/deploy.sh`** | 백엔드 EC2 배포 | `docker compose up -d --build backend` ➔ `/api/health` 헬스체크 |
+| **`CI_CD/BackEnd/deploy.sh`** | 백엔드 EC2 배포 | 산출물 검증 ➔ 기존 소스 tar.gz 자동 백업(최신 1개 유지) ➔ `docker compose up -d --build backend` ➔ `/api/health` 헬스체크 |
 | **`CI_CD/nginx_https.conf`** | 웹 서버 설정 템플릿 | 80 ➔ 443 리다이렉트, SSL 인증서 바인딩, HSTS, `/api/` 프록시 |
 
 ---

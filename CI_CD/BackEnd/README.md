@@ -157,17 +157,32 @@ echo "프로젝트 루트: $PROJECT_ROOT"
 echo "배포 환경: $APP_ENV"
 
 # 2. 클라우드에서 전달받은 빌드 산출물이 온전한지 검증
-echo "===== [2/4] 빌드 산출물 검증 ====="
+echo "===== [2/5] 빌드 산출물 검증 ====="
 test -s "$SOURCE_DIR/dist/main.js"
 test -s "$SOURCE_DIR/package.json"
 
-# 3. Docker Compose 백엔드 컨테이너 빌드 및 무중단 재기동
-echo "===== [3/4] Docker Compose 백엔드 컨테이너 기동 ====="
+# 3. 기존 백엔드 코드 및 빌드 산출물 자동 백업 (최신 1개 보관)
+#    * node_modules 및 .env는 용량 및 보안상 제외하고 소스/빌드 파일 압축 보관
+echo "===== [3/5] 기존 백엔드 코드 백업 (Backup) ====="
+BACKUP_DIR="${PROJECT_ROOT}/backups/backend"
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+BACKUP_FILE="${BACKUP_DIR}/backend_backup_${TIMESTAMP}.tar.gz"
+
+mkdir -p "$BACKUP_DIR"
+if [ -d "$SOURCE_DIR" ]; then
+    echo ">> 기존 백엔드 디렉토리를 백업합니다: $BACKUP_FILE"
+    tar --exclude='node_modules' --exclude='.env*' -czf "$BACKUP_FILE" -C "$PROJECT_ROOT" BackEnd
+    # 최신 1개만 유지 (이전 백업 삭제)
+    ls -dt "$BACKUP_DIR"/backend_backup_*.tar.gz 2>/dev/null | tail -n +2 | xargs -r rm -f || true
+fi
+
+# 4. Docker Compose 백엔드 컨테이너 빌드 및 무중단 재기동
+echo "===== [4/5] Docker Compose 백엔드 컨테이너 기동 ====="
 cd "$PROJECT_ROOT"
 APP_ENV="$APP_ENV" docker compose up -d --build backend
 
-# 4. 백엔드 자동 헬스체크 루프 (Health Check)
-echo "===== [4/4] 백엔드 헬스체크 검증 (GET /api/health) ====="
+# 5. 백엔드 자동 헬스체크 루프 (Health Check)
+echo "===== [5/5] 백엔드 헬스체크 검증 (GET /api/health) ====="
 echo ">> 컨테이너 초기화 대기 (3초)..."
 sleep 3
 

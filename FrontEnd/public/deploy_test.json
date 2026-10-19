@@ -1,0 +1,9 @@
+{
+  "service": "furiosa-travel-frontend",
+  "deployTest": true,
+  "version": "1.0.0-test",
+  "testedAt": "2026-10-19",
+  "runner": "EC2 Self-Hosted Runner (Linux ARM64)",
+  "status": "SUCCESS",
+  "message": "GitHub Actions CI/CD 파이프라인 및 EC2 Self-hosted Runner 배포 테스트 정상 동작 확인 완료"
+}
