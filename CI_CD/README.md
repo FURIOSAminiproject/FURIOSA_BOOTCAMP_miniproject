@@ -3,7 +3,7 @@
 > **Docker Compose 및 GitHub Actions 기반 무중단 배포 / Nginx 리버스 프록시 인프라 가이드**  
 > 본 프로젝트는 프론트엔드와 백엔드를 **Docker Compose 컨테이너 환경으로 표준화**하여 호스트 OS의 Node.js/런타임 버전 종속성을 배제하고, 일관된 무중단 서비스를 제공합니다.
 
----
+
 
 ## 📑 목차
 1. [전체 시스템 아키텍처](#1-전체-시스템-아키텍처)
@@ -30,18 +30,23 @@
         ┌────────────────────────────────────────────────────────┐
         │                AWS EC2 (Amazon Linux 2023)             │
         │                                                        │
-        │ [ Nginx Web Server (Host 또는 Docker FrontEnd) ]       │
-        │   ├── 1) 정적 리소스 요청 ('/')                        │
-        │   │      └── React SPA 번들 서빙                       │
-        │   │                                                    │
-        │   └── 2) 백엔드 API 요청 ('/api/*')                    │
-        │          └── proxy_pass http://backend:3001            │
+        │ [ 호스트 OS / Let's Encrypt Certbot ]                  │
+        │   └── /etc/letsencrypt/live/... (호스트 단일 관리)     │
+        │   └── certbot renew --deploy-hook "docker exec ..."    │
         │                                                        │
-        │ [ Docker Backend Container ]                           │
-        │   └── NestJS App (포트 3001, HOST=0.0.0.0)             │
-        │       (restart: always 로 자동 복구)                   │
+        │ [ travel-frontend 컨테이너 (Nginx Alpine) ]            │
+        │   ├── 볼륨 마운트: /etc/letsencrypt:ro                 │
+        │   ├── 1) 정적 리소스 요청 ('/') -> React SPA 서빙      │
+        │   ├── 2) 백엔드 API 요청 ('/api/*') -> NestJS:3001     │
+        │   └── 3) AI 추론 요청 ('/fastapi/*') -> FastAPI:8000   │
         │                                                        │
-        │ [ PostgreSQL 16.15 Database ]                          │
+        │ [ travel-backend 컨테이너 (NestJS Node 22) ]           │
+        │   └── 포트 3001 (BFF & 비즈니스 로직)                  │
+        │                                                        │
+        │ [ travel-fastapi 컨테이너 (Python 3.11 FastAPI) ]      │
+        │   └── 포트 8000 (고성능 AI 추론 엔진)                  │
+        │                                                        │
+        │ [ PostgreSQL 16 Database ] (호스트 OS 직접 구동)       │
         │   └── localhost:5432 (travel_test, travel_prod)        │
         └────────────────────────────────────────────────────────┘
 ```
@@ -66,12 +71,16 @@ APP_ENV=development docker compose up -d --build
 
 ### 2-2. 컨테이너 구성 및 역할
 * **`frontend` (Nginx 1.27 Alpine)**:
-  - 포트 `80`을 외부에 노출하여 React 정적 웹 애플리케이션을 초고속 서빙
-  - `/api/` 요청을 내부 도커 네트워크를 통해 `http://backend:3001`로 리버스 프록시
+  - 포트 `80` 및 `443`을 외부에 노출하여 React 정적 웹 애플리케이션을 초고속 서빙
+  - 호스트의 `/etc/letsencrypt`를 볼륨 마운트하여 컨테이너 시작 시 SSL 인증서를 자동 감지
+  - `/api/` 요청을 `http://backend:3001`로, `/fastapi/` 요청을 `http://fastapi:8000`으로 리버스 프록시
 * **`backend` (Node 22 Alpine)**:
   - 포트 `3001`에서 NestJS 서버 구동
   - Docker Compose의 `restart: always` 정책으로 예기치 못한 장애 시 컨테이너 자동 복구
   - 호스트의 PostgreSQL 16 DB(`travel_prod` / `travel_test`)와 통신
+* **`fastapi` (Python 3.11 Slim)**:
+  - 포트 `8000`에서 FastAPI AI 추론 엔진 구동
+  - 고성능 AI 연산 및 향후 Furiosa NPU 서빙 지원
 
 ---
 
@@ -81,23 +90,33 @@ APP_ENV=development docker compose up -d --build
 
 ### 3-1. 프론트엔드 파이프라인 (`.github/workflows/deploy.yml`)
 * **트리거 경로**: `FrontEnd/**`, `CI_CD/FrontEnd/**`
-* **상세 문서**: [프론트엔드 CI/CD 가이드](./FrontEnd/README.md)
+* **상세 문서**: [프론트엔드 CI/CD 가이드](./docs/FRONTEND_PIPELINE.md)
 1. **GitHub-hosted Runner (ubuntu-latest)**:
    - Node.js 환경 초기화 및 `CI_CD/FrontEnd/build.sh` 실행
    - Vite 기반 프로덕션 번들 빌드 (`FrontEnd/dist/` 생성 및 무결성 검증)
 2. **Self-hosted Runner (AWS EC2)**:
    - `CI_CD/FrontEnd/deploy.sh` 실행
-   - `rsync --delete` 무중단 동기화 및 Nginx 웹 서버 반영
+   - 호스트 Nginx 충돌 방지 및 `docker compose up -d --build frontend` 무중단 컨테이너 배포
 
-### 3-2. 백엔드 파이프라인 (`.github/workflows/deploy_backend.yml`)
-* **트리거 경로**: `BackEnd/**`, `CI_CD/BackEnd/**`
-* **상세 문서**: [백엔드 CI/CD 가이드](./BackEnd/README.md)
+### 3-2. NestJS 백엔드 파이프라인 (`.github/workflows/deploy_backend.yml`)
+* **트리거 경로**: `BackEnd/nestjs/**`, `CI_CD/BackEnd/nestjs/**`
+* **상세 문서**: [NestJS CI/CD 가이드](./BackEnd/nestjs/README.md)
 1. **GitHub-hosted Runner (ubuntu-latest)**:
-   - Node.js 22.x 환경 초기화 및 `CI_CD/BackEnd/build.sh` 실행
-   - 격리 단위 테스트(`npm test`) 통과 검증 후 프로덕션 빌드
+   - Node.js 22.x 환경 초기화 및 `CI_CD/BackEnd/nestjs/build.sh` 실행
+   - 격리 단위 테스트(`npm test`) 통과 검증 후 프로덕션 컴파일 및 `backend-dist` 아티팩트 업로드
 2. **Self-hosted Runner (AWS EC2)**:
-   - `CI_CD/BackEnd/deploy.sh` 실행
-   - Docker Compose 컨테이너 무중단 재기동 후 `/api/health` 헬스체크 검증 (최대 5회)
+   - `CI_CD/BackEnd/nestjs/deploy.sh` 실행
+   - Docker Compose `backend` 컨테이너 무중단 재기동 후 `/api/health` 헬스체크 검증 (최대 5회)
+
+### 3-3. FastAPI AI 엔진 파이프라인 (`.github/workflows/deploy_fastapi.yml`)
+* **트리거 경로**: `BackEnd/fastapi/**`, `CI_CD/BackEnd/fastapi/**`
+* **상세 문서**: [FastAPI CI/CD 가이드](./BackEnd/fastapi/README.md)
+1. **GitHub-hosted Runner (ubuntu-latest)**:
+   - Python 3.12 환경 초기화 및 `CI_CD/BackEnd/fastapi/build.sh` 실행
+   - 의존성 설치, 바이트코드 문법 검사(`py_compile`) 및 모듈 임포트 검증
+2. **Self-hosted Runner (AWS EC2)**:
+   - `CI_CD/BackEnd/fastapi/deploy.sh` 실행
+   - Docker Compose `fastapi` 컨테이너 무중단 재기동 후 `/health` 헬스체크 검증 (최대 5회)
 
 ---
 
@@ -109,10 +128,16 @@ CI_CD/
 │   ├── build.sh                      # Vite 번들 빌드 및 index.html 검증
 │   ├── deploy.sh                     # EC2 Nginx rsync 무중단 배포
 │   └── README.md                     # [프론트엔드 CI/CD 상세 가이드]
-├── BackEnd/                          # 🚀 백엔드 배포 파이프라인
-│   ├── build.sh                      # 단위 테스트(npm test) & 컴파일
-│   ├── deploy.sh                     # Docker Compose 재기동 & 헬스체크
-│   └── README.md                     # [백엔드 CI/CD 상세 가이드]
+├── BackEnd/                          # 🚀 백엔드 멀티 파이프라인 허브
+│   ├── nestjs/                       # NestJS 배포 파이프라인 (Node 22, npm test, :3001)
+│   │   ├── build.sh
+│   │   ├── deploy.sh
+│   │   └── README.md
+│   ├── fastapi/                      # FastAPI 배포 파이프라인 (Python 3.12, :8000)
+│   │   ├── build.sh
+│   │   ├── deploy.sh
+│   │   └── README.md
+│   └── README.md                     # [백엔드 CI/CD 마스터 가이드]
 ├── nginx_https.conf                  # 🌐 SSL 리버스 프록시 설정 템플릿
 └── README.md                         # 🚢 CI/CD 종합 인프라 가이드
 ```
@@ -120,9 +145,11 @@ CI_CD/
 | 스크립트 파일 | 역할 | 주요 실행 내용 |
 |---|---|---|
 | **`CI_CD/FrontEnd/build.sh`** | 프론트엔드 빌드 | `npm ci` ➔ `npm run build` ➔ `dist/index.html` 무결성 검증 |
-| **`CI_CD/FrontEnd/deploy.sh`** | 프론트엔드 EC2 배포 | 산출물 검증 ➔ 기존 파일 tar.gz 자동 백업(최신 1개 유지) ➔ `nginx -t` ➔ `rsync -av --delete` 동기화 |
-| **`CI_CD/BackEnd/build.sh`** | 백엔드 빌드 & 테스트 | `npm ci` ➔ `npm test`(Fail-Fast) ➔ `npm run build:prod` 컴파일 |
-| **`CI_CD/BackEnd/deploy.sh`** | 백엔드 EC2 배포 | 산출물 검증 ➔ 기존 소스 tar.gz 자동 백업(최신 1개 유지) ➔ `docker compose up -d --build backend` ➔ `/api/health` 헬스체크 |
+| **`CI_CD/FrontEnd/deploy.sh`** | 프론트엔드 EC2 배포 | 산출물 검증 ➔ 기존 파일 tar.gz 자동 백업 ➔ `nginx -t` ➔ `rsync -av --delete` 동기화 |
+| **`CI_CD/BackEnd/nestjs/build.sh`** | NestJS 빌드 & 테스트 | `npm ci` ➔ `npm test`(Fail-Fast) ➔ `npm run build:prod` 컴파일 |
+| **`CI_CD/BackEnd/nestjs/deploy.sh`** | NestJS EC2 배포 | 산출물 검증 ➔ 소스 tar.gz 자동 백업 ➔ `docker compose up -d --build backend` ➔ `:3001/api/health` 헬스체크 |
+| **`CI_CD/BackEnd/fastapi/build.sh`** | FastAPI 빌드 & 문법 검증 | `pip install` ➔ `python3 -m py_compile` 문법 검사 ➔ 앱 인스턴스 검증 |
+| **`CI_CD/BackEnd/fastapi/deploy.sh`** | FastAPI EC2 배포 | 사전 검사 ➔ 소스 tar.gz 자동 백업 ➔ `docker compose up -d --build fastapi` ➔ `:8000/health` 헬스체크 |
 | **`CI_CD/nginx_https.conf`** | 웹 서버 설정 템플릿 | 80 ➔ 443 리다이렉트, SSL 인증서 바인딩, HSTS, `/api/` 프록시 |
 
 ---
@@ -157,6 +184,26 @@ sudo ./svc.sh install
 sudo ./svc.sh start
 sudo ./svc.sh status
 ```
+
+### 5-3. 🚨 EC2 디렉토리 구조 및 운영 환경변수(`.env.production`) 영구 보존 수칙
+
+GitHub Actions Self-hosted Runner는 격리된 전용 워크스페이스에서 빌드와 배포를 수행합니다:
+
+* **러너 실제 작업 경로 (배포 소스 위치)**:
+  ```
+  /home/ec2-user/actions-runner/_work/FURIOSA_BOOTCAMP_miniproject/FURIOSA_BOOTCAMP_miniproject
+  ```
+* **운영 환경변수(`.env.production`) 영구 보존 원칙**:
+  * Git 저장소에는 보안상 `.env` 파일이 포함되지 않으며, `actions/checkout` 시 워크스페이스가 클린업될 수 있습니다.
+  * 따라서 배포 스크립트([deploy.sh](file:///c:/furiosa-miniproject/FURIOSA_BOOTCAMP_miniproject/CI_CD/BackEnd/nestjs/deploy.sh))는 배포 시마다 아래 우선순위로 `.env` 파일을 자동 탐색하여 워크스페이스로 주입합니다:
+    1. `/home/ec2-user/.env.production` (최우선 권장 경로 ⭐)
+    2. `$HOME/.env.production`
+  * **수칙**: EC2 홈 디렉토리에 반드시 환경변수 파일을 영구 보관해 두어야 워크스페이스가 초기화되어도 안전하게 자동 복사됩니다:
+    ```bash
+    # 홈 디렉토리 영구 보존 위치에 설정 파일 배치
+    cp /path/to/.env.production /home/ec2-user/.env.production
+    chmod 600 /home/ec2-user/.env.production
+    ```
 
 ---
 

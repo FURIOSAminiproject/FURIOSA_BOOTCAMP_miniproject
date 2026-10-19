@@ -3,7 +3,7 @@
 > **초심자도 쉽게 이해하는 컨테이너 가상화 기본 개념부터 프로젝트 아키텍처, 환경 분리, 멀티스테이지 빌드 및 실전 운영까지**  
 > 본 가이드는 Docker를 처음 접하는 팀원도 도커의 핵심 원리를 완벽하게 이해하고, 단 1개의 명령어로 길벗 AI 여행사 시스템을 손쉽게 실행·디버깅할 수 있도록 작성되었습니다.
 
----
+
 
 ## 📑 목차
 1. [초심자를 위한 Docker 핵심 개념 총정리](#1-초심자를-위한-docker-핵심-개념-총정리)
@@ -194,31 +194,25 @@ CMD ["nginx", "-g", "daemon off;"]
 
 ---
 
-### BackEnd Dockerfile 상세 해부
+### NestJS BackEnd Dockerfile 상세 해부
 
-📄 [BackEnd/Dockerfile](file:///c:/furiosa-miniproject/FURIOSA_BOOTCAMP_miniproject/BackEnd/Dockerfile)
+📄 [BackEnd/nestjs/Dockerfile](file:///c:/furiosa-miniproject/FURIOSA_BOOTCAMP_miniproject/BackEnd/nestjs/Dockerfile)
 
 ```dockerfile
-# ==============================================================================
 # 1단계: 빌더 (Builder Stage) - TypeScript 컴파일
-# ==============================================================================
 FROM node:22-alpine AS builder
 
 ARG APP_ENV=production
 WORKDIR /app
 
-# 전체 의존성 설치 (컴파일러 typescript, @types 등 포함)
 COPY package*.json tsconfig.json ./
 RUN npm ci
 
-# 소스코드 복사 및 TypeScript 컴파일 -> JavaScript (dist/ 생성)
 COPY src ./src
 COPY scripts ./scripts
 RUN node scripts/build.cjs ${APP_ENV}
 
-# ==============================================================================
 # 2단계: 실행 (Runner Stage) - 프로덕션 전용 이미지
-# ==============================================================================
 FROM node:22-alpine AS runner
 
 ARG APP_ENV=production
@@ -229,11 +223,9 @@ ENV APP_ENV=${APP_ENV}
 ENV HOST=0.0.0.0
 ENV PORT=3001
 
-# 개발용 도구(devDependencies)를 완전히 배제하고 오직 런타임 필수 패키지만 설치
 COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
-# 1단계에서 빌드된 dist 디렉토리와 부트스트랩 스크립트만 복사
 COPY --from=builder /app/dist ./dist
 COPY scripts ./scripts
 
@@ -243,20 +235,49 @@ CMD ["node", "dist/main.js"]
 
 ---
 
+### FastAPI AI 추론 엔진 Dockerfile 상세 해부
+
+📄 [BackEnd/fastapi/Dockerfile](file:///c:/furiosa-miniproject/FURIOSA_BOOTCAMP_miniproject/BackEnd/fastapi/Dockerfile)
+
+```dockerfile
+FROM python:3.12-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
+EXPOSE 8000
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+---
+
 ### .dockerignore의 역할과 중요성
 
-📄 [FrontEnd/.dockerignore](file:///c:/furiosa-miniproject/FURIOSA_BOOTCAMP_miniproject/FrontEnd/.dockerignore) & [BackEnd/.dockerignore](file:///c:/furiosa-miniproject/FURIOSA_BOOTCAMP_miniproject/BackEnd/.dockerignore)
+📄 [FrontEnd/.dockerignore](file:///c:/furiosa-miniproject/FURIOSA_BOOTCAMP_miniproject/FrontEnd/.dockerignore), [BackEnd/nestjs/.dockerignore](file:///c:/furiosa-miniproject/FURIOSA_BOOTCAMP_miniproject/BackEnd/nestjs/.dockerignore) & [BackEnd/fastapi/.dockerignore](file:///c:/furiosa-miniproject/FURIOSA_BOOTCAMP_miniproject/BackEnd/fastapi/.dockerignore)
 
 ```
 node_modules
 dist
+venv
+__pycache__
 .env*
 *.log
 .git
 ```
 
 * `.gitignore`가 Git에 올리지 않을 파일을 정하듯, `.dockerignore`는 **도커 빌드 시 컨테이너 안으로 복사하지 않을 대용량/민감 파일 목록**입니다.
-* 로컬의 `node_modules`나 `.git`이 복사되는 것을 막아 빌드 속도를 획기적으로 높이고, 로컬 OS와 컨테이너 OS 간 바이너리 충돌을 예방합니다.
+* 로컬의 `node_modules`, `venv`나 `.git`이 복사되는 것을 막아 빌드 속도를 획기적으로 높이고, 로컬 OS와 컨테이너 OS 간 바이너리 충돌을 예방합니다.
 
 ---
 
@@ -273,8 +294,9 @@ docker compose up ────────┼── APP_ENV=development ─> .en
 ```
 
 ### [docker-compose.yml](file:///c:/furiosa-miniproject/FURIOSA_BOOTCAMP_miniproject/docker-compose.yml) 내부 동작:
-1. **빌드 시점**: `args: - APP_ENV=${APP_ENV:-production}`을 통해 프론트엔드와 백엔드의 `Dockerfile`에 환경변수가 전달됩니다.
-2. **런타임 시점**: `env_file: - path: ./BackEnd/.env.${APP_ENV:-production}` 구문을 통해 선택된 환경의 설정 파일이 자동으로 컨테이너 내부에 주입됩니다.
+1. **빌드 시점**: `args: - APP_ENV=${APP_ENV:-production}`을 통해 프론트엔드와 NestJS 백엔드의 `Dockerfile`에 환경변수가 전달됩니다.
+2. **런타임 시점**: `env_file: - path: ./BackEnd/nestjs/.env.${APP_ENV:-production}` 구문을 통해 선택된 환경의 설정 파일이 자동으로 NestJS 컨테이너 내부에 주입됩니다.
+3. **FastAPI 연동**: `env_file: - path: ./BackEnd/fastapi/.env` 구문을 통해 AI 모델 및 CORS 설정이 주입됩니다.
 
 ---
 
@@ -284,8 +306,8 @@ docker compose up ────────┼── APP_ENV=development ─> .en
 
 | 실행 환경 | 대상 DB 위치 | 백엔드 `.env` 내 `DB_HOST` 설정값 | 설명 |
 |---|---|---|---|
-| **개발(DEV)** | AWS EC2 인스턴스 | `32.236.200.229` | 팀원 공유 테스트 DB (`travel_test`) |
-| **운영(PROD)** | AWS EC2 인스턴스 | `32.236.200.229` | 실서비스 운영 DB (`travel_prod`) |
+| **개발(DEV)** | AWS EC2 인스턴스 | `<DB_HOST_IP>` | 팀원 공유 테스트 DB (`travel_test`) |
+| **운영(PROD)** | AWS EC2 인스턴스 | `<DB_HOST_IP>` | 실서비스 운영 DB (`travel_prod`) |
 | **로컬(LOCAL)** | 내 컴퓨터 로컬 DB | `host.docker.internal` | 컨테이너 안에서 내 PC 호스트를 가리키는 특수 주소 |
 
 > [!NOTE]

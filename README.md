@@ -6,22 +6,7 @@
 * **과정**: 퓨리오사 AI 부트캠프 미니 프로젝트
 * **팀원**: 이동욱, 이지석, 장동율, 조정우
 
----
 
-## 📑 프로젝트 문서 바로가기
-
-각 서브시스템별 상세 가이드 및 아키텍처 문서는 아래 링크에서 확인하실 수 있습니다:
-
-| 분류 | 문서 링크 | 핵심 내용 |
-|---|---|---|
-| 🎨 **FrontEnd** | [FrontEnd 가이드](./FrontEnd/README.md) | React 19, Tailwind v4, Leaflet 지도, 컴포넌트 구조, Nginx 리버스 프록시 |
-| 🚀 **BackEnd** | [BackEnd 가이드](./BackEnd/README.md) | NestJS 11, TypeORM, 7인 멀티에이전트, Fail-Safe 폴백 엔진, Docker 컨테이너 운영 |
-| 🗄️ **DataBase** | [DataBase 가이드](./DataBase/README.md) | AWS EC2 PostgreSQL 16, DEV(`travel_test`) & PROD(`travel_prod`), 계정 및 권한 SQL |
-| 🐳 **Docker** | [Docker 가이드](./Docker/README.md) | 초심자 개념 총정리, 멀티스테이지 빌드, 환경 분리, 네트워크 아키텍처, Compose 명령어 |
-| 🚢 **CI/CD** | [CI/CD 가이드](./CI_CD/README.md) | GitHub Actions, Self-hosted 러너, Nginx HTTPS 및 HSTS, Docker Compose 배포 |
-| 📁 **ETC** | [ETC 가이드](./ETC/README.md) | 팀 회의록 템플릿, 패키지 버전 스냅샷, 협업 컨벤션 |
-
----
 
 ## 🏗️ 시스템 아키텍처 & 기술 스택
 
@@ -34,19 +19,20 @@
    ├── 1) '/' 정적 파일 요청    ──> React(Vite) 빌드 산출물 서빙
    └── 2) '/api/' API 요청      ──> 백엔드 NestJS (내부 포트 3001) 로 포워딩
                                               │
-                    ┌─────────────────────────┴─────────────────────────┐
-                    ▼                                                   ▼
-     [ Google Gemini AI (GenAI SDK) ]                      [ AWS EC2 PostgreSQL 16.15 ]
-     - 7인 멀티에이전트 여행 일정 설계                      - 32.236.200.229:5432
-     - 장소별 감성 수필 및 시 생성                         - TEST(travel_test) / PROD(travel_prod)
-     - Graceful Degradation 내장 절차적 폴백 엔진
+                    ┌─────────────────────────┼─────────────────────────┐
+                    ▼                         ▼                         ▼
+     [ Google Gemini AI (GenAI SDK) ]  [ FastAPI AI 추론 엔진 ]    [ AWS EC2 PostgreSQL 16 ]
+     - 7인 멀티에이전트 일정 설계      - Python 3.12, Uvicorn     - <DB_HOST_IP>:5432
+     - 환경별 동적 모델 바인딩        - 고속 AI/NPU 연산         - TEST/PROD DB 격리
+     - 절차적 폴백 엔진
 ```
 
 ### Tech Stack
 | 분류 | 기술 |
 |---|---|
 | **FrontEnd** | React 19, TypeScript, Vite 8, Tailwind CSS v4, Leaflet (지도), Lucide React, Motion |
-| **BackEnd** | NestJS 11, TypeScript, TypeORM, Express, Node.js 22 LTS, Google GenAI SDK |
+| **BackEnd (BFF & Web)** | NestJS 11, TypeScript, TypeORM, Express, Node.js 22 LTS, Google GenAI SDK |
+| **BackEnd (AI Engine)** | FastAPI, Python 3.12, Uvicorn, Pydantic v2, HTTPX |
 | **Database** | PostgreSQL 16.15 (AWS EC2), DBeaver |
 | **CI/CD & Infra** | GitHub Actions, AWS EC2 (Amazon Linux 2023), Nginx, Docker & Docker Compose |
 
@@ -64,14 +50,18 @@ FURIOSA_BOOTCAMP_miniproject/
 │   ├── Dockerfile                    # Nginx Alpine 기반 경량 컨테이너
 │   ├── nginx.conf                    # SPA 라우팅 및 /api/ 프록시 Nginx 설정
 │   └── README.md                     # [프론트엔드 상세 가이드]
-├── BackEnd/                          # NestJS 11 + TypeORM + Gemini Multi-Agent
-│   ├── src/
-│   │   ├── database/                 # TypeORM 연결 모듈 & DB 진단(check) CLI
-│   │   ├── travel/                   # 7인 AI 멀티에이전트, 감성 문학 리뷰, 절차적 폴백 엔진
-│   │   └── main.ts                   # 부트스트랩 (포트 바인딩, CORS, HSTS)
-│   ├── scripts/                      # 환경별 start, build, check-db 유틸
-│   ├── Dockerfile                    # Node 22 Alpine 멀티스테이지 컨테이너
-│   └── README.md                     # [백엔드 상세 가이드]
+├── BackEnd/                          # 멀티 백엔드 시스템 (NestJS + FastAPI)
+│   ├── nestjs/                       # NestJS 11 + TypeORM + Gemini Multi-Agent (포트 3001)
+│   │   ├── src/                      # TypeORM 모듈, 7인 AI 멀티에이전트
+│   │   ├── docs/                     # 기술, 아키텍처, 실행, 환경, 기능, 테스트 상세 문서
+│   │   ├── Dockerfile                # Node 22 Alpine 컨테이너
+│   │   └── README.md                 # NestJS 서버 상세 가이드
+│   ├── fastapi/                      # Python 3.12 + FastAPI AI 추론 마이크로서비스 (포트 8000)
+│   │   ├── main.py                   # FastAPI 엔드포인트 (추론, 헬스체크)
+│   │   ├── requirements.txt          # 파이썬 의존성 패키지
+│   │   ├── Dockerfile                # Python 3.12 Slim 컨테이너
+│   │   └── README.md                 # FastAPI 엔진 상세 가이드
+│   └── README.md                     # [백엔드 통합 마스터 허브 가이드]
 ├── DataBase/                         # AWS EC2 PostgreSQL 16 접속 정보 & 계정/권한 안내
 │   └── README.md                     # [데이터베이스 상세 가이드]
 ├── Docker/                           # 컨테이너 가상화 및 통합 오케스트레이션 가이드
