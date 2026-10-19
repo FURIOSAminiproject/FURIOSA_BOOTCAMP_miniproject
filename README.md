@@ -169,6 +169,10 @@ npm run db:check -- prod    # 운영(PROD) DB 연결 확인
 
 Docker Compose를 통해 프론트엔드(React + Nginx)와 백엔드(NestJS)를 컨테이너화하여 일관된 환경에서 실행할 수 있습니다. `APP_ENV` 환경변수를 통해 환경을 스위칭합니다.
 
+> [!NOTE]
+> **로컬 개발 시 Docker는 필수가 아닙니다!**  
+> PC에 Docker Desktop이 설치되어 있지 않다면 무거운 도커를 설치할 필요 없이, 상단의 [**⚡ 빠른 시작 (Quick Start)**](#-빠른-시작-quick-start) 가이드에 따라 `npm run start:dev` 및 `npm run dev`로 즉시 가볍고 빠르게 실행할 수 있습니다. Docker Compose는 주로 **AWS EC2 배포 서버** 또는 가상화 환경 테스트 시 사용됩니다.
+
 ### 환경별 실행 명령어
 
 #### 🐧 Linux / EC2 / macOS / Git Bash
