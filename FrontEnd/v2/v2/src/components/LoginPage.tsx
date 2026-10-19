@@ -3,10 +3,15 @@ import './LoginPage.css';
 
 export interface LoginPageProps {
   onLoginSuccess?: (userEmail: string) => void;
+  onNavigateToRegister?: () => void;
   onGuestExplore?: () => void;
 }
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onGuestExplore }) => {
+export const LoginPage: React.FC<LoginPageProps> = ({
+  onLoginSuccess,
+  onNavigateToRegister,
+  onGuestExplore,
+}) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -66,7 +71,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onGuestExp
 
             {/* Title */}
             <h1 className="banner-title">
-              <span className="title-line1">~~~~~,</span>
+              <span className="title-line1">출발부터 귀국까지,</span>
               <span className="title-line2">완벽한 맞춤 일정</span>
             </h1>
 
@@ -247,7 +252,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onGuestExp
                 className="link-primary"
                 onClick={(e) => {
                   e.preventDefault();
-                  showNotification('이메일 회원가입 화면으로 이동합니다.');
+                  if (onNavigateToRegister) {
+                    onNavigateToRegister();
+                  } else {
+                    showNotification('이메일 회원가입 화면으로 이동합니다.');
+                  }
                 }}
               >
                 이메일로 회원가입

@@ -1,13 +1,22 @@
 import React, { useState } from 'react';
 import LoginPage from './components/LoginPage';
+import RegisterPage from './components/RegisterPage';
 import './App.css';
 
+type PageType = 'login' | 'register';
+
 function App() {
+  const [currentPage, setCurrentPage] = useState<PageType>('login');
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [isGuest, setIsGuest] = useState(false);
 
   const handleLoginSuccess = (user: string) => {
     setCurrentUser(user);
+    setIsGuest(false);
+  };
+
+  const handleRegisterSuccess = (email: string, nickname: string) => {
+    setCurrentUser(nickname || email);
     setIsGuest(false);
   };
 
@@ -19,9 +28,10 @@ function App() {
   const handleLogout = () => {
     setCurrentUser(null);
     setIsGuest(false);
+    setCurrentPage('login');
   };
 
-  // If logged in or guest browsing, show greeting/dashboard mockup or return to login
+  // If logged in or guest browsing, show greeting/dashboard mockup
   if (currentUser) {
     return (
       <div className="main-welcome-screen">
@@ -32,7 +42,7 @@ function App() {
             {isGuest ? (
               <span><strong>게스트 모드</strong>로 둘러보는 중입니다.</span>
             ) : (
-              <span><strong>{currentUser}</strong> 님, 반갑습니다!</span>
+              <span><strong>{currentUser}</strong> 님, 환영합니다!</span>
             )}
           </p>
           <p className="welcome-desc">
@@ -46,9 +56,20 @@ function App() {
     );
   }
 
+  if (currentPage === 'register') {
+    return (
+      <RegisterPage
+        onNavigateToLogin={() => setCurrentPage('login')}
+        onRegisterSuccess={handleRegisterSuccess}
+        onGuestExplore={handleGuestExplore}
+      />
+    );
+  }
+
   return (
     <LoginPage
       onLoginSuccess={handleLoginSuccess}
+      onNavigateToRegister={() => setCurrentPage('register')}
       onGuestExplore={handleGuestExplore}
     />
   );
