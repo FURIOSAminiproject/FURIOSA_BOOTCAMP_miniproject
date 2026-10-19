@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# 스크립트명: build_frontend.sh
-# 목    적: React(Vite) 프론트엔드 프로젝트 클린 빌드 및 산출물 검증
+# 스크립트명: build.sh
+# 위    치: CI_CD/FrontEnd/build.sh
+# 목    적: React(Vite) 프론트엔드 프로젝트 클린 빌드 및 산출물 무결성 검증
 # 실    행: GitHub Actions build 잡 러너(ubuntu-latest)에서 호출됨
 # ==============================================================================
 
@@ -11,10 +12,8 @@
 #   -o pipefail: 파이프라인(|) 연결 중 어느 하나라도 실패하면 전체 파이프라인 실패로 간주
 set -euo pipefail
 
-# 1. 프로젝트 최상위 루트 디렉토리 경로 계산
-#    - ${BASH_SOURCE[0]}: 현재 실행 중인 스크립트 파일의 경로
-#    - dirname 후 .. 로 이동하여 저장소 루트 경로(FURIOSA_BOOTCAMP_miniproject) 절대경로 획득
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# 1. 프로젝트 최상위 루트 디렉토리 경로 계산 (CI_CD/FrontEnd -> 루트)
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 # 2. React 프로젝트 디렉토리로 이동
 cd "$PROJECT_ROOT/FrontEnd"

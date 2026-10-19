@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# 스크립트명: build_backend.sh
+# 스크립트명: build.sh
+# 위    치: CI_CD/BackEnd/build.sh
 # 목    적: Nest.js 백엔드 프로젝트 패키지 설치, 자동 테스트 및 프로덕션 빌드
 # 실    행: GitHub Actions build 잡 러너(ubuntu-latest)에서 호출됨
 # ==============================================================================
@@ -11,8 +12,8 @@
 #   -o pipefail: 파이프라인 중간 오류도 실패로 처리
 set -euo pipefail
 
-# 1. 프로젝트 최상위 루트 디렉토리 경로 계산
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# 1. 프로젝트 최상위 루트 디렉토리 경로 계산 (CI_CD/BackEnd -> 루트)
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 # 2. BackEnd 프로젝트 디렉토리로 이동
 cd "$PROJECT_ROOT/BackEnd"

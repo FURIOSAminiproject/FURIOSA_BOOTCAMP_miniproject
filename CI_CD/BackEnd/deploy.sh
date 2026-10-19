@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# 스크립트명: deploy_backend.sh
+# 스크립트명: deploy.sh
+# 위    치: CI_CD/BackEnd/deploy.sh
 # 목    적: Nest.js 백엔드 Docker Compose 컨테이너 무중단 빌드/배포 및 헬스체크
 # 실    행: GitHub Actions deploy 잡 러너(EC2 Self-hosted Runner)에서 호출됨
 # ==============================================================================
 
 set -euo pipefail
 
-# 1. 경로 설정
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# 1. 경로 설정 (CI_CD/BackEnd -> 루트)
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SOURCE_DIR="$PROJECT_ROOT/BackEnd"
 APP_ENV="${APP_ENV:-production}"
 

@@ -80,31 +80,49 @@ APP_ENV=development docker compose up -d --build
 프론트엔드와 백엔드의 변경 사항을 감지하여 GitHub-hosted 러너에서 검증한 뒤 EC2 Self-hosted 러너로 안전하게 전달합니다.
 
 ### 3-1. 프론트엔드 파이프라인 (`.github/workflows/deploy.yml`)
-* **트리거 경로**: `FrontEnd/**`, `CI_CD/**`
+* **트리거 경로**: `FrontEnd/**`, `CI_CD/FrontEnd/**`
+* **상세 문서**: [프론트엔드 CI/CD 가이드](./FrontEnd/README.md)
 1. **GitHub-hosted Runner (ubuntu-latest)**:
-   - Node.js 환경 초기화 및 `CI_CD/build_frontend.sh` 실행
-   - Vite 기반 프로덕션 번들 빌드 (`FrontEnd/dist/` 생성)
+   - Node.js 환경 초기화 및 `CI_CD/FrontEnd/build.sh` 실행
+   - Vite 기반 프로덕션 번들 빌드 (`FrontEnd/dist/` 생성 및 무결성 검증)
 2. **Self-hosted Runner (AWS EC2)**:
-   - 산출물 동기화 및 웹 서버 리로드
+   - `CI_CD/FrontEnd/deploy.sh` 실행
+   - `rsync --delete` 무중단 동기화 및 Nginx 웹 서버 반영
 
 ### 3-2. 백엔드 파이프라인 (`.github/workflows/deploy_backend.yml`)
-* **트리거 경로**: `BackEnd/**`, `CI_CD/**`
+* **트리거 경로**: `BackEnd/**`, `CI_CD/BackEnd/**`
+* **상세 문서**: [백엔드 CI/CD 가이드](./BackEnd/README.md)
 1. **GitHub-hosted Runner (ubuntu-latest)**:
-   - Node.js 22.x 환경 초기화 및 `CI_CD/build_backend.sh` 실행
+   - Node.js 22.x 환경 초기화 및 `CI_CD/BackEnd/build.sh` 실행
    - 격리 단위 테스트(`npm test`) 통과 검증 후 프로덕션 빌드
 2. **Self-hosted Runner (AWS EC2)**:
-   - 배포 반영 후 헬스체크 검증 (`GET http://127.0.0.1:3001/api/health`)
+   - `CI_CD/BackEnd/deploy.sh` 실행
+   - Docker Compose 컨테이너 무중단 재기동 후 `/api/health` 헬스체크 검증 (최대 5회)
 
 ---
 
-## 4. CI/CD 스크립트 명세
+## 4. 디렉토리 구조 및 CI/CD 스크립트 명세
+
+```
+CI_CD/
+├── FrontEnd/                         # 🎨 프론트엔드 배포 파이프라인
+│   ├── build.sh                      # Vite 번들 빌드 및 index.html 검증
+│   ├── deploy.sh                     # EC2 Nginx rsync 무중단 배포
+│   └── README.md                     # [프론트엔드 CI/CD 상세 가이드]
+├── BackEnd/                          # 🚀 백엔드 배포 파이프라인
+│   ├── build.sh                      # 단위 테스트(npm test) & 컴파일
+│   ├── deploy.sh                     # Docker Compose 재기동 & 헬스체크
+│   └── README.md                     # [백엔드 CI/CD 상세 가이드]
+├── nginx_https.conf                  # 🌐 SSL 리버스 프록시 설정 템플릿
+└── README.md                         # 🚢 CI/CD 종합 인프라 가이드
+```
 
 | 스크립트 파일 | 역할 | 주요 실행 내용 |
 |---|---|---|
-| **`CI_CD/build_frontend.sh`** | 프론트엔드 빌드 | `npm ci` ➔ `npm run build:prod` ➔ `dist/` 무결성 검증 |
-| **`CI_CD/deploy_frontend.sh`** | 프론트엔드 EC2 배포 | 산출물 동기화 ➔ 권한 부여 (`nginx:nginx`) ➔ 웹 서버 반영 |
-| **`CI_CD/build_backend.sh`** | 백엔드 빌드 & 테스트 | `npm ci` ➔ `npm test` ➔ `npm run build:op` ➔ 컴파일 검증 |
-| **`CI_CD/deploy_backend.sh`** | 백엔드 EC2 배포 | 신규 릴리즈 반영 ➔ 서비스 리로드 ➔ `/api/health` 헬스체크 검증 |
+| **`CI_CD/FrontEnd/build.sh`** | 프론트엔드 빌드 | `npm ci` ➔ `npm run build` ➔ `dist/index.html` 무결성 검증 |
+| **`CI_CD/FrontEnd/deploy.sh`** | 프론트엔드 EC2 배포 | 산출물 검증 ➔ `nginx -t` ➔ `rsync -av --delete` 동기화 |
+| **`CI_CD/BackEnd/build.sh`** | 백엔드 빌드 & 테스트 | `npm ci` ➔ `npm test`(Fail-Fast) ➔ `npm run build:prod` 컴파일 |
+| **`CI_CD/BackEnd/deploy.sh`** | 백엔드 EC2 배포 | `docker compose up -d --build backend` ➔ `/api/health` 헬스체크 |
 | **`CI_CD/nginx_https.conf`** | 웹 서버 설정 템플릿 | 80 ➔ 443 리다이렉트, SSL 인증서 바인딩, HSTS, `/api/` 프록시 |
 
 ---
