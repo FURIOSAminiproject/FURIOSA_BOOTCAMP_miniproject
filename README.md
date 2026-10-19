@@ -77,10 +77,8 @@ FURIOSA_BOOTCAMP_miniproject/
 ├── Docker/                           # 컨테이너 가상화 및 통합 오케스트레이션 가이드
 │   └── README.md                     # [Docker 상세 가이드 (초심자용 개념 & 실전)]
 ├── CI_CD/                            # GitHub Actions 자동 배포 & Nginx HTTPS 설정
-│   ├── build_frontend.sh             # 프론트엔드 빌드 스크립트
-│   ├── deploy_frontend.sh            # 프론트엔드 EC2 배포 스크립트
-│   ├── build_backend.sh              # 백엔드 빌드 & 테스트 스크립트
-│   ├── deploy_backend.sh             # 백엔드 EC2 무중단 배포 스크립트
+│   ├── FrontEnd/                     # 프론트엔드 배포 파이프라인 (build.sh, deploy.sh, README.md)
+│   ├── BackEnd/                      # 백엔드 배포 파이프라인 (build.sh, deploy.sh, README.md)
 │   ├── nginx_https.conf              # SSL 리버스 프록시 설정 템플릿
 │   └── README.md                     # [CI/CD 상세 가이드]
 ├── ETC/                              # 프로젝트 회의록 및 운영 자료
