@@ -1,0 +1,41 @@
+{
+  "name": "furiosa-travel-backend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:local": "node scripts/build.cjs local",
+    "build:dev": "node scripts/build.cjs development",
+    "build:op": "node scripts/build.cjs production",
+    "build:prod": "node scripts/build.cjs production",
+    "start": "node scripts/start.cjs production",
+    "start:dev": "node scripts/start.cjs development",
+    "test": "npm run build && node --test test/*.test.cjs",
+    "start:op": "node scripts/start.cjs production",
+    "start:prod": "node scripts/start.cjs production",
+    "start::prod": "node scripts/start.cjs production",
+    "start:local": "node scripts/start.cjs local",
+    "start::local": "node scripts/start.cjs local",
+    "db:check": "node scripts/check-db.cjs",
+    "db:check:local": "node scripts/check-db.cjs local",
+    "db:check:dev": "node scripts/check-db.cjs dev",
+    "db:check:prod": "node scripts/check-db.cjs prod"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.0",
+    "@nestjs/core": "^11.1.0",
+    "@nestjs/platform-express": "^11.1.0",
+    "@google/genai": "^2.4.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "@nestjs/typeorm": "^11.0.0",
+    "typeorm": "^0.3.28",
+    "pg": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.0",
+    "tsx": "^4.20.0",
+    "@nestjs/testing": "^11.1.0"
+  }
+}
