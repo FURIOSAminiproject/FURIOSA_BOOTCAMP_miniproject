@@ -2,6 +2,8 @@
 
 이 저장소는 FrontEnd Nginx, NestJS, FastAPI를 하나의 Compose 네트워크로 실행합니다. PostgreSQL은 포함하지 않으므로 별도로 준비합니다.
 
+구성 변경 전에는 [작업 지침](AGENTS.md)과 [구현 검토 기록](REVIEW.md)을 확인합니다. 실제 설정 파일은 저장소 루트와 각 서비스 폴더에 있습니다.
+
 ## 기본 개념
 
 - 이미지: Dockerfile로 빌드한 실행 파일·런타임 묶음입니다.

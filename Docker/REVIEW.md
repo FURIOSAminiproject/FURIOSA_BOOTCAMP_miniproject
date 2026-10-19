@@ -1,0 +1,46 @@
+# Docker·웹 서버 구성 검토 기록
+
+검토일: 2026-10-19. Docker/에는 안내 문서가 있으며 실제 검토 대상은 루트 Compose, 서비스별 Dockerfile·.dockerignore, 프론트 엔트리포인트와 세 Nginx 설정이다. 미수정 문제와 현재 설계를 구분했다. 아래 P2는 해당 입력·운영 조건에서 파일 누락 또는 서비스 기동·인증서 반영에 영향을 주는 항목이다.
+
+## 확인된 개선 항목
+
+### D01 · P2 · 프론트 Docker 빌드에서 public 파일이 빠진다
+
+- 근거: [FrontEnd/Dockerfile](../FrontEnd/Dockerfile)은 빌드에 필요한 루트 파일과 src/만 복사한다. [public/deploy_test.json](../FrontEnd/public/deploy_test.json)이 존재하지만 COPY 대상이 아니다.
+- 검증: 실제 COPY 목록과 파일 존재를 확인했다. 일반 로컬 Vite 빌드와 달리 Docker builder에 public/가 전달되지 않는 경로다. 실제 Docker 이미지는 빌드하지 않았다.
+- 영향: 해당 JSON은 이미지의 정적 파일로 제공되지 않는다. 누락 경로 요청이 SPA index.html로 처리될 수 있어 HTTP 200만 확인하면 파일 존재를 오판할 수 있다.
+- 개선 방향: public 파일을 배포 입력으로 포함할지 정하고 COPY·이미지 산출물·응답 Content-Type/내용을 함께 검증한다. 현재 JSON만 빠지는 것을 전체 React 빌드 실패로 설명하지 않는다.
+
+### D02 · P2 · 서로 다른 디렉토리의 인증서와 키를 조합할 수 있다
+
+- 근거: [docker-entrypoint.sh](../FrontEnd/docker-entrypoint.sh)는 fullchain.pem과 privkey.pem을 독립적으로 find/head 검색한다. 같은 디렉토리인지 확인하지 않는다.
+- 재현: 격리된 fixture에 `a/fullchain.pem`, `b/privkey.pem`만 두자 서로 다른 경로를 HTTPS 설정에 함께 넣었다. 경로를 임시 폴더로 바꾸고 nginx를 스텁으로 대체한 분기 검증이다.
+- 영향: 여러 도메인이나 일부 파일이 누락된 마운트에서 잘못된 쌍을 선택할 수 있다. 실제 Nginx가 맞지 않는 키를 거부하면 기동이 중단된다. 모킹 검증에서 암호학적 키 검사를 수행한 것은 아니다.
+- 개선 방향: 사용할 도메인 또는 인증서 디렉토리를 명시하고 한 디렉토리의 cert/key를 함께 선택한다. 유효하지 않은 쌍의 처리 정책도 정한다.
+
+### D03 · P2 · 인증서 갱신 후 반영하는 reload 경로가 없다
+
+- 근거: 인증서 검색·템플릿 렌더링은 엔트리포인트 시작 시 한 번 수행한다. Compose·Dockerfile·CI_CD에는 Certbot 갱신 스케줄이나 frontend Nginx reload 훅을 설치하는 코드가 없다.
+- 발생 조건: 외부 Certbot 등이 인증서 파일을 갱신하고 컨테이너는 계속 실행한다. 운영 호스트에 별도 훅이 없는 경우다.
+- 영향: 마운트의 파일 교체만으로 실행 중인 Nginx가 새 인증서를 적용한다고 보장할 수 없다. 최초 발급 후에도 HTTP/HTTPS 모드 재선택이 필요하다.
+- 개선 방향: 갱신 성공 후 구성 검사와 reload 또는 필요한 재시작 절차를 운영 경로에 연결하고 갱신 실패를 확인한다. 운영 호스트의 외부 훅 존재 여부는 조회하지 않았다.
+
+## 구성상 확인할 조건
+
+- depends_on은 시작 순서만 지정하며 준비 완료를 기다리지 않는다. FastAPI HEALTHCHECK는 있지만 backend/frontend에는 없다. 기동 직후에는 502가 날 수 있다. 이미 운영 장애가 발생했다고 확인한 것은 아니다.
+- restart:always와 Docker health 상태는 별개다. FastAPI가 unhealthy가 된 것만으로 자동 재시작·롤백이 수행되는 구성은 아니다.
+- `.env.*`는 선택 사항이지만 NestJS DB 필수 설정은 선택 사항이 아니다. frontend 시작으로 의존 서비스까지 시작하는 배포 문제는 [CI_CD 검토 C01](../CI_CD/REVIEW.md)에 기록되어 있다.
+- APP_ENV를 바꿔도 고정 container_name·80/443 등 호스트 포트를 공유한다. 환경별 DB 파일 선택 기능을 환경별 스택 격리로 해석하지 않는다.
+- Compose에서 backend 직접 HTTPS를 켜면 HTTP upstream과 충돌할 수 있다. DB_SSL은 이 문제와 관계없는 DB TLS다.
+- 이미지 태그와 FastAPI 최소 버전 의존성은 완전히 고정되어 있지 않다. 이번 검토에서는 재현성 정책 변경을 구현하지 않았다.
+- Compose만 변경할 때 자동 배포되지 않는 문제는 [워크플로우 검토 W02](../.github/workflows/REVIEW.md)를 참고한다.
+
+## 수행한 검증과 한계
+
+| 검증 | 결과 |
+|---|---|
+| Compose config | local/development/production 3개 모드에서 서비스 3개, backend 컨텍스트·환경 파일, HOST, service_started 확인 |
+| 엔트리포인트 fixture 6개 | 인증서 없음, 정상 경로의 쌍, 인증서만, 키만, 다른 디렉토리의 쌍, nginx 검사 실패 분기 확인 |
+| 프록시·파일 입력 | 두 활성 Nginx 템플릿의 서비스명·접두사 제거·챌린지·리다이렉트, Dockerfile COPY와 ignore 규칙 정적 대조 |
+
+fixture는 실제 스크립트의 시스템 경로를 임시 경로로 바꾸고 nginx 명령을 스텁으로 대체했다. 설정 검사 실패 fixture에서 최종 실행 명령이 호출되지 않는 것도 확인했다. 실제 인증서 만료·체인·키 일치, 실제 Nginx 문법 검사, Docker 이미지 빌드·기동, Windows 호스트 마운트와 EC2 외부 접속은 검증하지 않았다. 인증서 감지 테스트 통과를 AWS/Windows 환경 설정 자동 선택 성공으로 설명하지 않는다.

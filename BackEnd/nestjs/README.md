@@ -2,6 +2,8 @@
 
 NestJS 11, TypeScript 5.9, TypeORM, PostgreSQL 드라이버와 `@google/genai`를 사용합니다. 컨테이너 및 CI 런타임은 Node.js 22입니다.
 
+수정 전에는 [작업 지침](AGENTS.md)과 [백엔드 구현 검토 기록](../REVIEW.md)을 확인합니다. 검토 기록의 개선 항목은 현재 미수정입니다.
+
 ## 구현 범위
 
 `src/travel/travel-engine.ts`는 Gemini 통합 프롬프트로 일정 JSON을 생성합니다. 키가 없거나 요청·파싱 과정이 실패하면 `generateProceduralKoreanPlan`을 사용합니다. 독립적인 7개 AI 에이전트의 호출·협업 파이프라인은 없습니다.

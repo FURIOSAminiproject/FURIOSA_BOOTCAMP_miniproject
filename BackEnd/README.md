@@ -2,6 +2,8 @@
 
 현재 통합 실행과 자동 배포는 `nestjs/`와 `fastapi/`를 사용합니다.
 
+수정 전에는 [작업 지침](AGENTS.md)과 [구현 검토 기록](REVIEW.md)을 확인합니다. 서비스별 세부 지침은 [NestJS](nestjs/AGENTS.md), [FastAPI](fastapi/AGENTS.md)에 있습니다.
+
 | 위치 | 역할 | 기본 포트 |
 |---|---|---|
 | `nestjs/` | 일정·문학 리뷰 생성, PostgreSQL 연결 및 진단 | 3001 |
