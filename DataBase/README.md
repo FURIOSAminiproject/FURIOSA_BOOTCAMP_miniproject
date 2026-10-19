@@ -135,7 +135,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO traverl_app;
 BackEnd 프로젝트에는 서버를 가동하기 전에 DB 연결 가능 여부와 자격 증명을 1초 만에 검증하는 내장 진단 스크립트가 포함되어 있습니다:
 
 ```bash
-cd BackEnd
+cd BackEnd/nestjs
 
 # 개발 DB (travel_test) 접속 검사
 npm run db:check -- dev

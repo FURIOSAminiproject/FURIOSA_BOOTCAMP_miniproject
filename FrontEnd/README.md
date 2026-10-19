@@ -94,7 +94,8 @@ docker run -d -p 80:80 --name travel-frontend travel-frontend
 
 ## 🔄 Nginx 리버스 프록시 연동 원리
 
-브라우저는 모든 요청을 프론트엔드 웹 서버(포트 80)로 전달하며, Nginx가 URL 패턴에 따라 분기 처리합니다:
-* `/` (웹 페이지 및 정적 파일): `/usr/share/nginx/html`에 번들링된 React 파일 서빙
-* `/api/` (API 호출): 백엔드 NestJS 서버(`http://backend:3001` 또는 `127.0.0.1:3001`)로 리버스 프록시 포워딩
+브라우저는 모든 요청을 프론트엔드 웹 서버(포트 80 / 443)로 전달하며, Nginx가 URL 패턴에 따라 분기 처리합니다:
+* `/` (웹 페이지 및 정적 파일): `/usr/share/nginx/html`에 번들링된 React SPA 파일 서빙
+* `/api/` (백엔드 API 호출): NestJS 서버(`http://backend:3001` 또는 `127.0.0.1:3001`)로 리버스 프록시 포워딩
+* `/fastapi/` (AI 엔진 API 호출): FastAPI 서버(`http://fastapi:8000` 또는 `127.0.0.1:8000`)로 리버스 프록시 포워딩
 * 이 구조로 인해 브라우저 단의 **CORS 문제가 원천 차단**됩니다.

@@ -98,18 +98,18 @@
 
 ## 3. 빌드 및 테스트 스크립트 상세 해부 (`build.sh`)
 
-📄 위치: [CI_CD/BackEnd/build.sh](file:///c:/furiosa-miniproject/FURIOSA_BOOTCAMP_miniproject/CI_CD/BackEnd/build.sh)
+📄 위치: [CI_CD/BackEnd/nestjs/build.sh](file:///c:/furiosa-miniproject/FURIOSA_BOOTCAMP_miniproject/CI_CD/BackEnd/nestjs/build.sh)
 
 ```bash
 #!/usr/bin/env bash
 # 오류 발생 시 즉시 중단하는 엄격 모드 설정
 set -euo pipefail
 
-# 1. 스크립트 위치(CI_CD/BackEnd)에서 프로젝트 최상위 루트 디렉토리를 계산합니다.
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# 1. 스크립트 위치(CI_CD/BackEnd/nestjs)에서 프로젝트 최상위 루트 디렉토리를 계산합니다.
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 
-# 2. BackEnd 프로젝트 디렉토리로 이동합니다.
-cd "$PROJECT_ROOT/BackEnd"
+# 2. BackEnd NestJS 프로젝트 디렉토리로 이동합니다.
+cd "$PROJECT_ROOT/BackEnd/nestjs"
 
 # 3. 디버깅용 런타임 버전 출력
 echo "===== [1/5] Node.js 및 npm 버전 확인 ====="
@@ -141,15 +141,15 @@ echo ">> Nest.js 백엔드 빌드 및 테스트 검증 성공 완료! (dist/ 생
 
 ## 4. 배포 및 헬스체크 스크립트 상세 해부 (`deploy.sh`)
 
-📄 위치: [CI_CD/BackEnd/deploy.sh](file:///c:/furiosa-miniproject/FURIOSA_BOOTCAMP_miniproject/CI_CD/BackEnd/deploy.sh)
+📄 위치: [CI_CD/BackEnd/nestjs/deploy.sh](file:///c:/furiosa-miniproject/FURIOSA_BOOTCAMP_miniproject/CI_CD/BackEnd/nestjs/deploy.sh)
 
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
 
 # 1. 경로 및 실행 환경 설정
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-SOURCE_DIR="$PROJECT_ROOT/BackEnd"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+SOURCE_DIR="$PROJECT_ROOT/BackEnd/nestjs"
 APP_ENV="${APP_ENV:-production}"              # 기본값: 운영(production) 환경
 
 echo "===== [1/4] 배포 환경 및 저장소 확인 ====="
@@ -242,8 +242,8 @@ on:
   push:
     branches: [main]
     paths:
-      - "BackEnd/**"             # 백엔드 서버 코드가 바뀌었을 때
-      - "CI_CD/BackEnd/**"      # 백엔드 배포 스크립트가 바뀌었을 때
+      - "BackEnd/nestjs/**"         # NestJS 백엔드 서버 코드가 바뀌었을 때
+      - "CI_CD/BackEnd/nestjs/**"  # NestJS 배포 스크립트가 바뀌었을 때
       - ".github/workflows/deploy_backend.yml"
 ```
 * **프론트엔드 화면 코드가 바뀔 때는 백엔드 배포가 돌지 않습니다.**

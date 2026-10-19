@@ -105,37 +105,37 @@ Docker를 배울 때 가장 기본이 되는 두 가지 개념입니다:
 │                                                                                        │
 │ [ travel-network (Docker Bridge Network) ]                                             │
 │                                                                                        │
-│  ┌─────────────────────────────────────┐      ┌─────────────────────────────────────┐  │
-│  │ travel-frontend 컨테이너            │      │ travel-backend 컨테이너             │  │
-│  │ (Nginx 1.27 Alpine)                 │      │ (Node.js 22 LTS Alpine)             │  │
-│  │                                     │      │                                     │  │
-│  │ 1) '/' 요청 ──> React 정적 번들 서빙 │      │ NestJS API 서버                     │  │
-│  │ 2) '/api/*' ─> 리버스 프록시 ───────┼─────>│ 포트 3001 (HOST=0.0.0.0)            │  │
-│  │                 (http://backend:3001)│      │ Gemini 7인 멀티에이전트 오케스트레이터│  │
-│  └─────────────────────────────────────┘      └──────────────────┬──────────────────┘  │
-│                                                                  │                     │
-└──────────────────────────────────────────────────────────────────┼─────────────────────┘
-                                                                   │ DB 쿼리 (포트 5432)
-                                                                   ▼
-                                             [ PostgreSQL 16.15 Database ]
-                                             - EC2 호스트: host.docker.internal / 32.236.200.229
-                                             - DEV: travel_test / PROD: travel_prod
+│  ┌───────────────────────────┐      ┌───────────────────────────┐      ┌─────────────┐ │
+│  │ travel-frontend 컨테이너  │      │ travel-backend 컨테이너   │      │travel-      │ │
+│  │ (Nginx 1.27 Alpine)       │      │ (Node.js 22 LTS Alpine)   │      │fastapi      │ │
+│  │                           │      │                           │      │(Python 3.12)│ │
+│  │ 1) '/' ──> React 서빙      │      │ NestJS API 서버           │      │             │ │
+│  │ 2) '/api/*' ─> 리버스 프록시┼─────>│ 포트 3001 (HOST=0.0.0.0)  │      │FastAPI 서버 │ │
+│  │ 3) '/fastapi/*' ─> 프록시  ┼──────┼───────────────────────────┼─────>│포트 8000    │ │
+│  └───────────────────────────┘      └─────────────┬─────────────┘      └─────────────┘ │
+│                                                   │                                    │
+└───────────────────────────────────────────────────┼────────────────────────────────────┘
+                                                    │ DB 쿼리 (포트 5432)
+                                                    ▼
+                                              [ PostgreSQL 16.15 Database ]
+                                              - EC2 호스트: host.docker.internal / 32.236.200.229
+                                              - DEV: travel_test / PROD: travel_prod
 ```
 
 ### 컨테이너 간 통신 및 포트 포워딩 원리
 
-1. **포트 바인딩 (`ports: ["80:80"]`, `ports: ["127.0.0.1:3001:3001"]`)**:
-   - 프론트엔드 컨테이너는 외부 웹 표준 포트 `80`을 호스트의 `80`에 연결합니다.
-   - 백엔드는 외부 공인 인터넷(0.0.0.0)에는 직접 노출하지 않고, 오직 호스트 로컬 루프백(`127.0.0.1:3001`)과 도커 내부망(`travel-network`)에만 오픈하여 보안을 유지하면서도 서버 내부 헬스체크 및 디버깅이 가능하도록 구성되어 있습니다.
+1. **포트 바인딩 (`ports: ["80:80"]`, `ports: ["127.0.0.1:3001:3001"]`, `ports: ["127.0.0.1:8000:8000"]`)**:
+   - 프론트엔드 컨테이너는 외부 웹 표준 포트 `80` 및 `443`을 호스트에 연결합니다.
+   - 백엔드는 외부 공인 인터넷(0.0.0.0)에는 직접 노출하지 않고, 오직 호스트 로컬 루프백(`127.0.0.1`)과 도커 내부망(`travel-network`)에만 오픈하여 보안을 유지하면서도 서버 내부 헬스체크 및 디버깅이 가능하도록 구성되어 있습니다.
 2. **서비스 이름 기반 DNS 통신**:
-   - `travel-network` 브리지 네트워크 안에서는 IP 주소를 몰라도 [docker-compose.yml](file:///c:/furiosa-miniproject/FURIOSA_BOOTCAMP_miniproject/docker-compose.yml)에 지정된 서비스 이름인 **`backend`**라는 도메인으로 서로 통신할 수 있습니다 (`http://backend:3001`).
+   - `travel-network` 브리지 네트워크 안에서는 IP 주소를 몰라도 [docker-compose.yml](file:///c:/furiosa-miniproject/FURIOSA_BOOTCAMP_miniproject/docker-compose.yml)에 지정된 서비스 이름인 **`backend`** 및 **`fastapi`** 도메인으로 서로 통신할 수 있습니다 (`http://backend:3001`, `http://fastapi:8000`).
 
 ### Port 80 단일 창구와 CORS 문제의 원천 차단
 
-웹 개발에서 프론트엔드(포트 3000)와 백엔드(포트 3001)의 포트가 다르면 브라우저의 보안 정책상 **CORS(Cross-Origin Resource Sharing) 에러**가 빈번히 발생합니다.
+웹 개발에서 프론트엔드(포트 3000)와 백엔드(포트 3001, 8000)의 포트가 다르면 브라우저의 보안 정책상 **CORS(Cross-Origin Resource Sharing) 에러**가 빈번히 발생합니다.
 * 본 프로젝트는 프론트엔드 컨테이너의 [FrontEnd/nginx.conf](file:///c:/furiosa-miniproject/FURIOSA_BOOTCAMP_miniproject/FrontEnd/nginx.conf)가 **리버스 프록시(Reverse Proxy)** 역할을 수행합니다.
 * 사용자의 모든 요청은 오직 `http://localhost/` (포트 80) 단일 창구로 인입됩니다.
-* `/api/`로 시작하는 요청만 Nginx가 내부 백엔드로 전달하므로, 브라우저는 동일 출처(Same-Origin)로 인식하여 **CORS 오류가 물리적으로 일어날 수 없습니다.**
+* `/api/` 및 `/fastapi/`로 시작하는 요청만 Nginx가 내부 백엔드로 전달하므로, 브라우저는 동일 출처(Same-Origin)로 인식하여 **CORS 오류가 물리적으로 일어날 수 없습니다.**
 
 ---
 
@@ -178,17 +178,21 @@ RUN if [ "$APP_ENV" = "development" ] || [ "$APP_ENV" = "dev" ]; then \
     fi
 
 # ==============================================================================
-# 2단계: 실행 (Runner Stage) - 초경량 Nginx 서버
+# 2단계: 실행 (Runner Stage) - 초경량 Nginx 서버 (SSL 자동 감지)
 # ==============================================================================
 FROM nginx:alpine AS runner
 
-# 무거운 Node.js 런타임은 모두 버리고, 오직 빌드 산출물(dist)만 복사 (~25MB 수준)
+RUN mkdir -p /var/www/certbot /etc/nginx/templates
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# SPA 라우팅 및 백엔드 리버스 프록시 설정 적용
+COPY nginx_http.conf /etc/nginx/templates/nginx_http.conf
+COPY nginx_ssl.conf /etc/nginx/templates/nginx_ssl.conf
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
-EXPOSE 80
+EXPOSE 80 443
+ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["nginx", "-g", "daemon off;"]
 ```
 

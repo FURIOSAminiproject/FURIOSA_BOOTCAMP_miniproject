@@ -12,11 +12,10 @@ BackEnd/
 │   ├── src/
 │   ├── test/
 │   ├── scripts/
-│   ├── docs/           # NestJS 상세 기술/아키텍처/실행/환경 문서
 │   ├── Dockerfile
 │   └── README.md
 │
-└── fastapi/            # [고성능 AI 추론 엔진] Python 3.12 + FastAPI + NPU/PyTorch 지원
+└── fastapi/            # [AI 마이크로서비스] Python 3.12 + FastAPI
     ├── main.py
     ├── requirements.txt
     ├── Dockerfile
@@ -29,17 +28,16 @@ BackEnd/
 
 ```mermaid
 flowchart TD
-    Client[React FrontEnd<br/>Port 80] -->|REST API :3001| NestJS[NestJS 백엔드<br/>BFF & 비즈니스 로직]
+    Client[React FrontEnd / Nginx<br/>Port 80 / 443] -->|/api/* :3001| NestJS[NestJS 백엔드<br/>BFF & 비즈니스 로직]
+    Client -->|/fastapi/* :8000| FastAPI[FastAPI AI 엔진<br/>경량 비동기 마이크로서비스]
     NestJS -->|TypeORM Connection| DB[(AWS EC2 PostgreSQL 16<br/>Port 5432)]
-    NestJS -->|Gemini SDK| Gemini[Google Gemini AI]
-    NestJS -->|Inference Call :8000| FastAPI[FastAPI AI 추론 엔진<br/>NPU / PyTorch]
-    FastAPI -->|NPU Kernel| NPU[Furiosa NPU Accelerator]
+    NestJS -->|Gemini SDK & Fallback| Gemini[Google Gemini AI]
 ```
 
 | 서브시스템 | 기술 스택 | 포트 | 주요 역할 |
 |---|---|---|---|
-| **`BackEnd/nestjs`** | NestJS 11, TypeScript, TypeORM, Express | `3001` | • 프론트엔드 BFF (Backend For Frontend)<br/>• 사용자 요청 검증 및 DB 트랜잭션<br/>• 7인 AI 멀티에이전트 파이프라인 조율<br/>• 여행 일정 승인 상태 머신 관리 |
-| **`BackEnd/fastapi`** | FastAPI, Python 3.12, Uvicorn, Pydantic | `8000` | • 고속 데이터 연산 및 비동기 처리<br/>• Furiosa NPU 전용 추론 인터페이스<br/>• 딥러닝/임베딩 모델 및 벡터 검색 서빙 |
+| **`BackEnd/nestjs`** | NestJS 11, TypeScript, TypeORM, Express | `3001` | • 프론트엔드 BFF (Backend For Frontend)<br/>• 사용자 요청 검증 및 DB 연결 진단<br/>• 7인 AI 멀티에이전트 파이프라인 조율<br/>• 절차적 한국어 일정/시/수필 폴백 엔진 |
+| **`BackEnd/fastapi`** | FastAPI, Python 3.12, Uvicorn, Pydantic | `8000` | • 비동기 고속 데이터 처리 마이크로서비스<br/>• 서비스 헬스체크 (`/health`)<br/>• 여행지 추천 샘플 엔드포인트 (`/api/v1/recommend`) |
 
 ---
 

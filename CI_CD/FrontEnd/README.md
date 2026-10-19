@@ -45,7 +45,7 @@
 | 구분 | 1. Build 잡 (클라우드 러너) | 2. Deploy 잡 (EC2 러너) |
 |---|---|---|
 | **실행 장소** | GitHub가 무료로 제공하는 임시 컴퓨터 (`ubuntu-latest`) | 실제 서비스가 돌아가고 있는 우리의 **AWS EC2 서버** |
-| **하는 일** | 소스코드 다운로드, `npm ci`, Vite 번들링 컴파일 | 빌드된 정적 파일만 받아서 Nginx 웹 폴더로 복사 |
+| **하는 일** | 소스코드 다운로드, `npm ci`, Vite 번들링 컴파일 | 프론트엔드 소스 백업 및 `docker compose up -d --build frontend` 컨테이너 배포 |
 | **나눈 이유** | 빌드 과정은 CPU와 메모리를 많이 소모합니다. 서버에서 직접 빌드하면 **실제 사용자가 접속 중인 웹사이트가 버벅거리거나 멈출 수 있기 때문**입니다! |
 
 ---
@@ -54,7 +54,7 @@
 
 * 빌드 컴퓨터(GitHub 러너)와 배포 컴퓨터(AWS EC2)는 완전히 서로 다른 기계입니다.
 * GitHub 러너가 빌드를 마친 후 생성된 결과물(`dist/` 폴더)을 압축하여 안전한 클라우드 보관소에 **"택배 상자"**처럼 올려두는데, 이 보관된 결과물을 **아티팩트(Artifact)**라고 부릅니다.
-* 배포 컴퓨터(EC2)는 이 택배 상자를 내려받아 웹 서버 디렉토리에 풀기만 하면 됩니다.
+* 배포 컴퓨터(EC2)는 이 택배 상자를 내려받아 온전함을 검증하고 컨테이너를 안전하게 기동합니다.
 
 ---
 
@@ -82,12 +82,10 @@
 │                                                                        │
 │  ① actions/download-artifact : 빌드된 dist/ 택배 상자 수신            │
 │  ② CI_CD/FrontEnd/deploy.sh 실행:                                      │
-│     - [사전 검사] index.html 무결성 & /usr/share/nginx/html 확인       │
-│     - [설정 검사] sudo nginx -t (웹 서버 문법에 이상이 없는지 확인)   │
-│     - [무중단 동기화] sudo rsync -av --delete ...                      │
-│       * 오래된 캐시 파일 자동 삭제                                     │
-│       * SSL 인증서 폴더(/.well-known/) 안전 보존                       │
-│     - [사후 검증] 웹 디렉토리에 정상 반영되었는지 확인                 │
+│     - [호스트 점검] 호스트 Nginx 중지 및 포트 80/443 충돌 방지        │
+│     - [자동 백업] 기존 프론트엔드 소스 백업 (최신 1개 tar.gz 보관)    │
+│     - [도커 기동] docker compose up -d --build frontend                │
+│     - [자동 헬스체크] 포트 80/443 및 컨테이너 정상 응답 검증 (최대 5회)│
 └──────────────────────────────────┬─────────────────────────────────────┘
                                    ▼
           [ 전 세계 사용자가 브라우저로 최신 웹 화면 즉시 이용 가능! ]
@@ -146,68 +144,75 @@ echo ">> React 빌드 및 검증 성공 완료! (dist/ 생성됨)"
 #!/usr/bin/env bash
 set -euo pipefail
 
-# 1. 경로 정의
+# 1. 경로 설정 (CI_CD/FrontEnd -> 루트)
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-DIST_DIR="$PROJECT_ROOT/FrontEnd/dist"        # 빌드 아티팩트가 다운로드된 위치
-NGINX_DIR="/usr/share/nginx/html"             # Nginx가 실제로 인터넷에 보여주는 웹 서빙 폴더
+APP_ENV="${APP_ENV:-production}"
 
-# 2. 배포 전 사전 점검
-echo "===== [1/4] 배포 전 파일 및 디렉토리 검사 ====="
-test -s "$DIST_DIR/index.html"                # 배포할 파일이 온전한가?
-test -d "$NGINX_DIR"                         # 웹 서버 서빙 폴더가 존재하는가?
+# 2. 호스트 Nginx 서비스 점검 (Docker 컨테이너가 80/443 포트를 배타적으로 점유하도록 보장)
+if command -v systemctl >/dev/null 2>&1; then
+    if systemctl is-active --quiet nginx 2>/dev/null; then
+        echo ">> [안내] 호스트 OS에서 실행 중인 Nginx를 중단하고 비활성화합니다 (Docker Nginx 전환)..."
+        sudo systemctl stop nginx || true
+        sudo systemctl disable nginx || true
+    fi
+fi
 
-# 3. Nginx 설정 문법 오류 사전 검사
-#    * 배포 직전에 웹 서버 설정에 오타나 오류가 없는지 미리 점검합니다.
-echo "===== [2/5] Nginx 설정 구문 검사 (nginx -t) ====="
-sudo -n nginx -t
-
-# 4. 기존 운영 버전 자동 백업 (최신 1개 보관)
-#    * 새 코드를 배포하기 전, 기존 Nginx 웹 서빙 파일을 tar.gz로 백업하여 만약의 장애 시 즉시 롤백 가능하게 합니다.
-#    * 최신 1개만 유지하여 EC2 서버 용량을 낭비하지 않습니다.
-echo "===== [3/5] 기존 운영 프론트엔드 코드 백업 (Backup) ====="
+# 3. 기존 프론트엔드 소스 백업 (Rollback 방어용, 최신 1개 유지)
 BACKUP_DIR="${PROJECT_ROOT}/backups/frontend"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 BACKUP_FILE="${BACKUP_DIR}/frontend_backup_${TIMESTAMP}.tar.gz"
 
 mkdir -p "$BACKUP_DIR"
-if [ -f "$NGINX_DIR/index.html" ]; then
-    echo ">> 기존 Nginx 웹 루트 파일들을 백업합니다: $BACKUP_FILE"
-    sudo -n tar --exclude='.well-known' -czf "$BACKUP_FILE" -C "$NGINX_DIR" .
-    sudo -n chown "$(id -u):$(id -g)" "$BACKUP_FILE" 2>/dev/null || true
-    # 최신 1개만 유지 (이전 백업 삭제)
+if [ -d "$PROJECT_ROOT/FrontEnd" ]; then
+    tar --exclude='node_modules' --exclude='.env*' -czf "$BACKUP_FILE" -C "$PROJECT_ROOT" FrontEnd
     ls -dt "$BACKUP_DIR"/frontend_backup_*.tar.gz 2>/dev/null | tail -n +2 | xargs -r rm -f || true
 fi
 
-# 5. rsync를 통한 스마트 동기화 배포
-echo "===== [4/5] React 정적 파일 배포 (rsync) ====="
-sudo -n rsync -av --delete \
-  --exclude='/.well-known/' \
-  "$DIST_DIR/" "$NGINX_DIR/"
+# 4. Docker Compose 프론트엔드 컨테이너 빌드 및 재기동
+cd "$PROJECT_ROOT"
+APP_ENV="$APP_ENV" docker compose up -d --build frontend
 
-# 6. 최종 사후 검증
-echo "===== [5/5] 배포 결과 확인 ====="
-test -s "$NGINX_DIR/index.html"
+# 5. 프론트엔드 헬스체크 검증 (Health Check - 최대 5회)
+sleep 3
+MAX_RETRIES=5
+RETRY_COUNT=0
+SUCCESS=false
 
-echo ">> React 프론트엔드 Nginx 배포 완료!"
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    if curl -s -k -f http://127.0.0.1/ > /dev/null 2>&1 || \
+       curl -s -k -f https://127.0.0.1/ > /dev/null 2>&1 || \
+       docker exec travel-frontend wget -q -O - http://127.0.0.1/ > /dev/null 2>&1; then
+        SUCCESS=true
+        break
+    fi
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    sleep 2
+done
+
+if [ "$SUCCESS" = true ]; then
+    echo ">> [성공] 프론트엔드 컨테이너가 정상 응답 중입니다!"
+    docker compose ps frontend
+else
+    echo "!! [실패] 프론트엔드 헬스체크 응답 실패."
+    docker compose logs --tail=50 frontend || true
+    exit 1
+fi
 ```
 
 ---
 
 ## 5. 알아두면 유용한 핵심 배포 엔지니어링 기술
 
-### `rsync --delete`로 오래된 캐시 파일 자동 청소하기
-* Vite는 소스코드를 빌드할 때마다 캐시 무효화를 위해 파일명 뒤에 고유 해시값(예: `main-A1b2C3.js`, `main-D4e5F6.js`)을 붙입니다.
-* 일반적인 복사 명령어(`cp`)를 쓰면 예전 버전의 파일들이 서버에 계속 쌓여 디스크를 낭비하고 브라우저가 옛날 파일을 불러오는 오류가 발생합니다.
-* **`--delete`** 옵션을 주면, 이번 새 빌드에 없는 **과거의 낡은 파일들만 골라서 자동으로 지워줍니다.**
+### 호스트 Nginx 자동 중지 및 포트 충돌 방지
+* EC2 호스트 OS에 `nginx` 서비스가 이미 돌고 있으면 Docker 컨테이너가 포트 `80` 또는 `443`을 바인딩하지 못하고 충돌(`address already in use`)이 발생합니다.
+* 배포 스크립트는 배포 직전 `systemctl is-active nginx`를 감지하여 호스트 Nginx를 자동으로 중지하고 비활성화하여 Docker 컨테이너가 포트를 배타적으로 점유할 수 있도록 보장합니다.
 
-### `--exclude='/.well-known/'`로 SSL(HTTPS) 인증서 지켜내기
-* 우리 웹사이트의 초록색 자물쇠(HTTPS)는 무료 인증서 기관인 Let's Encrypt를 통해 3개월마다 자동 갱신됩니다.
-* 인증서 기관은 갱신할 때 웹 서버의 `/.well-known/acme-challenge/`라는 숨김 폴더에 임시 키를 넣어 인증을 시도합니다.
-* 만약 배포할 때 이 폴더까지 다 지워버리면 **SSL 인증서 자동 갱신이 실패하여 웹사이트 접속이 차단**되는 대형 사고가 납니다.
-* 따라서 `--exclude='/.well-known/'` 옵션으로 이 경로를 보호합니다.
+### 컨테이너 엔트리포인트 기반 SSL 인증서 자동 감지
+* `FrontEnd/Dockerfile`의 `docker-entrypoint.sh`는 컨테이너 시작 시 호스트에서 마운트된 `/etc/letsencrypt/live` 경로를 탐색합니다.
+* 유효한 SSL 인증서가 존재하면 HTTPS(`nginx_ssl.conf`)로 즉시 가동하고, 아직 발급 전이면 HTTP 기본 모드(`nginx_http.conf`)로 가동하여 어떤 환경에서도 에러 없이 안전하게 웹을 띄웁니다.
 
 ### 사용자가 새로고침할 때 끊김 없는 무중단 서빙(Zero Downtime)
-* 파일을 복사하는 1~2초 동안에도 Nginx는 기존 메모리에 적재된 파일과 리눅스 Inode 시스템 덕분에 접속 중인 사용자에게 오류 화면을 보여주지 않고 매끄럽게 최신 파일로 전환합니다.
+* `docker compose up -d --build frontend`는 새 이미지를 완전히 빌드한 뒤 마지막 순간에 이전 컨테이너를 교체하므로 서비스 중단이 사실상 0초에 수렴합니다.
 
 ---
 
@@ -231,28 +236,14 @@ on:
 
 ## 7. 초보 팀원을 위한 자주 묻는 질문(FAQ) 및 트러블슈팅
 
-### Q1. `sudo: a password is required` 에러가 나면서 배포가 중단돼요!
-* **원인**: GitHub 러너를 실행하는 리눅스 계정(`ec2-user`)이 비밀번호 없이 `sudo nginx`, `sudo rsync`를 실행할 권한이 없어서 발생합니다.
-* **해결법**: EC2 터미널에서 다음 설정을 한 번만 등록해 주면 됩니다:
-  ```bash
-  sudo visudo -f /etc/sudoers.d/github-runner
-  # 아래 한 줄을 넣고 저장(:wq)합니다:
-  ec2-user ALL=(ALL) NOPASSWD: /usr/sbin/nginx, /usr/bin/rsync
-  ```
+### Q1. 헬스체크 단계에서 계속 실패하고 `Exit 1`로 배포가 중단돼요!
+* **원인**: 포트 80 충돌이거나 컨테이너 내부 Nginx 구동 오류일 수 있습니다.
+* **해결법**: GitHub Actions 화면에 출력된 컨테이너 로그(`docker compose logs --tail=50 frontend`)를 확인하여 Nginx 설정 문법이나 바인딩 포트 충돌을 점검합니다.
 
-### Q2. 배포는 성공했다고 뜨는데 브라우저에서 `403 Forbidden` 에러가 떠요!
-* **원인**: Nginx 웹 서버가 파일을 읽을 수 있는 권한이 없기 때문입니다.
-* **해결법**: 웹 디렉토리 소유권을 Nginx 실행 계정으로 맞춰줍니다:
-  ```bash
-  sudo chown -R nginx:nginx /usr/share/nginx/html
-  sudo chmod -R 755 /usr/share/nginx/html
-  ```
+### Q2. 러너 콘솔에서 `docker: permission denied` 오류가 발생해요!
+* **원인**: 러너를 구동하는 `ec2-user` 사용자에게 도커를 다룰 수 있는 권한이 없어서 발생합니다.
+* **해결법**: EC2 터미널에서 `sudo usermod -aG docker ec2-user` 명령어로 권한을 부여하고 러너 서비스를 재시작합니다.
 
 ### Q3. 페이지 이동 후 브라우저 새로고침을 누르면 `404 Not Found`가 떠요!
-* **원인**: React는 페이지가 1개인 SPA(Single Page Application)입니다. URL 주소가 바뀌어도 실제로는 `index.html`이 열려야 하는데, Nginx가 진짜 그 이름의 물리적 파일이나 폴더를 찾으려다 없어서 404를 내는 것입니다.
-* **해결법**: Nginx 설정 파일(`/etc/nginx/conf.d/travel.conf`)의 `location /` 블록에 아래 설정을 넣어줍니다:
-  ```nginx
-  location / {
-      try_files $uri $uri/ /index.html;
-  }
-  ```
+* **원인**: React는 SPA(Single Page Application)이므로 Nginx 설정에 `try_files $uri $uri/ /index.html;` 규칙이 필요합니다.
+* **해결법**: 본 프로젝트의 `FrontEnd/nginx.conf` 및 템플릿에 해당 규칙이 기본 내장되어 있어 문제없이 작동합니다.

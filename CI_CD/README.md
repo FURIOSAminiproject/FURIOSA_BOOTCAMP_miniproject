@@ -43,8 +43,8 @@
         │ [ travel-backend 컨테이너 (NestJS Node 22) ]           │
         │   └── 포트 3001 (BFF & 비즈니스 로직)                  │
         │                                                        │
-        │ [ travel-fastapi 컨테이너 (Python 3.11 FastAPI) ]      │
-        │   └── 포트 8000 (고성능 AI 추론 엔진)                  │
+        │ [ travel-fastapi 컨테이너 (Python 3.12 FastAPI) ]      │
+        │   └── 포트 8000 (경량 AI 마이크로서비스)               │
         │                                                        │
         │ [ PostgreSQL 16 Database ] (호스트 OS 직접 구동)       │
         │   └── localhost:5432 (travel_test, travel_prod)        │
@@ -78,9 +78,9 @@ APP_ENV=development docker compose up -d --build
   - 포트 `3001`에서 NestJS 서버 구동
   - Docker Compose의 `restart: always` 정책으로 예기치 못한 장애 시 컨테이너 자동 복구
   - 호스트의 PostgreSQL 16 DB(`travel_prod` / `travel_test`)와 통신
-* **`fastapi` (Python 3.11 Slim)**:
-  - 포트 `8000`에서 FastAPI AI 추론 엔진 구동
-  - 고성능 AI 연산 및 향후 Furiosa NPU 서빙 지원
+* **`fastapi` (Python 3.12 Slim)**:
+  - 포트 `8000`에서 FastAPI AI 마이크로서비스 구동
+  - 비동기 고속 데이터 처리 및 여행지 추천 인터페이스 서빙
 
 ---
 
@@ -90,7 +90,7 @@ APP_ENV=development docker compose up -d --build
 
 ### 3-1. 프론트엔드 파이프라인 (`.github/workflows/deploy.yml`)
 * **트리거 경로**: `FrontEnd/**`, `CI_CD/FrontEnd/**`
-* **상세 문서**: [프론트엔드 CI/CD 가이드](./docs/FRONTEND_PIPELINE.md)
+* **상세 문서**: [프론트엔드 CI/CD 가이드](./FrontEnd/README.md)
 1. **GitHub-hosted Runner (ubuntu-latest)**:
    - Node.js 환경 초기화 및 `CI_CD/FrontEnd/build.sh` 실행
    - Vite 기반 프로덕션 번들 빌드 (`FrontEnd/dist/` 생성 및 무결성 검증)
@@ -126,7 +126,7 @@ APP_ENV=development docker compose up -d --build
 CI_CD/
 ├── FrontEnd/                         # 🎨 프론트엔드 배포 파이프라인
 │   ├── build.sh                      # Vite 번들 빌드 및 index.html 검증
-│   ├── deploy.sh                     # EC2 Nginx rsync 무중단 배포
+│   ├── deploy.sh                     # Docker Compose 무중단 컨테이너 배포 및 헬스체크
 │   └── README.md                     # [프론트엔드 CI/CD 상세 가이드]
 ├── BackEnd/                          # 🚀 백엔드 멀티 파이프라인 허브
 │   ├── nestjs/                       # NestJS 배포 파이프라인 (Node 22, npm test, :3001)
@@ -145,7 +145,7 @@ CI_CD/
 | 스크립트 파일 | 역할 | 주요 실행 내용 |
 |---|---|---|
 | **`CI_CD/FrontEnd/build.sh`** | 프론트엔드 빌드 | `npm ci` ➔ `npm run build` ➔ `dist/index.html` 무결성 검증 |
-| **`CI_CD/FrontEnd/deploy.sh`** | 프론트엔드 EC2 배포 | 산출물 검증 ➔ 기존 파일 tar.gz 자동 백업 ➔ `nginx -t` ➔ `rsync -av --delete` 동기화 |
+| **`CI_CD/FrontEnd/deploy.sh`** | 프론트엔드 EC2 배포 | 호스트 Nginx 점검 ➔ 소스 tar.gz 자동 백업 ➔ `docker compose up -d --build frontend` ➔ 포트 80/443 헬스체크 |
 | **`CI_CD/BackEnd/nestjs/build.sh`** | NestJS 빌드 & 테스트 | `npm ci` ➔ `npm test`(Fail-Fast) ➔ `npm run build:prod` 컴파일 |
 | **`CI_CD/BackEnd/nestjs/deploy.sh`** | NestJS EC2 배포 | 산출물 검증 ➔ 소스 tar.gz 자동 백업 ➔ `docker compose up -d --build backend` ➔ `:3001/api/health` 헬스체크 |
 | **`CI_CD/BackEnd/fastapi/build.sh`** | FastAPI 빌드 & 문법 검증 | `pip install` ➔ `python3 -m py_compile` 문법 검사 ➔ 앱 인스턴스 검증 |

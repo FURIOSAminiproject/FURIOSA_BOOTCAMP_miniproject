@@ -152,7 +152,7 @@ GEMINI_MODEL=gemini-3.8-flash # 동적 모델 지정 (.env에서 gemini-2.5-flas
 
 ### 1) 의존성 설치
 ```bash
-cd BackEnd
+cd BackEnd/nestjs
 npm install
 ```
 

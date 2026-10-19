@@ -6,8 +6,6 @@
 * **과정**: 퓨리오사 AI 부트캠프 미니 프로젝트
 * **팀원**: 이동욱, 이지석, 장동율, 조정우
 
-
-
 ## 🏗️ 시스템 아키텍처 & 기술 스택
 
 ### 운영 및 도커 배포 아키텍처 (Port 80 / 443)
@@ -16,15 +14,21 @@
          │ (HTTP 포트 80 / HTTPS 포트 443)
          ▼
 [ Nginx 웹 서버 (리버스 프록시) ]
-   ├── 1) '/' 정적 파일 요청    ──> React(Vite) 빌드 산출물 서빙
-   └── 2) '/api/' API 요청      ──> 백엔드 NestJS (내부 포트 3001) 로 포워딩
-                                              │
-                    ┌─────────────────────────┼─────────────────────────┐
-                    ▼                         ▼                         ▼
-     [ Google Gemini AI (GenAI SDK) ]  [ FastAPI AI 추론 엔진 ]    [ AWS EC2 PostgreSQL 16 ]
-     - 7인 멀티에이전트 일정 설계      - Python 3.12, Uvicorn     - <DB_HOST_IP>:5432
-     - 환경별 동적 모델 바인딩        - 고속 AI/NPU 연산         - TEST/PROD DB 격리
-     - 절차적 폴백 엔진
+   ├── 1) '/' 정적 파일 요청        ──> React(Vite) 빌드 산출물 서빙
+   ├── 2) '/api/' API 요청          ──> 백엔드 NestJS (내부 포트 3001) 로 포워딩
+   │                                           │
+   │                                ┌──────────┴──────────┐
+   │                                ▼                     ▼
+   │                 [ Google Gemini AI (GenAI SDK) ]  [ AWS EC2 PostgreSQL 16 ]
+   │                 - 7인 멀티에이전트 일정 설계      - <DB_HOST_IP>:5432
+   │                 - 환경별 동적 모델 바인딩        - TEST/PROD DB 격리
+   │                 - 절차적 폴백 엔진
+   │
+   └── 3) '/fastapi/' AI 요청       ──> FastAPI AI 엔진 (내부 포트 8000) 로 포워딩
+                                               │
+                                    [ Python 3.12, Uvicorn ]
+                                    - 경량 비동기 마이크로서비스
+                                    - 여행지 추천 인터페이스
 ```
 
 ### Tech Stack
@@ -48,15 +52,14 @@ FURIOSA_BOOTCAMP_miniproject/
 │   │   ├── services/api.ts           # 백엔드 REST API 연동 클라이언트
 │   │   └── types/travel.ts           # 프론트엔드 공통 타입 정의
 │   ├── Dockerfile                    # Nginx Alpine 기반 경량 컨테이너
-│   ├── nginx.conf                    # SPA 라우팅 및 /api/ 프록시 Nginx 설정
+│   ├── nginx.conf                    # SPA 라우팅 및 /api/, /fastapi/ 프록시 Nginx 설정
 │   └── README.md                     # [프론트엔드 상세 가이드]
 ├── BackEnd/                          # 멀티 백엔드 시스템 (NestJS + FastAPI)
 │   ├── nestjs/                       # NestJS 11 + TypeORM + Gemini Multi-Agent (포트 3001)
 │   │   ├── src/                      # TypeORM 모듈, 7인 AI 멀티에이전트
-│   │   ├── docs/                     # 기술, 아키텍처, 실행, 환경, 기능, 테스트 상세 문서
 │   │   ├── Dockerfile                # Node 22 Alpine 컨테이너
 │   │   └── README.md                 # NestJS 서버 상세 가이드
-│   ├── fastapi/                      # Python 3.12 + FastAPI AI 추론 마이크로서비스 (포트 8000)
+│   ├── fastapi/                      # Python 3.12 + FastAPI AI 마이크로서비스 (포트 8000)
 │   │   ├── main.py                   # FastAPI 엔드포인트 (추론, 헬스체크)
 │   │   ├── requirements.txt          # 파이썬 의존성 패키지
 │   │   ├── Dockerfile                # Python 3.12 Slim 컨테이너
@@ -77,7 +80,8 @@ FURIOSA_BOOTCAMP_miniproject/
 │   └── README.md                     # [ETC 상세 가이드]
 ├── .github/workflows/                # GitHub Actions 워크플로우 정의
 │   ├── deploy.yml                    # 프론트엔드 CI/CD
-│   └── deploy_backend.yml            # 백엔드 CI/CD
+│   ├── deploy_backend.yml            # NestJS 백엔드 CI/CD
+│   └── deploy_fastapi.yml            # FastAPI AI 엔진 CI/CD
 ├── docker-compose.yml                # 프론트엔드 + 백엔드 통합 오케스트레이션
 └── README.md                         # [프로젝트 종합 가이드]
 ```
@@ -88,7 +92,7 @@ FURIOSA_BOOTCAMP_miniproject/
 
 ### 1. BackEnd 실행
 ```powershell
-cd BackEnd
+cd BackEnd/nestjs
 
 # 의존성 설치
 npm install
@@ -131,7 +135,7 @@ npm run dev
 사전 빌드(`npm run build`) 없이 TypeScript 스크립트를 즉시 실행하여 각 환경의 DB 접속 상태를 1초 만에 진단할 수 있습니다:
 
 ```powershell
-cd BackEnd
+cd BackEnd/nestjs
 npm run db:check -- dev     # 개발(TEST) DB 연결 확인
 npm run db:check -- local   # 로컬 DB 연결 확인
 npm run db:check -- prod    # 운영(PROD) DB 연결 확인
