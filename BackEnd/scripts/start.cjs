@@ -14,9 +14,10 @@ function createLaunch(rawMode, inherited = process.env) {
   if (!['local', 'development', 'production'].includes(mode)) throw new Error('Choose local, dev(elopment), or prod(uction)/op');
   const root = resolve(__dirname, '..');
   const envFile = resolve(root, '.env.' + mode);
-  if (!existsSync(envFile)) throw new Error('Missing ' + envFile + '. Please create this environment file.');
-  // Deployment environment variables override the selected file. No shared .env fallback.
-  const env = { ...parseEnv(readFileSync(envFile, 'utf8')), ...inherited, APP_ENV: mode, NODE_ENV: mode === 'production' ? 'production' : 'development' };
+  const defaultDbName = mode === 'local' ? 'travel_local' : (mode === 'development' ? 'travel_test' : 'travel_prod');
+  const fileContent = existsSync(envFile) ? parseEnv(readFileSync(envFile, 'utf8')) : { DB_NAME: defaultDbName };
+  // Deployment environment variables override the selected file.
+  const env = { DB_NAME: defaultDbName, ...fileContent, ...inherited, APP_ENV: mode, NODE_ENV: mode === 'production' ? 'production' : 'development' };
   const args = mode !== 'production' ? ['--import', 'tsx', '--watch', 'src/main.ts'] : ['dist/main.js'];
   return { root, envFile, env, args };
 }

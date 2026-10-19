@@ -27,6 +27,17 @@ npm --version
 echo "===== [2/5] 패키지 클린 설치 (npm ci) ====="
 npm ci
 
+# CI 빌드 환경에서 테스트 통과를 위한 격리 환경 설정 준비 (.example 기반)
+if [ ! -f .env.local ] && [ -f .env.local.example ]; then
+    cp .env.local.example .env.local
+fi
+if [ ! -f .env.development ] && [ -f .env.development.example ]; then
+    cp .env.development.example .env.development
+fi
+if [ ! -f .env.production ] && [ -f .env.production.example ]; then
+    cp .env.production.example .env.production
+fi
+
 # 5. 단위 및 통합 테스트 실행 (API & DB 연결 격리 테스트)
 echo "===== [3/5] 백엔드 자동 테스트 실행 (npm test) ====="
 npm test
