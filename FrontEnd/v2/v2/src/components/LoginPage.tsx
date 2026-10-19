@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import './LoginPage.css';
+import { loginUser, startSocialLogin } from '../services/authService';
 
 export interface LoginPageProps {
   onLoginSuccess?: (userEmail: string) => void;
@@ -24,21 +25,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   };
 
   const handleSocialLogin = (provider: '카카오' | '네이버' | 'Google') => {
-    showNotification(`${provider} 간편 로그인을 진행합니다.`);
-    if (onLoginSuccess) {
-      setTimeout(() => onLoginSuccess(`${provider.toLowerCase()}_user@trip.ai`), 800);
-    }
+    const providerKey = provider === '카카오' ? 'kakao' : provider === '네이버' ? 'naver' : 'google';
+    startSocialLogin(providerKey);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
+    if (!email.trim() || !password) {
       showNotification('이메일과 비밀번호를 입력해주세요.');
       return;
     }
-    showNotification(`${email} 계정으로 로그인되었습니다.`);
-    if (onLoginSuccess) {
-      setTimeout(() => onLoginSuccess(email), 800);
+    try {
+      const user = await loginUser(email, password);
+      onLoginSuccess?.(user.name || user.email || '사용자');
+    } catch (err: any) {
+      showNotification(err.message || '로그인에 실패했습니다.');
     }
   };
 
