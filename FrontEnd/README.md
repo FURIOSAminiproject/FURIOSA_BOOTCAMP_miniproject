@@ -39,7 +39,9 @@ FrontEnd/
 │   ├── data/
 │   │   └── presetData.ts           # 프리셋 예시 데이터 및 지역별 명소 좌표
 │   ├── services/
-│   │   └── api.ts                  # 백엔드 NestJS API 통신 클라이언트
+│   │   ├── api.ts                  # 백엔드 NestJS API 공통 통신 클라이언트
+│   │   ├── aiTravelAgent.ts        # 7인 AI 에이전트 작업 오케스트레이션 및 스트리밍 시각화
+│   │   └── poetryService.ts        # 풍류시객 감성 시/수필 재생성 클라이언트
 │   ├── types/
 │   │   └── travel.ts               # 여행 요청, 일정, 에이전트 등 TypeScript 인터페이스
 │   ├── App.tsx                     # 메인 애플리케이션 상태 관리 및 라우팅

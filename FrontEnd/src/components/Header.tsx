@@ -42,6 +42,10 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 border border-stone-200 hidden sm:inline">
                 국내 자율운영
               </span>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1 shadow-xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Live v1.1.0
+              </span>
             </div>
             <p className="text-[11px] text-stone-500 hidden sm:block">
               여행 계획은 AI 팀이, 확정은 사람이.

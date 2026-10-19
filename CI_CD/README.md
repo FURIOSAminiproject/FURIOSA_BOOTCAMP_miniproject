@@ -39,7 +39,7 @@
         │                                                        │
         │ [ Docker Backend Container ]                           │
         │   └── NestJS App (포트 3001, HOST=0.0.0.0)             │
-        │       (restart: unless-stopped 로 자동 복구)           │
+        │       (restart: always 로 자동 복구)                   │
         │                                                        │
         │ [ PostgreSQL 16.15 Database ]                          │
         │   └── localhost:5432 (travel_test, travel_prod)        │
@@ -70,7 +70,7 @@ APP_ENV=development docker compose up -d --build
   - `/api/` 요청을 내부 도커 네트워크를 통해 `http://backend:3001`로 리버스 프록시
 * **`backend` (Node 22 Alpine)**:
   - 포트 `3001`에서 NestJS 서버 구동
-  - Docker Compose의 `restart: unless-stopped` 정책으로 예기치 못한 장애 시 컨테이너 자동 복구
+  - Docker Compose의 `restart: always` 정책으로 예기치 못한 장애 시 컨테이너 자동 복구
   - 호스트의 PostgreSQL 16 DB(`travel_prod` / `travel_test`)와 통신
 
 ---

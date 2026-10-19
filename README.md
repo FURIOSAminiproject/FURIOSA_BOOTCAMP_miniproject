@@ -103,10 +103,7 @@ cd BackEnd
 # 의존성 설치
 npm install
 
-# 환경 파일 준비 (.example 복사)
-cp .env.development.example .env.development
-
-# 개발 서버 실행 (포트 3001)
+# 개발 서버 실행 (포트 3001, .env.development 자동 연동)
 npm run start:dev
 ```
 
