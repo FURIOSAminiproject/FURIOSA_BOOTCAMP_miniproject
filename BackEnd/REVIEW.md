@@ -60,3 +60,9 @@ origin/jiseokLee의 AuthModule·User·회원가입·로그인·OAuth를 현재 N
 운영 빌드, Node 회귀·인증 통합 6개, Jest 단위 4개, 모킹 E2E 1개가 통과했다. OAuth 토큰·프로필 응답과 사용자 저장소는 모킹했고 state 오류 시 외부 교환이 호출되지 않는 것도 확인했다. 실제 DB 스키마·사용자 저장·Google 로그인을 검증한 결과는 아니다. 신규 인증 기동에는 32자 이상의 JWT_SECRET이 필요하며 기존 users에 적용할 OAuth SQL은 수동 준비 대상이다.
 
 병합된 tsbuildinfo가 새 소스 출력을 생략하는 문제를 확인해 운영 컴파일의 incremental을 끄고 생성 캐시를 추적 대상에서 제외했다. 현재 BackEnd 루트 NestJS 사본과 배포 대상 NestJS는 인증 기능·의존성이 다르다.
+
+## 2026-10-20 추가: Node 22 Jest ESM 호환성
+
+사용자가 제공한 CI 로그에서 Node 테스트 6개는 통과했으나 Jest 단위 테스트가 NestJS 12의 ESM 패키지를 CommonJS require로 불러오며 실패했다. 이전 병합 검증은 로컬 Node 24.20.0에서 수행했으며, CI Node 22 검증을 대신하지 못했다. 공식 Node 22.23.3 Windows 바이너리로 같은 오류를 재현했다.
+
+테스트 전용 tsconfig.spec.json과 단위·E2E의 ESM 변환 설정을 추가하고 jest 객체를 명시적으로 가져오도록 수정했다. 명시적 jest import에 맞춰 mock 함수·nullable 비밀번호 해시의 타입도 보완했고 tsconfig.spec의 noEmit 타입 검사가 통과했다. 운영 컴파일·CI/Docker Node 22는 유지했다. Node 22.23.3에서 전체 npm test(6+4개), 모킹 E2E 1개 및 운영 빌드가 통과했고, Node 24.20.0에서도 Jest 단위 4개·E2E 1개가 캐시 없이 통과했다. 실제 GitHub Linux 러너 재실행·EC2 배포는 수행하지 않았다.

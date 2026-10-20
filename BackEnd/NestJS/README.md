@@ -96,6 +96,8 @@ npm test
 
 `npm test`는 운영 소스를 컴파일한 뒤 Node 내장 테스트 6개와 Jest 단위 테스트 4개를 실행합니다. `npm run test:e2e -- --runInBand`는 모킹한 앱의 `/api` 응답을 검사합니다. API 테스트는 Mock DataSource를 사용하므로 운영 DB 연결 성공을 검증하는 테스트는 아닙니다. `synchronize`, `migrationsRun`, `dropSchema`는 모두 `false`입니다.
 
+CI·Docker는 Node 22를 사용합니다. NestJS 12의 ESM 패키지를 Jest에서 불러오기 위해 단위·E2E 설정은 `tsconfig.spec.json`과 `useESM: true`를 사용하며 `.ts`를 ESM으로 처리합니다. 운영 컴파일은 기존 `tsconfig.build.json`을 유지합니다. CommonJS로 변환한 테스트가 Node 24.9 이상에서만 우연히 통과할 수 있으므로 CI의 Node 22에서도 확인합니다. [Jest의 require(ESM) 버전 차이](https://jestjs.io/docs/ecmascript-modules#require-of-esm)
+
 ## API
 
 모든 경로는 `/api` 접두사를 사용합니다.

@@ -14,8 +14,13 @@ const config: Config = {
   moduleFileExtensions: ['js', 'json', 'ts'],
   rootDir: '.',
   testRegex: '.*\\.spec\\.ts$',
+  // NestJS 12는 ESM이다. Node 22에서도 CJS require(esm)에 의존하지 않도록 한다.
+  extensionsToTreatAsEsm: ['.ts'],
   transform: {
-    '^.+\\.(t|j)s$': 'ts-jest',
+    '^.+\\.ts$': ['ts-jest', {
+      useESM: true,
+      tsconfig: '<rootDir>/tsconfig.spec.json',
+    }],
   },
   moduleNameMapper: pathsToModuleNameMapper(paths, { prefix: '<rootDir>/' }),
   collectCoverageFrom: [

@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { jest } from '@jest/globals';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -11,23 +12,23 @@ describe('AuthController', () => {
   let storedUsers: User[] = [];
 
   const mockUserRepository = {
-    findOne: jest.fn().mockImplementation(({ where: { email } }) => {
+    findOne: jest.fn<(options: { where: { email: string } }) => Promise<User | null>>().mockImplementation(({ where: { email } }) => {
       const user = storedUsers.find((u) => u.email === email);
       return Promise.resolve(user || null);
     }),
-    create: jest.fn().mockImplementation((dto) => {
+    create: jest.fn<(dto: Partial<User>) => User>().mockImplementation((dto) => {
       return {
         id: `usr_${Date.now()}`,
         ...dto,
         createdAt: new Date(),
         updatedAt: new Date(),
-      };
+      } as User;
     }),
-    save: jest.fn().mockImplementation((user) => {
+    save: jest.fn<(user: User) => Promise<User>>().mockImplementation((user) => {
       storedUsers.push(user);
       return Promise.resolve(user);
     }),
-    find: jest.fn().mockImplementation(() => Promise.resolve(storedUsers)),
+    find: jest.fn<() => Promise<User[]>>().mockImplementation(() => Promise.resolve(storedUsers)),
   };
 
   beforeEach(async () => {
@@ -71,7 +72,7 @@ describe('AuthController', () => {
     // Verify stored user has hashed password, NOT plain text
     expect(storedUsers.length).toBe(1);
     expect(storedUsers[0].passwordHash).not.toBe('password123');
-    expect(storedUsers[0].passwordHash.startsWith('$2')).toBe(true); // bcrypt signature
+    expect(storedUsers[0].passwordHash?.startsWith('$2')).toBe(true); // bcrypt signature
   });
 
   it('should throw error when registering with duplicate email', async () => {
