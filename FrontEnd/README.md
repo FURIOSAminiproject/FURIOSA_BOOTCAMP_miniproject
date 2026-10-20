@@ -112,12 +112,15 @@ FrontEnd/v1/
 
 ## 실행 및 환경
 
-로컬 Node.js는 22.12 이상인 22.x 버전을 사용하고 이 폴더에서 명령을 실행합니다.
+로컬 Node.js는 22.12 이상인 22.x 버전을 사용합니다. 저장소 루트에서 실제 앱 폴더로 이동해 잠금 파일 기준으로 설치합니다.
 
 ```bash
-npm install
+cd FrontEnd/v1
+npm ci
 npm run start:local
 ```
+
+의존성을 변경하면 `FrontEnd/v1/package.json`과 `package-lock.json`을 함께 커밋합니다. 이 앱 폴더에서 `npm install --package-lock-only`로 잠금 파일을 갱신한 뒤 `npm ci`, `npm run lint`, `npm run build`로 확인합니다. CI의 클린 설치도 두 파일이 일치해야 통과합니다.
 
 | 환경 | 읽는 환경 파일 | 빌드 | 실행 |
 |---|---|---|---|

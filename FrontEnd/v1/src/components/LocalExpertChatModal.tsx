@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, Sparkles, User } from 'lucide-react';
+import { MessageSquare, Send, Sparkles, User } from 'lucide-react';
 import { FullTravelPlan } from '../types/travel';
 import { getLocalExpertFallback } from '../services/localExpertData';
 

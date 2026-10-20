@@ -65,3 +65,11 @@
 ## 2026-10-20 병합: 버전 폴더 보존
 
 기존 여행 UI는 v1로 이동했고 v2/v2에는 상대 브랜치의 별도 로그인 UI를 보존했다. 현재 Compose·GitHub Actions의 활성 앱은 v1이다. TLS 진입점·Nginx 템플릿과 public 파일을 같은 v1 폴더로 옮겼다. v1 타입 검사·Vite 빌드가 통과했다. 기존 500KB 번들 경고와 Vite __dirname 경고는 남아 있다. 위 F 항목이나 v1 관리자 권한 검사를 해결한 변경은 아니다.
+
+## 2026-10-20 추가: npm ci 잠금 파일 불일치
+
+기준 5be27b3의 FrontEnd/v1/package.json에는 @google/genai ^2.4.0이 추가됐으나 잠금 파일의 루트 의존성과 패키지 항목에 반영되지 않았다. 사용자 CI와 같은 Node 22.23.3·npm 10.9.9로 npm ci dry-run의 EUSAGE 및 SDK·전이 의존성 누락을 재현했다.
+
+같은 버전의 npm으로 잠금 파일을 갱신해 SDK 2.30.0과 전이 의존성 38개 항목을 추가했다. 기존 잠금 항목의 버전 변경·삭제는 없다. 실제 npm ci로 앱 폴더에 183개 패키지를 클린 설치했고, 타입 검사에서 발견한 LocalExpertChatModal의 Send 아이콘 import 누락도 수정했다.
+
+npm run lint와 production 빌드가 통과했다. 기존 Vite __dirname 경고와 500KB 이상 청크 경고는 남아 있으며, 현재 JS 청크는 약 987.52kB다. Windows에서 CI와 같은 Node/npm 버전으로 검증했으며 실제 GitHub Linux 러너 재실행·브라우저 UI·Docker 이미지·EC2 배포는 수행하지 않았다.
