@@ -18,6 +18,11 @@ export default defineConfig(({ mode }) => {
       changeOrigin: true,
       secure: false,
     },
+    '/auth': {
+      target: env.BACKEND_URL || defaultBackend,
+      changeOrigin: true,
+      secure: false,
+    },
   };
   return {
     envDir: false,

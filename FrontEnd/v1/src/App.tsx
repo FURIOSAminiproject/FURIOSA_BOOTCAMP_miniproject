@@ -22,11 +22,18 @@ import { GisVerificationModal } from './components/GisVerificationModal';
 import { TravelerSocialFeed } from './components/TravelerSocialFeed';
 import { AiTransformerStudio } from './components/AiTransformerStudio';
 import { WeatherTechStudio } from './components/WeatherTechStudio';
+import { AuthModal } from './components/auth/AuthModal';
+import { getCurrentUser, logoutUser, startSocialLogin, AuthUser } from './services/authService';
 import { CheckCircle2 } from 'lucide-react';
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState<'EXPLORE' | 'REQUEST' | 'PLAN' | 'ADMIN' | 'STUDIO' | 'WEATHER_STUDIO'>('EXPLORE');
   const [isAdmin, setIsAdmin] = useState<boolean>(true); // Logged in as administrator
+  
+  // User Authentication state (v2 Auth integration)
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [authModalOpen, setAuthModalOpen] = useState<boolean>(false);
+  const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
   
   // Plans list
   const [plans, setPlans] = useState<FullTravelPlan[]>([PRESET_JEJU_PLAN, PRESET_GYEONGJU_PLAN]);
@@ -59,6 +66,49 @@ export default function App() {
 
   // Count pending approval plans
   const pendingCount = plans.filter(p => p.request.status === 'PENDING_APPROVAL').length;
+
+  // Authentication & OAuth session restore
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const oauthStatus = params.get('oauth');
+    if (oauthStatus === 'success') {
+      showToast('소셜 로그인이 성공적으로 완료되었습니다!');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (oauthStatus === 'error') {
+      showToast(params.get('message') || '소셜 로그인에 실패했습니다. 다시 시도해주세요.');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    getCurrentUser()
+      .then(user => {
+        if (user) {
+          setCurrentUser(user);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleDirectGoogleLogin = () => {
+    startSocialLogin('google');
+  };
+
+  const handleOpenLogin = () => {
+    setAuthModalMode('login');
+    setAuthModalOpen(true);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+    } catch {}
+    setCurrentUser(null);
+    showToast('로그아웃되었습니다.');
+  };
+
+  const handleLoginSuccess = (user: AuthUser) => {
+    setCurrentUser(user);
+    showToast(`${user.name || user.email}님 환영합니다!`);
+  };
 
   // Handler: User submits new travel request
   const handleRequestSubmit = async (req: TravelRequest) => {
@@ -213,9 +263,13 @@ export default function App() {
         isAdmin={isAdmin}
         onToggleAdmin={() => {
           setIsAdmin(!isAdmin);
-          showToast(!isAdmin ? '관리자 권한으로 로그인되었습니다.' : '로그아웃 되었습니다.');
+          showToast(!isAdmin ? '관리자 권한으로 로그인되었습니다.' : '일반 모드로 전환되었습니다.');
         }}
         pendingCount={pendingCount}
+        currentUser={currentUser}
+        onOpenLogin={handleOpenLogin}
+        onDirectGoogleLogin={handleDirectGoogleLogin}
+        onLogout={handleLogout}
       />
 
       {/* Content Area */}
@@ -405,6 +459,18 @@ export default function App() {
           onClose={() => setGisModalOpen(false)}
         />
       )}
+
+      {/* v2 Auth Modal (Google, Social, Email Login / Register) */}
+      <AuthModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        onLoginSuccess={handleLoginSuccess}
+        initialMode={authModalMode}
+        onGuestExplore={() => {
+          showToast('게스트 모드로 둘러봅니다.');
+          setAuthModalOpen(false);
+        }}
+      />
 
       {/* Footer - Exactly matching screenshot footer */}
       <footer className="mt-20 border-t border-[#e8e4dc] py-10 text-xs text-stone-500 bg-[#faf7f2] print:hidden">
