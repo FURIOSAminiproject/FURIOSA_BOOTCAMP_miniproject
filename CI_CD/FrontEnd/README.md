@@ -1,6 +1,6 @@
 # FrontEnd CI/CD
 
-실행 기준은 [워크플로우](../../.github/workflows/deploy.yml), [build.sh](build.sh), [deploy.sh](deploy.sh), [Dockerfile](../../FrontEnd/Dockerfile)입니다.
+실행 기준은 [워크플로우](../../.github/workflows/deploy.yml), [build.sh](build.sh), [deploy.sh](deploy.sh), [Dockerfile](../../FrontEnd/v1/Dockerfile)입니다.
 
 ## 실행 조건과 빌드
 
@@ -17,7 +17,7 @@
 
 ## EC2 배포
 
-배포 잡은 `[self-hosted, linux]`에서 소스를 checkout하고 아티팩트를 `FrontEnd/dist`로 다운로드한 뒤 deploy.sh를 실행합니다.
+배포 잡은 `[self-hosted, linux]`에서 소스를 checkout하고 아티팩트를 `FrontEnd/v1/dist`로 다운로드한 뒤 deploy.sh를 실행합니다.
 
 1. 기본 `APP_ENV=production`으로 경로 설정
 2. 실행 중인 호스트 Nginx를 감지하면 중지·비활성화 시도

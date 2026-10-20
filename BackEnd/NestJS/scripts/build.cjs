@@ -20,7 +20,7 @@ if (!existsSync(envFile)) {
 }
 
 const tscBin = resolve(root, 'node_modules', 'typescript', 'bin', 'tsc');
-const result = spawnSync(process.execPath, [tscBin, '-p', 'tsconfig.json'], { cwd: root, stdio: 'inherit', windowsHide: true });
+const result = spawnSync(process.execPath, [tscBin, '-p', 'tsconfig.build.json'], { cwd: root, stdio: 'inherit', windowsHide: true });
 if (result.error) {
   console.error(result.error);
   process.exit(1);

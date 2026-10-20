@@ -19,7 +19,7 @@ ETC/
 
 | 대상 | 설치 기준 |
 |---|---|
-| FrontEnd | `FrontEnd/package.json`, `package-lock.json` |
+| FrontEnd | `FrontEnd/v1/package.json`, `package-lock.json` |
 | 현재 NestJS 배포 대상 | `BackEnd/NestJS/package.json`, `package-lock.json` |
 | FastAPI | `BackEnd/FastAPI/requirements.txt` |
 

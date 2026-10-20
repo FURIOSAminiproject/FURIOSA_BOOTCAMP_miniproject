@@ -252,7 +252,7 @@ class EntrypointTests(unittest.TestCase):
         cls.shell = "C:/Program Files/Git/bin/bash.exe" if os.name == "nt" else "/bin/sh"
         if not Path(cls.shell).exists():
             raise unittest.SkipTest("POSIX shell unavailable")
-        cls.frontend = Path(__file__).resolve().parents[3] / "FrontEnd"
+        cls.frontend = Path(__file__).resolve().parents[3] / "FrontEnd" / "v1"
 
     def fixture(self, files, blocked=None, invalid_marker=False, nginx_exit=0, replacement=False):
         with tempfile.TemporaryDirectory() as temp:

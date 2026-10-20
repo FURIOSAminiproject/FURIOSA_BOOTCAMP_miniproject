@@ -6,8 +6,8 @@
 
 1. [README.md](README.md), [REVIEW.md](REVIEW.md): 구성·실행 방법·확인된 문제.
 2. 루트 [docker-compose.yml](../docker-compose.yml): 빌드 컨텍스트, 환경, 포트, 네트워크, 마운트, 의존성.
-3. [FrontEnd/Dockerfile](../FrontEnd/Dockerfile), [BackEnd/NestJS/Dockerfile](../BackEnd/NestJS/Dockerfile), [BackEnd/FastAPI/Dockerfile](../BackEnd/FastAPI/Dockerfile) 및 각 .dockerignore.
-4. `FrontEnd/docker-entrypoint.sh`, `nginx_http.conf`, `nginx_ssl.conf`, `nginx.conf`: 실제 웹 서버 설정 선택·프록시.
+3. [FrontEnd/v1/Dockerfile](../FrontEnd/v1/Dockerfile), [BackEnd/NestJS/Dockerfile](../BackEnd/NestJS/Dockerfile), [BackEnd/FastAPI/Dockerfile](../BackEnd/FastAPI/Dockerfile) 및 각 .dockerignore.
+4. `FrontEnd/v1/docker-entrypoint.sh`, `nginx_http.conf`, `nginx_ssl.conf`, `nginx.conf`: 실제 웹 서버 설정 선택·프록시.
 5. 배포 변경 시 CI_CD와 .github/workflows의 호출 경로·AGENTS.md.
 
 `BackEnd/Dockerfile`은 현재 Compose backend 대상이 아니다. `CI_CD/nginx_https.conf`는 현재 컨테이너가 사용하지 않는 호스트 Nginx 템플릿이다.

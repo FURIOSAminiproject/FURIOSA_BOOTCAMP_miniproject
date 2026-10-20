@@ -8,7 +8,7 @@
 |---|---|
 | revoke_ip_certificates.py | IMDSv2 조회, 인증서 검사, 갱신 차단, 폐기 요청·결과 기록 |
 | tests/test_revoke_ip_certificates.py | AWS·CA·Docker 데몬을 호출하지 않는 테스트와 격리된 진입점 실행 |
-| ../../FrontEnd/docker-entrypoint.sh | 같은 lineage의 cert/key 선택, 폐기 요청한 leaf 제외 |
+| ../../FrontEnd/v1/docker-entrypoint.sh | 같은 lineage의 cert/key 선택, 폐기 요청한 leaf 제외 |
 
 ## 전제와 범위
 
@@ -94,7 +94,7 @@ docker logs --tail=50 travel-frontend
 
 ```bash
 python3 -B -m unittest discover -s CI_CD/certificates/tests -v
-sh -n FrontEnd/docker-entrypoint.sh
+sh -n FrontEnd/v1/docker-entrypoint.sh
 ```
 
 테스트는 임시 디렉토리를 사용합니다. AWS·CA·Docker 명령은 모킹하고, SAN·만료 파싱은 로컬 생성한 자체 서명 테스트 인증서로도 확인합니다. Nginx 진입점 테스트는 경로를 fixture로 치환하고 nginx를 스텁으로 대체합니다. 실제 EC2 폐기·Certbot 컨테이너·Nginx TLS 연동 검증과 구분합니다.

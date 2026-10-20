@@ -59,7 +59,7 @@
 
 ### C07 · P2 · FrontEnd CI가 별도 타입 검사를 실행하지 않는다
 
-- 근거: [FrontEnd/build.sh](FrontEnd/build.sh)는 `npm ci`, `npm run build`, dist 검사만 실행한다. [FrontEnd/package.json](../FrontEnd/package.json)의 build는 Vite 빌드이고 lint는 별도의 `tsc --noEmit`이다.
+- 근거: [FrontEnd/build.sh](FrontEnd/build.sh)는 `npm ci`, `npm run build`, dist 검사만 실행한다. [FrontEnd/v1/package.json](../FrontEnd/v1/package.json)의 build는 Vite 빌드이고 lint는 별도의 `tsc --noEmit`이다.
 - 영향: 번들 생성 성공을 TypeScript 타입 검사 성공으로 취급할 수 없다. 타입 검사를 배포 조건으로 사용하려면 해당 명령을 CI에서 실행해야 한다.
 - 검증: 명령 정의와 호출 순서를 정적으로 대조했다. 이번 검토에서 타입 오류가 있는 실제 소스를 만들지는 않았다.
 - 개선 방향: 타입 검사를 CI 통과 조건에 넣을지 결정하고 문서·스크립트를 함께 맞춘다.
@@ -114,3 +114,9 @@ Git Bash 문법·모의 실행과 localhost curl 검사는 샌드박스의 Windo
 - 폐기 의도를 leaf 해시로 기록한 뒤 대상의 자동 갱신을 끄고 기존 계정으로 CA에 요청한다. 실패·타임아웃 때 차단을 유지하며 성공 기록은 별도로 남긴다. 파일을 자동 삭제하거나 Nginx를 재시작하지 않는다.
 - 새 frontend 진입점은 차단한 leaf를 다음 시작에서 제외한다. 자세한 실행·실패·운영 범위는 [도구 README](certificates/README.md)에 있다.
 - 실제 EC2·CA·Docker 데몬을 호출하지 않은 27개 테스트가 통과했다. IMDS/Certbot 모킹, 원자적 상태·갱신 설정·재시도·공개 인증서 사본, 로컬 자체 서명 인증서의 실제 OpenSSL 파싱, nginx 스텁을 사용한 진입점 분기를 확인했다. 실제 폐기·EC2 배포·컨테이너 Nginx TLS 연동은 미검증이다.
+
+## 2026-10-20 병합: v1 경로 및 인증 프록시
+
+현재 브랜치의 빌드·배포·환경 선택·인증서 폐기 기능을 유지했다. 상대 브랜치의 프론트 버전 구성을 보존하여 활성 소스·Compose 컨텍스트·CI 작업 디렉토리·캐시·아티팩트를 FrontEnd/v1로 연결했다. 기존 TLS 진입점도 같은 컨텍스트로 이동했고 HTTP/HTTPS Nginx에 /auth 전달을 추가했다. v2/v2 로그인 UI는 별도 보존하며 자동 배포 대상으로 전환하지 않았다.
+
+백엔드 인증 통합으로 JWT_SECRET이 기동 필수다. DB 자동 스키마 변경·배포 중 OAuth SQL 실행은 추가하지 않았다. 위 C01~C07은 이번 경로·모듈 통합으로 해결된 것이 아니다. Bash 9개 문법 검사와 인증서 폐기·진입점 회귀 27개가 통과했다. 실제 EC2 배포·CA 폐기·Docker 이미지 빌드는 수행하지 않았다.

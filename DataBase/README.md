@@ -1,6 +1,6 @@
 # PostgreSQL 연결 및 진단 안내
 
-현재 NestJS는 PostgreSQL에 연결하고 상태를 확인합니다. 일정·승인 데이터를 저장하는 엔티티·저장 API는 구현되어 있지 않습니다. 프론트의 일정과 승인 상태는 React 메모리 상태입니다.
+현재 NestJS는 PostgreSQL에 연결하고 상태를 확인하며 `users`에 회원가입·OAuth 사용자를 저장합니다. 일정·승인 데이터를 저장하는 엔티티·저장 API는 구현되어 있지 않습니다. 프론트의 일정과 승인 상태는 React 메모리 상태입니다.
 
 ## 설정의 기준
 
@@ -87,3 +87,9 @@ DBeaver에서 PostgreSQL 연결을 만들고 실제 환경 파일과 같은 호�
 - SSL 검증 실패: 서버 인증서와 신뢰 체인을 확인합니다. 코드의 DB_SSL=true는 인증서 검증을 켭니다.
 
 인프라 경로와 환경 파일 보관 방법은 [CI/CD 안내](../CI_CD/README.md)를 참고합니다.
+
+## 인증 사용자 스키마
+
+현재 기준은 [User 엔티티](../BackEnd/NestJS/src/users/entities/user.entity.ts)입니다. [2026-10-18 테이블 명세](table_spec_2026-10-18.md)는 이전 설계 기록이므로 현재 엔티티·실제 DB 스키마와 대조해야 합니다.
+
+기존 users 테이블에는 [OAuth 변경 SQL](../BackEnd/NestJS/migrations/20261019_add_oauth_columns.sql)이 email/password_hash의 NULL 허용, auth_provider/provider_subject 컬럼, 공급자·식별자 유니크 인덱스를 적용합니다. users 테이블 생성은 포함하지 않습니다. 실제 DB의 컬럼 타입·기본값·권한을 확인한 뒤 DB 관리자가 별도 적용합니다. 앱이나 배포는 자동 실행하지 않습니다. 사용자 저장에는 해당 테이블·ID 생성에 필요한 쓰기 권한도 필요합니다.

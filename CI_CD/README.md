@@ -108,7 +108,7 @@ Compose는 아래 호스트 경로를 읽기 전용으로 마운트합니다.
 | SSL_CERT_PATH | `/etc/letsencrypt` | `/etc/letsencrypt` |
 | CERTBOT_WWW_PATH | `/var/www/certbot` | `/var/www/certbot` |
 
-`FrontEnd/docker-entrypoint.sh`가 시작 시 `live/` 아래 인증서·개인키를 찾으면 HTTPS와 HTTP→HTTPS 리다이렉트를 활성화합니다. 없으면 HTTP만 제공합니다. 여러 도메인이 있을 때 선택할 인증서를 지정하는 기능은 없으므로 감지 결과를 로그에서 확인합니다. 인증서 파일과 키는 같은 인증서 쌍이어야 합니다.
+`FrontEnd/v1/docker-entrypoint.sh`가 시작 시 `live/` 아래 인증서·개인키를 찾으면 HTTPS와 HTTP→HTTPS 리다이렉트를 활성화합니다. 없으면 HTTP만 제공합니다. 여러 도메인이 있을 때 선택할 인증서를 지정하는 기능은 없으므로 감지 결과를 로그에서 확인합니다. 인증서 파일과 키는 같은 인증서 쌍이어야 합니다.
 
 호스트에 Certbot을 준비하고 도메인 DNS와 80 포트 접근을 확인한 뒤 webroot 방식으로 발급합니다. 기본 마운트 경로 예시입니다.
 

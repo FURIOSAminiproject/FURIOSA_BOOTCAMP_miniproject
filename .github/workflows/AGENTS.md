@@ -16,7 +16,7 @@
 
 | 파일 | 빌드·배포 스크립트 | 소스·캐시 기준 | 아티팩트 |
 |---|---|---|---|
-| deploy.yml | `CI_CD/FrontEnd/{build,deploy}.sh` | `FrontEnd/`, `FrontEnd/package-lock.json` | frontend-dist → FrontEnd/dist |
+| deploy.yml | `CI_CD/FrontEnd/{build,deploy}.sh` | `FrontEnd/v1/`, `FrontEnd/v1/package-lock.json` | frontend-dist → FrontEnd/v1/dist |
 | deploy_backend.yml | `CI_CD/BackEnd/nestjs/{build,deploy}.sh` | `BackEnd/NestJS/`, 해당 package-lock.json | backend-dist → BackEnd/NestJS/dist |
 | deploy_fastapi.yml | `CI_CD/BackEnd/fastapi/{build,deploy}.sh` | `BackEnd/FastAPI/`, 해당 requirements.txt | 없음 |
 

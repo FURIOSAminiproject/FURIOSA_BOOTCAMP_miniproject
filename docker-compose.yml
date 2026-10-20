@@ -61,7 +61,7 @@ services:
   # ----------------------------------------------------------------------------
   frontend:
     build:
-      context: ./FrontEnd
+      context: ./FrontEnd/v1
       dockerfile: Dockerfile
       args:
         - APP_ENV=${APP_ENV:-production}

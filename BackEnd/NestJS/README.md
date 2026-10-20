@@ -1,6 +1,6 @@
 # NestJS 여행 일정 API
 
-NestJS 11, TypeScript 5.9, TypeORM, PostgreSQL 드라이버와 `@google/genai`를 사용합니다. 컨테이너 및 CI 런타임은 Node.js 22입니다.
+NestJS 12, TypeScript 6, TypeORM, PostgreSQL 드라이버와 `@google/genai`를 사용합니다. 컨테이너 및 CI 런타임은 Node.js 22입니다.
 
 수정 전에는 [작업 지침](AGENTS.md)과 [백엔드 구현 검토 기록](../REVIEW.md)을 확인합니다. 검토 기록의 개선 항목은 현재 미수정입니다.
 
@@ -10,13 +10,15 @@ NestJS 11, TypeScript 5.9, TypeORM, PostgreSQL 드라이버와 `@google/genai`�
 
 `poetry.service.ts`는 음식점/카페의 시·수필을 Gemini로 생성하고 실패 시 내장 문구로 폴백합니다. 일정 생성 중 대상 장소는 Gemini 일정 경로에서 최대 6곳, 절차적 일정 경로에서 최대 5곳입니다. 각 AI 요청 타임아웃은 60초이므로 장애 시 즉시 결과가 반환되는 것은 아닙니다. 장소 실재성·가격·최단 동선·안전 점수는 외부 실시간 데이터로 검증하지 않습니다.
 
-TypeORM은 기동 시 DB에 연결하고 진단 쿼리를 수행합니다. 일정·승인 저장 엔티티/API, 서버 로그인·관리자 권한 검사는 없습니다. 프론트의 승인·반려 상태는 브라우저 메모리에서 관리됩니다.
+TypeORM은 기동 시 DB에 연결하고 진단 쿼리를 수행합니다. 회원가입·로그인·OAuth 사용자 정보는 `users`에 저장합니다. 일정·승인 저장 엔티티/API와 여행·관리자 API의 권한 검사는 없습니다. 프론트의 승인·반려 상태는 브라우저 메모리에서 관리됩니다.
 
 ## 디렉토리
 
 ```text
 BackEnd/NestJS/
 ├── src/
+│   ├── auth/           # 회원가입·로그인·OAuth·세션 쿠키
+│   ├── users/          # User 엔티티
 │   ├── database/       # 접속 옵션, 모듈, 헬스체크, 진단 CLI
 │   ├── travel/         # 컨트롤러, 입력 검증, 일정 엔진, 문학 리뷰, 타입
 │   ├── app.module.ts   # 서비스 등록과 /api/health
@@ -92,7 +94,7 @@ npm test
 
 진단 CLI는 `SELECT current_database() AS name`으로 연결된 DB 이름을 확인하며 데이터를 변경하지 않습니다. 연결 타임아웃은 5초이고 실행 시간은 네트워크 상태 등에 따라 달라집니다. `/api/health/db`의 `SELECT 1`과 구분합니다.
 
-`npm test`는 컴파일 후 Node 내장 테스트 러너로 3개 테스트 파일의 5개 테스트를 실행합니다. API 테스트는 Mock DataSource를 사용하므로 운영 DB 연결 성공을 검증하는 테스트는 아닙니다. `synchronize`, `migrationsRun`, `dropSchema`는 모두 `false`입니다.
+`npm test`는 운영 소스를 컴파일한 뒤 Node 내장 테스트 6개와 Jest 단위 테스트 4개를 실행합니다. `npm run test:e2e -- --runInBand`는 모킹한 앱의 `/api` 응답을 검사합니다. API 테스트는 Mock DataSource를 사용하므로 운영 DB 연결 성공을 검증하는 테스트는 아닙니다. `synchronize`, `migrationsRun`, `dropSchema`는 모두 `false`입니다.
 
 ## API
 
@@ -155,3 +157,28 @@ docker run -d --name travel-backend --env-file .env.production --add-host host.d
 ```
 
 컨테이너의 DB_HOST를 실제 접근 가능한 주소로 설정합니다. 호스트 DB라면 `host.docker.internal` 등을 사용합니다. 배포 중 컨테이너 교체에 따른 중단이 발생할 수 있습니다. [CI/CD 상세](../../CI_CD/BackEnd/nestjs/README.md)를 참고합니다.
+
+## 병합된 인증 API와 배포 설정
+
+인증 API는 상대 브랜치의 `/auth/*` 경로를 유지하며, 여행·진단 API는 기존 `/api/*`를 유지합니다. 공통 설정은 `src/configure-app.ts`입니다.
+
+| 경로 | 동작 |
+|---|---|
+| POST /auth/register | 이름·이메일·비밀번호 검증, bcrypt 해시를 users에 저장 |
+| POST /auth/login | 비밀번호 확인 후 HttpOnly 세션 쿠키 발급 |
+| GET /auth/me | 쿠키의 JWT와 DB 사용자를 확인 |
+| POST /auth/logout | 브라우저의 세션 쿠키 삭제 |
+| GET /auth/{google,kakao,naver} | state 쿠키와 공급자 인증 URL 발급 |
+| GET /auth/{google,kakao,naver}/callback | state 검증, 토큰·프로필 조회, 사용자 저장·세션 발급 |
+
+선택한 `.env.local` / `.env.development` / `.env.production`에 다음 값을 준비합니다. Compose도 같은 모드 파일을 주입하며 ConfigModule은 별도 `.env`를 추가로 읽지 않습니다.
+
+- `JWT_SECRET`: 32자 이상의 무작위 비밀값이 필수입니다. 기본 비밀값은 제공하지 않으며 누락 시 앱 기동이 실패합니다. `node -e "console.log(require('node:crypto').randomBytes(48).toString('hex'))"`로 생성한 값을 안전하게 보관합니다.
+- `FRONTEND_URL`: 로그인 후 돌아갈 실제 프론트 origin. 기본은 `http://localhost:3000`입니다. CORS credentials도 이 origin에만 허용합니다.
+- 공급자별 `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CALLBACK_URL`; `KAKAO_*`, `NAVER_*`도 같은 이름 규칙입니다. 카카오 Client Secret만 선택적입니다.
+- 콜백 URL은 로컬에서 `http://localhost:3001/auth/google/callback`, Nginx 경유 환경에서 `https://실제호스트/auth/google/callback`처럼 설정하고 공급자 콘솔의 등록값과 맞춥니다.
+- production 세션·state 쿠키에는 Secure가 붙으므로 외부 접속은 HTTPS가 필요합니다. 시작 스크립트의 로컬 HTTP 실행은 local/development 모드를 사용합니다. Compose의 NODE_ENV 기본값은 APP_ENV와 별개로 production이므로 HTTP로 인증을 검증할 때는 NODE_ENV=development도 명시합니다. DB_SSL과 별개입니다.
+
+[환경 변수 예시](.env.example)는 항목 안내용입니다. 실제 키·비밀번호를 넣어 커밋하지 않습니다. 기존 `users` 테이블이 있는 DB에는 [OAuth 컬럼 SQL](migrations/20261019_add_oauth_columns.sql)을 별도로 검토·적용해야 합니다. 이 SQL은 users 테이블을 새로 만들지 않으며, 앱·배포가 스키마를 자동 생성하거나 마이그레이션하지 않습니다.
+
+인증 기능은 기존 여행 API와 관리자 화면에 접근 제한을 자동 적용하지 않습니다. 로그인 화면은 별도 `FrontEnd/v2/v2`에 있으며 현재 Compose frontend는 `FrontEnd/v1` 여행 화면을 배포합니다.

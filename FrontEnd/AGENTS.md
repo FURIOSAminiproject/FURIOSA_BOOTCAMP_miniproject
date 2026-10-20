@@ -17,11 +17,11 @@
 | 개발 프록시·빌드 | vite.config.ts, package.json, package-lock.json, tsconfig.json |
 | 운영 서빙 | Dockerfile, docker-entrypoint.sh, nginx_http.conf, nginx_ssl.conf |
 
-표의 src 하위 경로는 `FrontEnd/src/` 기준이다. API 변경 시 [NestJS 지침](../BackEnd/NestJS/AGENTS.md)과 서버 validation.ts/travel.types.ts도 읽는다. 배포 설정 변경 시 [Docker 지침](../Docker/AGENTS.md), CI_CD와 .github/workflows의 지침·실제 호출 파일도 확인한다.
+표의 src 하위 경로는 `FrontEnd/v1/src/` 기준이다. API 변경 시 [NestJS 지침](../BackEnd/NestJS/AGENTS.md)과 서버 validation.ts/travel.types.ts도 읽는다. 배포 설정 변경 시 [Docker 지침](../Docker/AGENTS.md), CI_CD와 .github/workflows의 지침·실제 호출 파일도 확인한다.
 
 ## 실제 기능과 상태 소유권
 
-- React 메모리에 일정·선택·통계·승인 상태를 보관한다. 새로고침 시 프리셋으로 돌아간다. 서버 저장·인증·권한 검사는 없으며 isAdmin 초기값은 true인 시연 구조다.
+- React 메모리에 일정·선택·통계·승인 상태를 보관한다. 새로고침 시 프리셋으로 돌아간다. 일정·승인 서버 저장과 v1 관리자 화면의 인증·권한 검사는 연결되어 있지 않으며 isAdmin 초기값은 true인 시연 구조다.
 - 8개 역할의 고정 진행 로그와 지연 후 NestJS `/api/travel/plans`를 호출한다. SSE/WebSocket·독립 7개 에이전트의 실시간 협업 로그가 아니다. 문구를 구현 근거로 사용하지 않는다.
 - 단일 리뷰는 `/api/travel/poetic-reviews`다. FastAPI는 현재 화면의 일정·리뷰 생성에서 호출하지 않는다.
 - 공유는 현재 페이지 URL 복사, 카카오 전송은 시뮬레이션이다. 일정별 영구 URL·실제 메시지 발송으로 설명하지 않는다.
@@ -57,3 +57,5 @@ npm run build
 ```
 
 lint는 tsc --noEmit이다. Vite build만으로 타입 검사를 대신하지 않는다. 현재 전용 UI 테스트 스크립트는 없다. 상태·API 변경에는 계획 전환, 생성·재작성 성공/실패, 승인/반려, 예산 초과, 지도 필터, 리뷰 재생성 및 공유·출력의 관련 경로를 확인한다. 단순 문서 수정에 새 테스트 체계를 추가하지 않는다. 정적 검사·훅 모킹·실제 브라우저 검증 수준을 구분하고, 코드 변경 시 README와 관련 REVIEW 항목을 함께 갱신한다.
+
+실행·빌드 작업 디렉토리는 `FrontEnd/v1/`이다. 위 표의 Vite·package·Docker/Nginx 파일도 v1 기준이다. `v2/v2`는 별도의 로그인 화면이며 현재 Compose 배포 대상과 구분한다. 서버에는 인증 기능이 있으나 v1 화면·여행 API에 권한 검사가 연결된 것은 아니다.

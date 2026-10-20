@@ -19,7 +19,7 @@
 
 | 서비스 | 컨테이너 이름 | 빌드 경로 | 호스트 포트 |
 |---|---|---|---|
-| frontend | travel-frontend | `FrontEnd/` | `80:80`, `443:443` |
+| frontend | travel-frontend | `FrontEnd/v1/` | `80:80`, `443:443` |
 | backend | travel-backend | `BackEnd/NestJS/` | `127.0.0.1:3001:3001` |
 | fastapi | travel-fastapi | `BackEnd/FastAPI/` | `127.0.0.1:8000:8000` |
 

@@ -1,0 +1,57 @@
+{
+  "status": "success",
+  "data": [
+    {
+      "id": 101,
+      "name": "홍길동",
+      "email": "gildong@example.com",
+      "age": 28,
+      "is_active": true,
+      "salary": 5500.5,
+      "profile": {
+        "city": "서울",
+        "department": "AI 개발팀"
+      },
+      "tags": [
+        "python",
+        "ai",
+        "backend"
+      ],
+      "notes": "특이사항: 따옴표(')가 포함된 텍스트 테스트"
+    },
+    {
+      "id": 102,
+      "name": "이영희",
+      "email": "younghee@example.com",
+      "age": 32,
+      "is_active": false,
+      "salary": 6800.0,
+      "profile": {
+        "city": "부산",
+        "department": "데이터 분석팀"
+      },
+      "tags": [
+        "sql",
+        "bigdata"
+      ],
+      "notes": null
+    },
+    {
+      "id": 103,
+      "name": "김철수",
+      "email": "chulsoo@example.com",
+      "age": 25,
+      "is_active": true,
+      "salary": 4800.2,
+      "profile": {
+        "city": "대구",
+        "department": "클라우드 인프라팀"
+      },
+      "tags": [
+        "docker",
+        "kubernetes"
+      ],
+      "notes": "신규 입사자"
+    }
+  ]
+}

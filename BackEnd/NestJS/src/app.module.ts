@@ -3,6 +3,10 @@ import { DatabaseController } from './database/database.controller';
 import { Controller, Get, Module } from '@nestjs/common';
 import { TravelController } from './travel/travel.controller';
 import { TravelService } from './travel/travel.service';
+import { ConfigModule } from '@nestjs/config';
+import { AuthModule } from './auth/auth.module';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 @Controller('health')
 class HealthController {
   @Get()
@@ -15,5 +19,10 @@ class HealthController {
     };
   }
 }
-@Module({ imports: [DatabaseModule], controllers: [HealthController, TravelController, DatabaseController], providers: [TravelService] })
+@Module({
+  // 환경 파일은 start.cjs 또는 Compose가 선택한다. 인증 모듈도 같은 환경을 사용한다.
+  imports: [ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true }), DatabaseModule, AuthModule],
+  controllers: [AppController, HealthController, TravelController, DatabaseController],
+  providers: [AppService, TravelService],
+})
 export class AppModule {}

@@ -23,14 +23,14 @@
 - React의 일정 생성과 단일 문학 리뷰 요청은 NestJS로 간다. FastAPI 호출로 이어지지 않는다.
 - NestJS는 Gemini 통합 일정 요청과 장소별 문학 리뷰 요청을 사용한다. 독립된 7개 에이전트 협업 서버가 아니다. 프론트의 8개 역할 로그와 서버 실행을 구분한다.
 - Gemini 키가 없거나 요청·파싱이 실패하면 내장 폴백을 사용한다. JSON 파싱 성공만으로 응답 구조·가격·장소·동선이 검증된 것은 아니다.
-- TypeORM은 기동 시 PostgreSQL에 연결한다. 일정·승인 저장 엔티티/API, 서버 로그인·관리자 권한 검사는 없다. 승인·반려는 프론트 메모리 상태다.
+- TypeORM은 기동 시 PostgreSQL에 연결한다. AuthModule은 users 저장·비밀번호 로그인·OAuth·JWT 쿠키를 제공한다. 일정·승인 저장과 여행·관리자 API 권한 검사는 없다. 승인·반려는 v1 프론트 메모리 상태다.
 - FastAPI의 `model_version` 문자열과 추론 관련 주석은 실제 모델·NPU 연결의 근거가 아니다.
 
 ## 변경 영향 확인
 
 | 변경 | 함께 읽고 확인할 곳 |
 |---|---|
-| 요청·응답 필드/상태/날짜·인원·예산 조건 | NestJS validation.ts와 travel.types.ts, FrontEnd/src/types/travel.ts, 폼·API 호출·상세 화면·프리셋 |
+| 요청·응답 필드/상태/날짜·인원·예산 조건 | NestJS validation.ts와 travel.types.ts, FrontEnd/v1/src/types/travel.ts, 폼·API 호출·상세 화면·프리셋 |
 | 일정·문학 리뷰 생성 | AI 성공/실패/구조 누락, 폴백, 비용 합계, 일수별 분기, 프론트 렌더링 |
 | DB | database.config.ts, 모듈, health/db, 진단 CLI, 시작 스크립트, Compose env_file |
 | TLS·포트·환경 로딩 | main.ts, scripts/start.cjs, ecosystem.config.cjs, Dockerfile, Compose, 프론트 Nginx |
@@ -45,3 +45,5 @@
 - FastAPI는 스키마 경계와 실제 응답을 확인한다. Python 구문 검사만으로 API 동작을 검증했다고 보고하지 않는다.
 - 검토만 요청받은 경우 실제 DB, 유료 AI 호출, 배포·운영 컨테이너 교체를 검증 수단으로 실행하지 않는다. 비밀값은 문서·로그·커밋에 남기지 않는다.
 - 구현이 바뀌면 서비스 README와 관련 REVIEW 항목을 갱신한다. 검토 기록의 미수정 문제를 이미 해결된 기능으로 설명하지 않는다.
+
+인증 변경 시 `src/auth/`, `src/users/`, `src/configure-app.ts`와 `test/auth.integration.test.cjs`를 함께 확인한다. JWT_SECRET은 32자 이상 필수이며 기본 키를 추가하지 않는다. `/auth/*`는 전역 /api 접두사에서 제외하고 OAuth state 쿠키의 콜백 경로를 유지한다. DB 자동 스키마 변경은 켜지 않는다. 상위 BackEnd 루트 사본은 인증이 통합된 현재 서비스와 더 이상 동일하지 않다.

@@ -12,7 +12,7 @@ NestJS는 Gemini에 통합 프롬프트를 보내 일정을 생성하며, 키가
 
 프론트엔드는 길라잡이부터 풍류시객까지 8개 역할을 소개합니다. 진행 로그는 고정 문구와 지연으로 구성된 시각화이며, 로그 표시 후 일정 생성 API를 호출합니다. 독립적인 8개 AI 프로세스나 서버 진행 로그 스트리밍은 구현되어 있지 않습니다.
 
-일정·승인·반려·통계는 React 메모리 상태로 관리됩니다. 새로고침하면 프리셋으로 초기화되며, 관리자 모드는 기본 활성화됩니다. 서버 인증·권한 검사와 일정/승인 데이터 DB 저장 API는 없습니다. TypeORM은 DB 연결 및 진단에 사용됩니다.
+일정·승인·반려·통계는 React 메모리 상태로 관리됩니다. 새로고침하면 프리셋으로 초기화되며, 관리자 모드는 기본 활성화됩니다. 서버에는 회원가입·로그인·OAuth와 users 저장이 있습니다. 여행·관리자 API 권한 검사와 일정/승인 데이터 DB 저장은 없습니다. 로그인 화면은 별도 v2이며 현재 배포는 v1 여행 화면입니다.
 
 FastAPI는 별도 샘플 서비스입니다. 추천 API는 고정된 2개 장소를 요청 지역과 스타일에 맞춰 반환하며, 현재 프론트엔드 일정 생성이나 NestJS 처리 흐름에서 호출하지 않습니다.
 
@@ -20,8 +20,8 @@ FastAPI는 별도 샘플 서비스입니다. 추천 API는 고정된 2개 장소
 
 | 구성 | 코드 기준 기술 | 위치 |
 |---|---|---|
-| 웹 | React 19, TypeScript 7, Vite 8, Tailwind CSS 4, Leaflet, Motion | `FrontEnd/` |
-| 일정 API | NestJS 11, TypeScript 5.9, TypeORM, PostgreSQL 드라이버, Google GenAI SDK | `BackEnd/NestJS/` |
+| 웹 | React 19, TypeScript 7, Vite 8, Tailwind CSS 4, Leaflet, Motion | `FrontEnd/v1/` |
+| 일정 API | NestJS 12, TypeScript 6, TypeORM, PostgreSQL 드라이버, Google GenAI SDK | `BackEnd/NestJS/` |
 | 샘플 추천 API | FastAPI, Pydantic, Uvicorn, Python 3.12 컨테이너 | `BackEnd/FastAPI/` |
 | 배포 | GitHub Actions, Docker Compose, Nginx | `.github/workflows/`, `CI_CD/`, `docker-compose.yml` |
 | EC2 IP 인증서 폐기 도구 | Python 3.9 이상, OpenSSL, EC2 IMDSv2, Certbot Docker | `CI_CD/certificates/` |
@@ -66,7 +66,7 @@ npm run start:local
 새 터미널에서 실행합니다.
 
 ```powershell
-cd FrontEnd
+cd FrontEnd/v1
 npm install
 npm run start:local
 ```
@@ -124,7 +124,7 @@ npm test
 | 파일 | 역할 |
 |---|---|
 | [revoke_ip_certificates.py](CI_CD/certificates/revoke_ip_certificates.py) | EC2 IP·인증서 점검, 대상의 자동 갱신 중단, 폐기 요청 및 결과 기록 |
-| [docker-entrypoint.sh](FrontEnd/docker-entrypoint.sh) | 동일 lineage의 인증서·키 선택, 차단된 동일 leaf 인증서 제외 |
+| [docker-entrypoint.sh](FrontEnd/v1/docker-entrypoint.sh) | 동일 lineage의 인증서·키 선택, 차단된 동일 leaf 인증서 제외 |
 | [폐기 도구 테스트](CI_CD/certificates/tests/test_revoke_ip_certificates.py) | IP 변경·실패·재시도·Nginx 선택 등 오프라인 검증 |
 
 - IMDSv2로 모든 네트워크 인터페이스의 공인 IPv4를 확인하며, 현재 할당된 IP 인증서는 유지합니다. 조회 실패나 공인 IP가 없는 경우에는 폐기를 진행하지 않습니다.
@@ -162,3 +162,5 @@ python3 -B -m unittest discover -s CI_CD/certificates/tests -v
 - [기타 자료와 회의록](ETC/README.md)
 
 각 폴더의 `README.md`는 구조·사용법, `AGENTS.md`는 AI 작업 지침, `REVIEW.md`는 검토 시점의 문제·재현 결과·검증 범위를 담습니다. 변경 작업 전에 해당 폴더의 지침과 검토 기록을 함께 확인합니다.
+
+인증 통합 후에는 기존 DB 환경변수에 더해 32자 이상의 `JWT_SECRET`이 필요합니다. OAuth 공급자·콜백·FRONTEND_URL 및 기존 users 테이블의 수동 SQL 준비는 [NestJS 인증 설정](BackEnd/NestJS/README.md)을 확인합니다. 현재 Nginx는 `/api/`, `/auth/`, `/fastapi/`를 프록시하며 Compose frontend 빌드 컨텍스트는 `FrontEnd/v1`입니다.

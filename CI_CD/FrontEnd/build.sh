@@ -16,7 +16,7 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 # 2. React 프로젝트 디렉토리로 이동
-cd "$PROJECT_ROOT/FrontEnd"
+cd "$PROJECT_ROOT/FrontEnd/v1"
 
 # 3. 환경 디버깅을 위한 Node.js 및 npm 버전 출력
 echo "===== [1/4] Node.js 및 npm 버전 확인 ====="
@@ -32,7 +32,7 @@ npm ci
 
 # 5. React(Vite) 프로덕션 번들 빌드
 #    - package.json에 정의된 "vite build" 스크립트 실행
-#    - 성공 시 'FrontEnd/dist/' 디렉토리에 정적 파일들(html, js, css, assets) 생성
+#    - 성공 시 'FrontEnd/v1/dist/' 디렉토리에 정적 파일들(html, js, css, assets) 생성
 echo "===== [3/4] React 프로덕션 빌드 ====="
 npm run build
 

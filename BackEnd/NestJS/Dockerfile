@@ -9,7 +9,7 @@ ARG APP_ENV=production
 WORKDIR /app
 
 # 의존성 정의 파일 복사 및 설치
-COPY package*.json tsconfig.json ./
+COPY package*.json tsconfig*.json ./
 RUN npm ci
 
 # 소스코드 및 스크립트 복사 후 지정된 환경에 맞춰 TypeScript 컴파일

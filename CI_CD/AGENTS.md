@@ -16,12 +16,12 @@
 
 | 서비스 | 워크플로우 | 호출하는 스크립트 | Compose 빌드 경로 / 서비스 |
 |---|---|---|---|
-| FrontEnd | `.github/workflows/deploy.yml` | `CI_CD/FrontEnd/{build,deploy}.sh` | `FrontEnd/` / `frontend` |
+| FrontEnd | `.github/workflows/deploy.yml` | `CI_CD/FrontEnd/{build,deploy}.sh` | `FrontEnd/v1/` / `frontend` |
 | NestJS | `.github/workflows/deploy_backend.yml` | `CI_CD/BackEnd/nestjs/{build,deploy}.sh` | `BackEnd/NestJS/` / `backend` |
 | FastAPI | `.github/workflows/deploy_fastapi.yml` | `CI_CD/BackEnd/fastapi/{build,deploy}.sh` | `BackEnd/FastAPI/` / `fastapi` |
 
 - `CI_CD/BackEnd/build.sh`와 `deploy.sh`는 현재 워크플로우에서 호출하지 않는다. 이 파일들은 `BackEnd/` 루트의 별도 NestJS 구성을 확인하지만 Compose는 `BackEnd/NestJS/`를 배포한다. 둘을 같은 경로로 취급하지 않는다.
-- `CI_CD/nginx_https.conf`는 호스트 Nginx용 별도 템플릿이다. 현재 frontend 이미지가 실제로 사용하는 파일은 `FrontEnd/nginx_http.conf`, `nginx_ssl.conf`, `docker-entrypoint.sh`이다.
+- `CI_CD/nginx_https.conf`는 호스트 Nginx용 별도 템플릿이다. 현재 frontend 이미지가 실제로 사용하는 파일은 `FrontEnd/v1/nginx_http.conf`, `nginx_ssl.conf`, `docker-entrypoint.sh`이다.
 - FrontEnd/NestJS 아티팩트는 EC2로 다운로드되지만 최종 이미지는 EC2에서 Dockerfile로 다시 빌드한다. 검증한 dist가 그대로 배포된다고 설명하지 않는다.
 
 ## 변경 시 함께 확인할 범위

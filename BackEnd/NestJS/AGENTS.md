@@ -42,4 +42,6 @@ npm test
 npm run build:prod
 ```
 
-`npm test`는 컴파일과 3개 파일의 5개 테스트를 실행한다. API 테스트는 Mock DataSource를 사용하고 Gemini 키를 제거한다. 시작 스크립트의 환경 테스트는 로컬 파일의 DB_NAME에 영향을 받을 수 있으므로 실패 시 실제 설정을 노출하지 말고 원인을 구분한다. `npm run db:check -- local`은 실제 DB에 접속하므로 별도의 연동 검증이 필요한 작업에서만 사용한다.
+`npm test`는 tsconfig.build.json으로 운영 소스를 컴파일하고 Node 테스트 6개와 Jest 단위 테스트 4개를 실행한다. `npm run test:e2e -- --runInBand`는 별도 모킹 E2E 1개다. API 테스트는 Mock DataSource를 사용하고 Gemini 키를 제거한다. 시작 스크립트의 환경 테스트는 로컬 파일의 DB_NAME에 영향을 받을 수 있으므로 실패 시 실제 설정을 노출하지 말고 원인을 구분한다. `npm run db:check -- local`은 실제 DB에 접속하므로 별도의 연동 검증이 필요한 작업에서만 사용한다.
+
+인증은 AuthModule·User 엔티티를 사용한다. `src/configure-app.ts`를 실제 기동과 통합 테스트에서 공유한다. OAuth 테스트는 외부 공급자와 DB를 모킹하며 실제 Google 로그인 성공으로 보고하지 않는다. tsconfig.build의 rootDir=src, incremental=false를 유지해 dist/main.js를 생성하고 병합된 캐시의 출력 생략을 방지한다.

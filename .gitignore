@@ -9,6 +9,9 @@ node_modules/
 dist/
 build/
 coverage/
+*.tsbuildinfo
+__pycache__/
+*.py[cod]
 
 # 배포 백업 아카이브 (Deployment Backups)
 backups/

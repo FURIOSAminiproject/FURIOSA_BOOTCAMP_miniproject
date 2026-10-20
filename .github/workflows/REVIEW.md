@@ -63,7 +63,7 @@ deploy 러너는 모두 `[self-hosted, linux]`이고 운영 서버 전용 라벨
 | run 경로 | 세 서비스의 실제 하위 CI_CD 스크립트를 호출; 루트 BackEnd 스크립트 호출 없음 |
 | 캐시 기준 파일 | FrontEnd·NestJS의 package-lock.json, FastAPI의 requirements.txt가 존재하고 경로 일치 |
 | 권한 | 세 파일 모두 contents: read |
-| FrontEnd 아티팩트 | frontend-dist; 업로드·다운로드 경로 FrontEnd/dist 일치 |
+| FrontEnd 아티팩트 | frontend-dist; 업로드·다운로드 경로 FrontEnd/v1/dist 일치 |
 | NestJS 아티팩트 | backend-dist; 업로드·다운로드 경로 BackEnd/NestJS/dist 일치 |
 | 아티팩트 검사 | FrontEnd/NestJS 모두 if-no-files-found: error, retention-days: 1 |
 | FastAPI 아티팩트 | 업로드·다운로드 단계 없음; 현재 소스 재빌드 방식과 일치 |
@@ -98,3 +98,7 @@ PyYAML의 YAML 1.1 bool 해석에서 on 키가 바뀌는 문제를 피하도록 
 ## 유지 방법
 
 동작을 수정하면 해당 W 항목의 해결 여부·검증 근거와 [README.md](README.md)를 갱신한다. [AGENTS.md](AGENTS.md)에는 계속 적용할 작업 규칙을 남기고, 이번 시점의 관찰은 이 파일에 유지한다.
+
+## 2026-10-20 병합: 프론트 실행 경로
+
+상대 브랜치의 v1 이동에 맞춰 frontend 캐시 파일과 아티팩트 업로드·다운로드를 FrontEnd/v1로 연결했다. 현재 브랜치의 jobs·러너·권한·동시성·CI_CD 스크립트 호출은 유지했다. v2는 별도 보존하며 자동 배포 앱은 v1이다. 실제 GitHub 이벤트나 EC2 배포는 실행하지 않았다. 위 W 항목의 상태는 이번 병합으로 해결된 것으로 변경하지 않는다.

@@ -4,12 +4,17 @@ require('reflect-metadata');
 const {Test}=require('@nestjs/testing');
 const {DataSource}=require('typeorm');
 const {AppModule}=require('../dist/app.module');
+const {configureApp}=require('../dist/configure-app');
+const {getRepositoryToken}=require('@nestjs/typeorm');
+const {User}=require('../dist/users/entities/user.entity');
 test('travel APIs preserve fallback behavior and reject invalid inputs', async()=>{
   delete process.env.GEMINI_API_KEY;
+  process.env.JWT_SECRET='offline-api-test-secret-at-least-32-characters';
   Object.assign(process.env,{DB_HOST:'127.0.0.1',DB_PORT:'5432',DB_NAME:'api_test',DB_USER:'test',DB_PASSWORD:'test',DB_SSL:'false'});
   const module = await Test.createTestingModule({imports:[AppModule]})
+    .overrideProvider(getRepositoryToken(User)).useValue({})
     .overrideProvider(DataSource).useValue({isInitialized:true,query:async()=>[{value:1}],destroy:async()=>{}}).compile();
-  const app=module.createNestApplication();app.setGlobalPrefix('api');
+  const app=module.createNestApplication();configureApp(app);
   await app.listen(0,'127.0.0.1');
   const base=await app.getUrl();
   const post=(route,body)=>fetch(base+'/api'+route,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});

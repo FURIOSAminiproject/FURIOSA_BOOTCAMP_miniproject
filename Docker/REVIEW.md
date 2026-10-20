@@ -6,7 +6,7 @@
 
 ### D01 · P2 · 프론트 Docker 빌드에서 public 파일이 빠진다
 
-- 근거: [FrontEnd/Dockerfile](../FrontEnd/Dockerfile)은 빌드에 필요한 루트 파일과 src/만 복사한다. [public/deploy_test.json](../FrontEnd/public/deploy_test.json)이 존재하지만 COPY 대상이 아니다.
+- 근거: [FrontEnd/v1/Dockerfile](../FrontEnd/v1/Dockerfile)은 빌드에 필요한 루트 파일과 src/만 복사한다. [public/deploy_test.json](../FrontEnd/v1/public/deploy_test.json)이 존재하지만 COPY 대상이 아니다.
 - 검증: 실제 COPY 목록과 파일 존재를 확인했다. 일반 로컬 Vite 빌드와 달리 Docker builder에 public/가 전달되지 않는 경로다. 실제 Docker 이미지는 빌드하지 않았다.
 - 영향: 해당 JSON은 이미지의 정적 파일로 제공되지 않는다. 누락 경로 요청이 SPA index.html로 처리될 수 있어 HTTP 200만 확인하면 파일 존재를 오판할 수 있다.
 - 개선 방향: public 파일을 배포 입력으로 포함할지 정하고 COPY·이미지 산출물·응답 Content-Type/내용을 함께 검증한다. 현재 JSON만 빠지는 것을 전체 React 빌드 실패로 설명하지 않는다.
@@ -14,7 +14,7 @@
 ### D02 · 해결(2026-10-20) · 서로 다른 디렉토리의 인증서와 키 조합
 
 - 최초 검토에서는 fullchain.pem과 privkey.pem을 독립적으로 검색해 `a/fullchain.pem`, `b/privkey.pem`이 조합되는 경로를 확인했다.
-- 변경: [docker-entrypoint.sh](../FrontEnd/docker-entrypoint.sh)가 live 아래 같은 lineage의 cert/key만 선택하도록 수정했다. IP 폐기 요청한 leaf와 차단 해시가 같으면 제외하며, 손상된 차단 표시도 보수적으로 제외한다.
+- 변경: [docker-entrypoint.sh](../FrontEnd/v1/docker-entrypoint.sh)가 live 아래 같은 lineage의 cert/key만 선택하도록 수정했다. IP 폐기 요청한 leaf와 차단 해시가 같으면 제외하며, 손상된 차단 표시도 보수적으로 제외한다.
 - 검증: 다른 디렉토리의 파일만 있는 fixture가 HTTP로 시작하고, 같은 디렉토리의 쌍은 HTTPS를 선택했다. 차단한 leaf·잘못된 차단 표시 제외, 다른 lineage 선택과 nginx 검사 실패도 확인했다. nginx는 스텁이므로 암호학적 키 일치·실제 Nginx 검증을 뜻하지 않는다.
 - 남은 범위: 도메인·현재 IP에 맞는 쌍의 명시적 선택과 만료 검증은 없다. 폐기 도구는 자동 배포·재시작하지 않는다.
 
@@ -46,3 +46,9 @@
 fixture는 실제 스크립트의 시스템 경로를 임시 경로로 바꾸고 nginx 명령을 스텁으로 대체했다. 설정 검사 실패 fixture에서 최종 실행 명령이 호출되지 않는 것도 확인했다. 실제 인증서 만료·체인·키 일치, 실제 Nginx 문법 검사, Docker 이미지 빌드·기동, Windows 호스트 마운트와 EC2 외부 접속은 검증하지 않았다. 인증서 감지 테스트 통과를 AWS/Windows 환경 설정 자동 선택 성공으로 설명하지 않는다.
 
 2026-10-20에는 [폐기 도구 테스트](../CI_CD/certificates/tests/test_revoke_ip_certificates.py)의 27개 테스트를 실행했다. 진입점 8개 테스트는 nginx 스텁 호출 자체도 확인한다. 이전의 다른 디렉토리 조합 재현 결과는 변경 후 기대 결과인 HTTP로 바뀌었다. D03의 자동 갱신 스케줄·reload 미구현은 그대로다.
+
+## 2026-10-20 병합: 활성 프론트와 인증 경로
+
+frontend 빌드 컨텍스트를 FrontEnd/v1로 변경하고 기존 인증서 감지·폐기 leaf 차단 진입점을 같은 컨텍스트로 옮겼다. Nginx의 /auth 프록시는 경로를 제거하지 않아 OAuth state 쿠키·콜백의 /auth 경로를 유지한다. /api·/fastapi와 기존 HTTP/HTTPS 선택은 유지한다. v2 로그인 UI는 현재 이미지에 포함되지 않는다.
+
+인증서 폐기·진입점 오프라인 테스트 27개가 통과했다. 위 D 항목은 이번 병합으로 해결된 것으로 표시하지 않는다. 실제 Nginx -t·컨테이너 요청·EC2 TLS 연결은 별도 검증 대상이다.
