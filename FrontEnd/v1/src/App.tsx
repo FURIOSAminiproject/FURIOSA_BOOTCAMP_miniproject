@@ -15,17 +15,25 @@ import { TravelPlanDetail } from './components/TravelPlanDetail';
 import { AgentTeamIntro } from './components/AgentTeamIntro';
 import { AdminDashboard } from './components/AdminDashboard';
 import { AdminApprovalModal } from './components/AdminApprovalModal';
+import { WeatherPredictionWidget } from './components/WeatherPredictionWidget';
 import { ShareModal } from './components/ShareModal';
 import { PrintVoucher } from './components/PrintVoucher';
-import { CheckCircle2, AlertCircle } from 'lucide-react';
+import { GisVerificationModal } from './components/GisVerificationModal';
+import { TravelerSocialFeed } from './components/TravelerSocialFeed';
+import { AiTransformerStudio } from './components/AiTransformerStudio';
+import { WeatherTechStudio } from './components/WeatherTechStudio';
+import { CheckCircle2 } from 'lucide-react';
 
 export default function App() {
-  const [currentTab, setCurrentTab] = useState<'EXPLORE' | 'REQUEST' | 'PLAN' | 'ADMIN'>('EXPLORE');
-  const [isAdmin, setIsAdmin] = useState<boolean>(true); // First visitor gets admin permissions to test approvals easily
+  const [currentTab, setCurrentTab] = useState<'EXPLORE' | 'REQUEST' | 'PLAN' | 'ADMIN' | 'STUDIO' | 'WEATHER_STUDIO'>('EXPLORE');
+  const [isAdmin, setIsAdmin] = useState<boolean>(true); // Logged in as administrator
   
   // Plans list
   const [plans, setPlans] = useState<FullTravelPlan[]>([PRESET_JEJU_PLAN, PRESET_GYEONGJU_PLAN]);
   const [selectedPlan, setSelectedPlan] = useState<FullTravelPlan>(PRESET_JEJU_PLAN);
+
+  // Pre-filled destination for request form if clicked from explore or weather prediction
+  const [targetDestination, setTargetDestination] = useState<string>('제주');
 
   // Agency Stats
   const [agencyStats, setAgencyStats] = useState<AgencyStats>(INITIAL_AGENCY_STATS);
@@ -39,6 +47,7 @@ export default function App() {
   const [planForApproval, setPlanForApproval] = useState<FullTravelPlan | null>(null);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [printVoucherOpen, setPrintVoucherOpen] = useState(false);
+  const [gisModalOpen, setGisModalOpen] = useState(false);
 
   // Toast notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -55,7 +64,7 @@ export default function App() {
   const handleRequestSubmit = async (req: TravelRequest) => {
     setIsGenerating(true);
     setAgentLogs([]);
-    setCurrentTab('REQUEST'); // Keep on request page showing the live agent orchestration console
+    setCurrentTab('REQUEST'); // Keep on request page to show real-time orchestration
 
     try {
       const newPlan = await orchestrateTravelPlan(req, (log) => {
@@ -188,11 +197,11 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-stone-100/70 text-stone-900 flex flex-col font-sans">
+    <div className="min-h-screen bg-[#faf7f2] text-stone-900 flex flex-col font-sans selection:bg-[#064e43] selection:text-white">
       {/* Toast Banner */}
       {toastMessage && (
-        <div className="fixed top-20 right-4 z-50 bg-stone-900 text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-2.5 text-xs sm:text-sm border border-stone-700 animate-in fade-in slide-in-from-top-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+        <div className="fixed top-20 right-4 z-50 bg-[#064e43] text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-2.5 text-xs sm:text-sm border border-emerald-700 animate-in fade-in slide-in-from-top-2">
+          <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0" />
           <span>{toastMessage}</span>
         </div>
       )}
@@ -204,32 +213,67 @@ export default function App() {
         isAdmin={isAdmin}
         onToggleAdmin={() => {
           setIsAdmin(!isAdmin);
-          showToast(!isAdmin ? '여행사 총괄 관리자 모드로 전환되었습니다.' : '고객 모드로 전환되었습니다.');
+          showToast(!isAdmin ? '관리자 권한으로 로그인되었습니다.' : '로그아웃 되었습니다.');
         }}
         pendingCount={pendingCount}
       />
 
       {/* Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {/* TAB 1: EXPLORE / LANDING */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
+        {/* TAB 1: EXPLORE / MAIN PAGE */}
         {currentTab === 'EXPLORE' && (
-          <div className="space-y-10">
+          <div className="space-y-12">
+            {/* 1. Hero Banner with Jeju Coast image & "이렇게 진행돼요" */}
             <HeroBanner
               onStartRequest={() => setCurrentTab('REQUEST')}
-              onExplorePreset={(presetId) => {
-                if (presetId === 'jeju') {
+              onQuickExplore={(dest) => {
+                setTargetDestination(dest);
+                if (dest.includes('제주')) {
                   setSelectedPlan(PRESET_JEJU_PLAN);
                   setCurrentTab('PLAN');
+                } else if (dest.includes('경주')) {
+                  setSelectedPlan(PRESET_GYEONGJU_PLAN);
+                  setCurrentTab('PLAN');
+                } else {
+                  setCurrentTab('REQUEST');
                 }
               }}
+              onOpenStudio={() => setCurrentTab('STUDIO')}
+              onOpenWeatherStudio={() => setCurrentTab('WEATHER_STUDIO')}
             />
 
+            {/* 2. "우리 여행사의 AI 에이전트 팀" & "인기 여행지" */}
             <AgentTeamIntro
               onSelectPlan={(plan) => {
                 setSelectedPlan(plan);
                 setCurrentTab('PLAN');
               }}
-              onStartRequest={() => setCurrentTab('REQUEST')}
+              onSelectDestination={(dest) => {
+                setTargetDestination(dest);
+              }}
+              onOpenStudio={() => setCurrentTab('STUDIO')}
+              onOpenWeatherStudio={() => setCurrentTab('WEATHER_STUDIO')}
+            />
+
+            {/* 3. NEW: 10-Year Climate ML/DL Long-term Forecast & Smart Packing Widget */}
+            <WeatherPredictionWidget
+              initialDestination={targetDestination}
+              onApplyToTripRequest={(dest, start, end) => {
+                setTargetDestination(dest);
+                setCurrentTab('REQUEST');
+              }}
+              onOpenWeatherStudio={() => setCurrentTab('WEATHER_STUDIO')}
+            />
+
+            {/* 4. NEW: Traveler Social Feed & Shared Itineraries */}
+            <TravelerSocialFeed
+              onLoadPresetPlan={(plan) => {
+                setSelectedPlan(plan);
+                setCurrentTab('PLAN');
+              }}
+              onExploreDestination={(dest) => {
+                setTargetDestination(dest);
+              }}
             />
           </div>
         )}
@@ -248,6 +292,7 @@ export default function App() {
             <TravelRequestForm
               onSubmit={handleRequestSubmit}
               isLoading={isGenerating}
+              initialDestination={targetDestination}
             />
           </div>
         )}
@@ -255,18 +300,18 @@ export default function App() {
         {/* TAB 3: PLAN DETAIL & MAP */}
         {currentTab === 'PLAN' && (
           <div className="space-y-6">
-            {/* Quick Plan Switcher if multiple plans exist */}
+            {/* Plan Switcher */}
             {plans.length > 1 && (
               <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                <span className="text-xs font-semibold text-stone-500 shrink-0">보관된 일정:</span>
+                <span className="text-xs font-semibold text-stone-500 shrink-0">일정 보관함:</span>
                 {plans.map(p => (
                   <button
                     key={p.requestId}
                     onClick={() => setSelectedPlan(p)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-all ${
                       selectedPlan.requestId === p.requestId
-                        ? 'bg-stone-900 text-white shadow-xs'
-                        : 'bg-white text-stone-600 hover:bg-stone-200 border border-stone-200'
+                        ? 'bg-[#064e43] text-white shadow-2xs'
+                        : 'bg-white text-stone-600 hover:bg-stone-100 border border-[#e5e0d8]'
                     }`}
                   >
                     {p.request.clientName} ({p.request.destination})
@@ -284,11 +329,12 @@ export default function App() {
               }}
               onOpenShareModal={() => setShareModalOpen(true)}
               onPrint={() => setPrintVoucherOpen(true)}
+              onOpenGisModal={() => setGisModalOpen(true)}
             />
           </div>
         )}
 
-        {/* TAB 4: ADMIN DASHBOARD & APPROVAL CENTER */}
+        {/* TAB 4: ADMIN APPROVAL CENTER */}
         {currentTab === 'ADMIN' && (
           <AdminDashboard
             stats={agencyStats}
@@ -301,6 +347,23 @@ export default function App() {
               setPlanForApproval(plan);
               setApprovalModalOpen(true);
             }}
+          />
+        )}
+
+        {/* TAB 5: AI & TRANSFORMER ARCHITECTURE STUDIO */}
+        {currentTab === 'STUDIO' && (
+          <AiTransformerStudio
+            onNavigateToRequest={() => setCurrentTab('REQUEST')}
+            onNavigateToPlan={() => setCurrentTab('PLAN')}
+            onNavigateToWeatherStudio={() => setCurrentTab('WEATHER_STUDIO')}
+          />
+        )}
+
+        {/* TAB 6: WEATHER FORECAST TECH ANALYSIS STUDIO (LSTM & ENSEMBLE) */}
+        {currentTab === 'WEATHER_STUDIO' && (
+          <WeatherTechStudio
+            onNavigateToRequest={() => setCurrentTab('REQUEST')}
+            onNavigateToTransformerStudio={() => setCurrentTab('STUDIO')}
           />
         )}
       </main>
@@ -334,28 +397,21 @@ export default function App() {
         />
       )}
 
-      {/* Footer */}
-      <footer className="bg-stone-900 text-stone-400 border-t border-stone-800 py-10 mt-16 print:hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
-          <div>
-            <div className="flex items-center gap-2 text-stone-200 font-bold text-sm">
-              <span>길벗 AI 여행사 (Gilbeot AI Travel)</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-400 text-stone-950 font-semibold">
-                자율운영 여행사
-              </span>
-            </div>
-            <p className="mt-1 text-stone-500">
-              여행 계획은 AI 팀이, 확정은 사람이. · 대한민국 국내 여행 종합 플랫폼
-            </p>
-          </div>
+      {/* GIS Coordinate & Map PUSH Verification Modal */}
+      {gisModalOpen && (
+        <GisVerificationModal
+          plan={selectedPlan}
+          isOpen={gisModalOpen}
+          onClose={() => setGisModalOpen(false)}
+        />
+      )}
 
-          <div className="flex items-center gap-4 text-stone-400">
-            <span>OpenStreetMap & Leaflet 연동</span>
-            <span>·</span>
-            <span>네이버 지도 검색 연동</span>
-            <span>·</span>
-            <span>Gemini AI 엔진 탑재</span>
-          </div>
+      {/* Footer - Exactly matching screenshot footer */}
+      <footer className="mt-20 border-t border-[#e8e4dc] py-10 text-xs text-stone-500 bg-[#faf7f2] print:hidden">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-1">
+          <div className="font-bold text-stone-900 text-sm">길벗 AI Agents 여행사</div>
+          <div>12인의 AI 에이전트 팀이 설계하고, 담당자가 최종 확정하는 국내여행 서비스</div>
+          <div className="text-stone-400">© 2026 Gilbeot AI Travel. All rights reserved.</div>
         </div>
       </footer>
     </div>

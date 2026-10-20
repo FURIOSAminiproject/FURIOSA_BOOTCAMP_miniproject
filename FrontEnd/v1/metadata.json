@@ -1,6 +1,1 @@
-{
-  "name": "길벗 AI 여행사 - AI 멀티에이전트 자율운영 국내 여행사",
-  "description": "7인의 인공지능 멀티에이전트 팀이 자율적으로 맞춤 여행일정, 경비, 숙소, 교통, 맛집을 설계하고 관리자 최종 인가를 거치는 대한민국 국내 여행사",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
+{"name":"길벗 AI 여행사 - AI 멀티에이전트 자율운영 국내 여행사","description":"12인의 인공지능 멀티에이전트 팀이 자율적으로 맞춤 여행일정, 경비, 숙소, 교통, 맛집을 설계하고 관리자 최종 인가를 거치는 대한민국 국내 여행사","requestFramePermissions":[],"majorCapabilities":["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]}

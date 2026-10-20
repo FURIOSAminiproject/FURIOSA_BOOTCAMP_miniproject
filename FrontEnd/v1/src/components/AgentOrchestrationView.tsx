@@ -1,7 +1,7 @@
 import React from 'react';
 import { AgentLog } from '../types/travel';
 import { AGENT_TEAM } from '../services/aiTravelAgent';
-import { Compass, Landmark, UtensilsCrossed, Hotel, Navigation, CalendarDays, ShieldCheck, Feather, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
+import { Compass, Landmark, UtensilsCrossed, Hotel, Navigation, CalendarDays, ShieldCheck, Feather, CheckCircle2, Loader2, Sparkles, ShieldAlert, CloudSun, LifeBuoy } from 'lucide-react';
 
 interface AgentOrchestrationViewProps {
   logs: AgentLog[];
@@ -14,12 +14,15 @@ export const AgentOrchestrationView: React.FC<AgentOrchestrationViewProps> = ({
 }) => {
   const getIcon = (iconName: string) => {
     switch (iconName) {
+      case 'ShieldAlert': return <ShieldAlert className="w-4 h-4 text-emerald-300" />;
       case 'Compass': return <Compass className="w-4 h-4" />;
+      case 'CloudSun': return <CloudSun className="w-4 h-4 text-sky-300" />;
       case 'Landmark': return <Landmark className="w-4 h-4" />;
       case 'UtensilsCrossed': return <UtensilsCrossed className="w-4 h-4" />;
       case 'Hotel': return <Hotel className="w-4 h-4" />;
       case 'Navigation': return <Navigation className="w-4 h-4" />;
       case 'CalendarDays': return <CalendarDays className="w-4 h-4" />;
+      case 'LifeBuoy': return <LifeBuoy className="w-4 h-4 text-emerald-300" />;
       case 'ShieldCheck': return <ShieldCheck className="w-4 h-4" />;
       case 'Feather': return <Feather className="w-4 h-4" />;
       default: return <Sparkles className="w-4 h-4" />;
@@ -46,12 +49,12 @@ export const AgentOrchestrationView: React.FC<AgentOrchestrationViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2 text-xs text-stone-400">
-          <span>참여 에이전트 7인 + 감성 풍류 큐레이터</span>
+          <span>총괄 협연자(Supervisor) 감독 하 기상·안전·지식전달 포함 12인의 전문 AI 에이전트 자율 협업</span>
         </div>
       </div>
 
       {/* Agents Mini Avatar Bar */}
-      <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+      <div className="grid grid-cols-3 sm:grid-cols-6 lg:grid-cols-12 gap-2">
         {AGENT_TEAM.map(agent => {
           const hasLog = logs.some(l => l.agentId === agent.id);
           const isDone = logs.some(l => l.agentId === agent.id && l.status === 'DONE');

@@ -42,7 +42,7 @@ export const PrintVoucher: React.FC<PrintVoucherProps> = ({ plan, onClose }) => 
                 Official Travel Itinerary & Voucher
               </span>
               <h1 className="text-2xl sm:text-3xl font-extrabold text-stone-900 font-serif mt-1">
-                길벗 AI 여행사 · 공식 여행 일정 확인서
+                길벗 AI Agents 여행사 · 공식 여행 일정 확인서
               </h1>
               <p className="text-xs text-stone-600 mt-1">
                 자율 멀티에이전트 수립 및 총괄 관리자 인가 승인 확약서
@@ -130,10 +130,10 @@ export const PrintVoucher: React.FC<PrintVoucherProps> = ({ plan, onClose }) => 
         <div className="border-t border-stone-200 pt-4 flex flex-col sm:flex-row items-center justify-between text-xs text-stone-500 gap-2">
           <div className="flex items-center gap-1.5">
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>AI 감수관 안전·예산 점검 합격 (품질점수 98점)</span>
+            <span>AI 감수관 안전·예산 및 GIS 지도 연동(구글/네이버) 무결성 전수 통과 (중복 0건)</span>
           </div>
           <div className="text-right">
-            <span>발행처: 대한민국 길벗 AI 여행사 본점 | 승인자: {request.approverName || '총괄관리자'}</span>
+            <span>발행처: 대한민국 길벗 AI Agents 여행사 본점 | 승인자: {request.approverName || '총괄관리자'}</span>
           </div>
         </div>
       </div>

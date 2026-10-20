@@ -1,7 +1,14 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 export async function postJson<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch('/api' + path, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body), signal: AbortSignal.timeout(180000),
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(180000),
   });
   if (!response.ok) {
     let message = '서버 요청에 실패했습니다. (' + response.status + ')';
