@@ -11,12 +11,12 @@
 - 영향: 해당 JSON은 이미지의 정적 파일로 제공되지 않는다. 누락 경로 요청이 SPA index.html로 처리될 수 있어 HTTP 200만 확인하면 파일 존재를 오판할 수 있다.
 - 개선 방향: public 파일을 배포 입력으로 포함할지 정하고 COPY·이미지 산출물·응답 Content-Type/내용을 함께 검증한다. 현재 JSON만 빠지는 것을 전체 React 빌드 실패로 설명하지 않는다.
 
-### D02 · P2 · 서로 다른 디렉토리의 인증서와 키를 조합할 수 있다
+### D02 · 해결(2026-10-20) · 서로 다른 디렉토리의 인증서와 키 조합
 
-- 근거: [docker-entrypoint.sh](../FrontEnd/docker-entrypoint.sh)는 fullchain.pem과 privkey.pem을 독립적으로 find/head 검색한다. 같은 디렉토리인지 확인하지 않는다.
-- 재현: 격리된 fixture에 `a/fullchain.pem`, `b/privkey.pem`만 두자 서로 다른 경로를 HTTPS 설정에 함께 넣었다. 경로를 임시 폴더로 바꾸고 nginx를 스텁으로 대체한 분기 검증이다.
-- 영향: 여러 도메인이나 일부 파일이 누락된 마운트에서 잘못된 쌍을 선택할 수 있다. 실제 Nginx가 맞지 않는 키를 거부하면 기동이 중단된다. 모킹 검증에서 암호학적 키 검사를 수행한 것은 아니다.
-- 개선 방향: 사용할 도메인 또는 인증서 디렉토리를 명시하고 한 디렉토리의 cert/key를 함께 선택한다. 유효하지 않은 쌍의 처리 정책도 정한다.
+- 최초 검토에서는 fullchain.pem과 privkey.pem을 독립적으로 검색해 `a/fullchain.pem`, `b/privkey.pem`이 조합되는 경로를 확인했다.
+- 변경: [docker-entrypoint.sh](../FrontEnd/docker-entrypoint.sh)가 live 아래 같은 lineage의 cert/key만 선택하도록 수정했다. IP 폐기 요청한 leaf와 차단 해시가 같으면 제외하며, 손상된 차단 표시도 보수적으로 제외한다.
+- 검증: 다른 디렉토리의 파일만 있는 fixture가 HTTP로 시작하고, 같은 디렉토리의 쌍은 HTTPS를 선택했다. 차단한 leaf·잘못된 차단 표시 제외, 다른 lineage 선택과 nginx 검사 실패도 확인했다. nginx는 스텁이므로 암호학적 키 일치·실제 Nginx 검증을 뜻하지 않는다.
+- 남은 범위: 도메인·현재 IP에 맞는 쌍의 명시적 선택과 만료 검증은 없다. 폐기 도구는 자동 배포·재시작하지 않는다.
 
 ### D03 · P2 · 인증서 갱신 후 반영하는 reload 경로가 없다
 
@@ -44,3 +44,5 @@
 | 프록시·파일 입력 | 두 활성 Nginx 템플릿의 서비스명·접두사 제거·챌린지·리다이렉트, Dockerfile COPY와 ignore 규칙 정적 대조 |
 
 fixture는 실제 스크립트의 시스템 경로를 임시 경로로 바꾸고 nginx 명령을 스텁으로 대체했다. 설정 검사 실패 fixture에서 최종 실행 명령이 호출되지 않는 것도 확인했다. 실제 인증서 만료·체인·키 일치, 실제 Nginx 문법 검사, Docker 이미지 빌드·기동, Windows 호스트 마운트와 EC2 외부 접속은 검증하지 않았다. 인증서 감지 테스트 통과를 AWS/Windows 환경 설정 자동 선택 성공으로 설명하지 않는다.
+
+2026-10-20에는 [폐기 도구 테스트](../CI_CD/certificates/tests/test_revoke_ip_certificates.py)의 27개 테스트를 실행했다. 진입점 8개 테스트는 nginx 스텁 호출 자체도 확인한다. 이전의 다른 디렉토리 조합 재현 결과는 변경 후 기대 결과인 HTTP로 바뀌었다. D03의 자동 갱신 스케줄·reload 미구현은 그대로다.

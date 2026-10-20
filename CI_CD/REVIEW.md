@@ -105,3 +105,12 @@ Git Bash 문법·모의 실행과 localhost curl 검사는 샌드박스의 Windo
 - 이 파일: 검토 시점의 확인 결과·재현 조건·미검증 범위
 
 코드를 수정하면 관련 항목의 상태와 검증 근거도 갱신한다.
+
+## 2026-10-20 추가: IP 인증서 폐기 도구
+
+[certificates/revoke_ip_certificates.py](certificates/revoke_ip_certificates.py)를 추가했다. 위의 2026-10-19 배포 코드 검토 결과는 유지하며, 이번 변경으로 C01~C07이 해결된 것은 아니다.
+
+- 기본 읽기 전용, `--apply`에서만 명시한 lineage를 적용한다. 모든 ENI의 IMDSv2 public-ipv4s를 확인하고 현재 IP·도메인/혼합/다중 SAN은 자동 폐기하지 않는다. Stop 전 현재 IP 폐기는 별도 옵션이다.
+- 폐기 의도를 leaf 해시로 기록한 뒤 대상의 자동 갱신을 끄고 기존 계정으로 CA에 요청한다. 실패·타임아웃 때 차단을 유지하며 성공 기록은 별도로 남긴다. 파일을 자동 삭제하거나 Nginx를 재시작하지 않는다.
+- 새 frontend 진입점은 차단한 leaf를 다음 시작에서 제외한다. 자세한 실행·실패·운영 범위는 [도구 README](certificates/README.md)에 있다.
+- 실제 EC2·CA·Docker 데몬을 호출하지 않은 27개 테스트가 통과했다. IMDS/Certbot 모킹, 원자적 상태·갱신 설정·재시도·공개 인증서 사본, 로컬 자체 서명 인증서의 실제 OpenSSL 파싱, nginx 스텁을 사용한 진입점 분기를 확인했다. 실제 폐기·EC2 배포·컨테이너 Nginx TLS 연동은 미검증이다.

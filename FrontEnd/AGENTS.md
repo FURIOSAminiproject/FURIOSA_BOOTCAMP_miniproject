@@ -44,6 +44,7 @@
 - 개발·preview의 Vite 프록시와 배포 Nginx 프록시는 별개다. BACKEND_URL 변경으로 Nginx upstream이 바뀌지 않는다.
 - Docker는 public/·로컬 .env.*·호스트 dist를 입력으로 복사하지 않고 소스를 다시 빌드한다. 인증서 감지는 컨테이너 시작 시 수행한다.
 - nginx.conf는 초기 복사 파일이며 엔트리포인트가 HTTP/HTTPS 템플릿으로 교체한다. 실제 적용 경로를 따라 수정한다.
+- 엔트리포인트는 같은 lineage의 cert/key를 함께 선택하고, [IP 폐기 도구](../CI_CD/certificates/README.md)가 차단한 동일 leaf는 제외한다. 차단 표시만으로 CA 폐기가 성공했다고 판단하지 않는다. 해당 로직 변경 시 폐기 도구의 오프라인 테스트도 실행한다.
 
 ## 검증
 

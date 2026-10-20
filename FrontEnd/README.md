@@ -108,4 +108,6 @@ Dockerfile은 Node 22에서 소스를 빌드하고 `nginx:alpine`으로 서빙�
 
 컨테이너 시작 시 `docker-entrypoint.sh`가 마운트된 인증서를 감지해 `nginx_http.conf` 또는 `nginx_ssl.conf`를 적용합니다. `/api/`는 `http://backend:3001`, `/fastapi/`는 접두사를 제거해 `http://fastapi:8000`으로 보냅니다. 브라우저는 동일 출처로 호출할 수 있습니다. 443 포트 공개만으로 HTTPS가 활성화되지는 않습니다.
 
+인증서·키는 동일 lineage에서 선택하며 [IP 인증서 폐기 도구](../CI_CD/certificates/README.md)가 차단한 동일 cert.pem은 제외합니다. 이 변경은 새 frontend 이미지를 반영하고 재시작해야 적용됩니다. 현재 IP·도메인·만료까지 자동 검증하거나 폐기 후 재시작을 자동 수행하는 기능은 없습니다.
+
 단독 `docker run`으로 정적 화면을 확인할 수는 있지만 API에는 공유 네트워크와 해당 서비스명이 필요합니다. [Docker 안내](../Docker/README.md)와 [배포 안내](../CI_CD/FrontEnd/README.md)를 참고합니다.

@@ -123,6 +123,8 @@ sudo certbot renew --dry-run
 
 갱신 자동 실행과 배포 훅은 저장소가 설치하지 않습니다. 호스트에서 별도로 설정합니다. HTTPS 모드로 실행 중인 컨테이너는 갱신 후 `docker exec travel-frontend nginx -s reload`로 인증서를 다시 읽게 할 수 있습니다. 처음 HTTP에서 HTTPS로 전환하거나 인증서 경로가 달라지면 `docker compose restart frontend`로 템플릿 선택을 다시 수행합니다. 커스텀 마운트 경로를 쓰면 Certbot webroot도 해당 호스트 경로에 맞춥니다.
 
+EC2의 이전 IP 인증서는 [IP 인증서 폐기 도구](certificates/README.md)로 점검·폐기 요청할 수 있습니다. 기본은 읽기 전용이며 `--apply`로 적용합니다. 현재 할당 IP는 유지하고, Stop/EIP 해제 전에는 `--retire-current-ip`을 명시합니다. 적용 시 해당 인증서의 자동 갱신을 끄고 로컬 차단 표시를 남깁니다. 신규 발급·갱신의 IP 검사, 자동 실행 스케줄과 Nginx 재시작은 별도로 연결해야 합니다.
+
 ## 헬스체크·백업·복구
 
 배포 스크립트는 기동 후 3초 대기하고 첫 시도를 포함해 최대 5회, 실패 사이 2초 간격으로 HTTP 응답을 확인합니다. 호스트 요청 실패 시 컨테이너 내부 요청도 시도합니다. 각 HTTP 요청의 최대 소요 시간을 별도로 제한하지 않으므로 전체 검증 시간이 고정되어 있지는 않습니다.

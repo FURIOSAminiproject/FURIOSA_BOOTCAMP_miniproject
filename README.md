@@ -24,6 +24,7 @@ FastAPI는 별도 샘플 서비스입니다. 추천 API는 고정된 2개 장소
 | 일정 API | NestJS 11, TypeScript 5.9, TypeORM, PostgreSQL 드라이버, Google GenAI SDK | `BackEnd/nestjs/` |
 | 샘플 추천 API | FastAPI, Pydantic, Uvicorn, Python 3.12 컨테이너 | `BackEnd/fastapi/` |
 | 배포 | GitHub Actions, Docker Compose, Nginx | `.github/workflows/`, `CI_CD/`, `docker-compose.yml` |
+| EC2 IP 인증서 폐기 도구 | Python 3.9 이상, OpenSSL, EC2 IMDSv2, Certbot Docker | `CI_CD/certificates/` |
 
 Node 기반 컨테이너와 CI는 Node.js 22를 사용합니다. PostgreSQL 서버는 Compose에 포함되지 않으므로 별도로 준비해야 하며, 실제 서버 버전·주소·계정은 운영 환경에서 확인합니다.
 
@@ -34,7 +35,7 @@ Node 기반 컨테이너와 CI는 Node.js 22를 사용합니다. PostgreSQL 서�
              └─ /fastapi/  → fastapi:8000 (접두사 제거)
 ```
 
-Vite 개발/preview 프록시는 `/api`만 지원합니다. HTTPS는 Nginx 컨테이너 시작 시 마운트된 인증서가 발견될 때 활성화됩니다.
+Vite 개발/preview 프록시는 `/api`만 지원합니다. HTTPS는 Nginx 컨테이너 시작 시 마운트된 인증서·개인키 쌍을 선택하면 활성화됩니다. IP 인증서 폐기 도구가 차단한 동일 인증서는 선택에서 제외합니다.
 
 `BackEnd/` 루트에도 별도의 NestJS 소스·스크립트·패키지가 남아 있습니다. 현재 Compose와 NestJS GitHub Actions는 `BackEnd/nestjs/`를 사용하며, 두 소스는 자동 동기화되지 않습니다.
 
@@ -116,6 +117,39 @@ npm test
 
 프론트엔드는 `npm run lint`로 타입을 검사하고 `npm run build`로 번들을 생성합니다.
 
+## EC2 IP 인증서 관리
+
+[IP 인증서 폐기 도구](CI_CD/certificates/README.md)는 EC2의 IP가 변경되어 이전 주소를 더 이상 사용하지 않을 때, 지정한 인증서를 점검하고 Let's Encrypt에 폐기를 요청하는 별도 관리 명령입니다. **현재 배포 스크립트·GitHub Actions가 자동 호출하지는 않습니다.**
+
+| 파일 | 역할 |
+|---|---|
+| [revoke_ip_certificates.py](CI_CD/certificates/revoke_ip_certificates.py) | EC2 IP·인증서 점검, 대상의 자동 갱신 중단, 폐기 요청 및 결과 기록 |
+| [docker-entrypoint.sh](FrontEnd/docker-entrypoint.sh) | 동일 lineage의 인증서·키 선택, 차단된 동일 leaf 인증서 제외 |
+| [폐기 도구 테스트](CI_CD/certificates/tests/test_revoke_ip_certificates.py) | IP 변경·실패·재시도·Nginx 선택 등 오프라인 검증 |
+
+- IMDSv2로 모든 네트워크 인터페이스의 공인 IPv4를 확인하며, 현재 할당된 IP 인증서는 유지합니다. 조회 실패나 공인 IP가 없는 경우에는 폐기를 진행하지 않습니다.
+- 실제 인증서 SAN이 공인 IPv4 하나인 대상만 처리합니다. 도메인·혼합 SAN·여러 IP·IPv6 인증서는 자동 폐기하지 않습니다.
+- 기본 실행은 읽기 전용 점검입니다. `--apply`에서만 파일 변경과 실제 폐기 요청을 수행합니다. Stop/EIP 해제 전에 현재 IP 인증서도 폐기하려면 `--retire-current-ip`을 추가합니다.
+- 적용 시 폐기 의도를 기록하고 해당 lineage의 자동 갱신을 끕니다. 실패·타임아웃 때 차단 상태를 유지하고, CA의 확인 결과와 성공 기록을 구분합니다. 기존 인증서·개인키 파일을 자동 삭제하지 않습니다.
+
+아래는 **EC2 Linux 호스트의 저장소 루트**에서 실행하는 점검 예시입니다. 인증서를 발급한 기존 Certbot 계정·파일, Python 3.9 이상, OpenSSL, Docker가 필요합니다.
+
+```bash
+read -r -p "점검할 Certbot 인증서 이름(lineage): " CERT_NAME
+sudo python3 CI_CD/certificates/revoke_ip_certificates.py --cert-name "$CERT_NAME"
+```
+
+Nginx의 차단 처리는 **새 진입점이 포함된 frontend 이미지를 반영한 후 컨테이너를 재시작할 때** 적용됩니다. 실행 중인 Nginx의 인증서를 즉시 교체하지 않습니다. 다른 사용 가능한 인증서 쌍이 없으면 HTTP로 시작하므로 서비스 종료·HTTPS 제공 정책을 확인합니다.
+
+신규 발급·일반 갱신의 IP 검사, 현재 IP에 맞는 인증서 자동 선택, 자동 실행 스케줄·EC2 종료 훅·Nginx 자동 재시작은 별도 연결이 필요합니다. 실제 적용·재시도 절차는 [도구 사용 설명](CI_CD/certificates/README.md)을 따릅니다.
+
+```bash
+# AWS·CA·Docker 데몬 호출 없이 폐기 도구와 Nginx 진입점 분기 검증
+python3 -B -m unittest discover -s CI_CD/certificates/tests -v
+```
+
+27개 테스트가 통과했으며, IMDS·Certbot·nginx는 모킹하고 SAN·만료 파싱은 로컬 자체 서명 인증서로도 확인했습니다. 실제 EC2 배포·CA 폐기·컨테이너 Nginx TLS 연동 검증과 구분합니다.
+
 ## 상세 문서
 
 - [FrontEnd](FrontEnd/README.md)
@@ -123,4 +157,8 @@ npm test
 - [DB 연결 및 진단](DataBase/README.md)
 - [Docker 실행](Docker/README.md)
 - [CI/CD 및 HTTPS 운영](CI_CD/README.md)
+- [GitHub Actions 워크플로우](.github/workflows/README.md)
+- [EC2 IP 인증서 폐기 도구](CI_CD/certificates/README.md)
 - [기타 자료와 회의록](ETC/README.md)
+
+각 폴더의 `README.md`는 구조·사용법, `AGENTS.md`는 AI 작업 지침, `REVIEW.md`는 검토 시점의 문제·재현 결과·검증 범위를 담습니다. 변경 작업 전에 해당 폴더의 지침과 검토 기록을 함께 확인합니다.

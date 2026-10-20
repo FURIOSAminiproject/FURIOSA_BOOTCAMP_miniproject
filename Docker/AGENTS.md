@@ -27,9 +27,10 @@
 ## TLS·프록시 확인
 
 - 인증서 마운트는 Let's Encrypt 전체 디렉토리와 Certbot webroot다. 심볼릭 링크 대상까지 포함해야 한다.
-- 시작 스크립트는 fullchain.pem과 privkey.pem을 각각 첫 번째로 검색한다. 동일 도메인 짝인지, 만료 여부까지 검증한 것으로 설명하지 않는다.
+- 시작 스크립트는 live 바로 아래 동일 lineage의 fullchain.pem/privkey.pem 쌍을 선택한다. 파일의 암호학적 짝 일치·만료·현재 IP까지 검증한 것으로 설명하지 않는다. IP 폐기 도구가 남긴 차단 해시와 같은 cert.pem은 제외한다.
 - 양쪽 파일이 있으면 HTTPS 템플릿을 렌더링하고 nginx -t 후 시작한다. 설정 검사가 실패하면 중단하며 HTTP로 재시도하지 않는다. 파일이 없을 때의 HTTP 선택과 구분한다.
 - 인증서 감지·설정 선택은 시작 시 수행한다. 발급·갱신 스케줄과 Nginx reload 훅은 설치되어 있지 않다.
+- [IP 인증서 폐기 도구](../CI_CD/certificates/README.md)는 호스트에서 실행하는 별도 명령이다. 새 진입점이 포함된 이미지 배포와 폐기 후 재시작이 필요하다. 차단 표시가 성공한 CA 폐기를 뜻한다고 해석하지 않는다.
 - `/api/` → backend:3001 HTTP, `/fastapi/` 접두사 제거 → fastapi:8000 HTTP다. Vite BACKEND_URL은 Nginx 대상을 바꾸지 않는다.
 - HTTP/HTTPS 템플릿의 API·SPA·챌린지 경로를 함께 확인한다. 직접 백엔드 TLS를 바꾸면 upstream과 헬스체크도 검토한다.
 
