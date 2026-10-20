@@ -12,7 +12,7 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 
 # 2. FastAPI 프로젝트 디렉토리로 이동
-cd "$PROJECT_ROOT/BackEnd/fastapi"
+cd "$PROJECT_ROOT/BackEnd/FastAPI"
 
 # 3. Python 및 pip 버전 확인
 echo "===== [1/4] Python 및 pip 버전 확인 ====="

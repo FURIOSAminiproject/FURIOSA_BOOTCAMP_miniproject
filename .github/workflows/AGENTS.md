@@ -17,8 +17,8 @@
 | 파일 | 빌드·배포 스크립트 | 소스·캐시 기준 | 아티팩트 |
 |---|---|---|---|
 | deploy.yml | `CI_CD/FrontEnd/{build,deploy}.sh` | `FrontEnd/`, `FrontEnd/package-lock.json` | frontend-dist → FrontEnd/dist |
-| deploy_backend.yml | `CI_CD/BackEnd/nestjs/{build,deploy}.sh` | `BackEnd/nestjs/`, 해당 package-lock.json | backend-dist → BackEnd/nestjs/dist |
-| deploy_fastapi.yml | `CI_CD/BackEnd/fastapi/{build,deploy}.sh` | `BackEnd/fastapi/`, 해당 requirements.txt | 없음 |
+| deploy_backend.yml | `CI_CD/BackEnd/nestjs/{build,deploy}.sh` | `BackEnd/NestJS/`, 해당 package-lock.json | backend-dist → BackEnd/NestJS/dist |
+| deploy_fastapi.yml | `CI_CD/BackEnd/fastapi/{build,deploy}.sh` | `BackEnd/FastAPI/`, 해당 requirements.txt | 없음 |
 
 - 현재 워크플로우는 `CI_CD/BackEnd/` 루트 스크립트를 호출하지 않는다.
 - 모든 build 잡은 GitHub-hosted ubuntu-latest, deploy 잡은 `[self-hosted, linux]`를 사용한다. 러너 라벨을 실제 서버의 신원으로 간주하지 않는다.

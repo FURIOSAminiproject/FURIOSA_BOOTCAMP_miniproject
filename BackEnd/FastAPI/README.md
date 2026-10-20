@@ -9,7 +9,7 @@ Python/FastAPI 기반 독립 샘플 서비스입니다. 현재 NPU·PyTorch 모�
 Dockerfile과 CI는 Python 3.12를 사용합니다. 저장소 루트에서 폴더를 이동한 뒤 가상환경을 만듭니다.
 
 ```bash
-cd BackEnd/fastapi
+cd BackEnd/FastAPI
 python -m venv venv
 ```
 

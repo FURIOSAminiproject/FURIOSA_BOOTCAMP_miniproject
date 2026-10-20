@@ -33,8 +33,8 @@ travel-backend        → 별도로 준비한 PostgreSQL
 | 워크플로우 | 감시 경로 | 클라우드 검증 | EC2 스크립트 |
 |---|---|---|---|
 | [deploy.yml](../.github/workflows/deploy.yml) | `FrontEnd/**`, `CI_CD/FrontEnd/**` | Node 22, npm ci, Vite 빌드 | [FrontEnd/deploy.sh](FrontEnd/deploy.sh) |
-| [deploy_backend.yml](../.github/workflows/deploy_backend.yml) | `BackEnd/nestjs/**`, `CI_CD/BackEnd/nestjs/**` | Node 22, npm ci, 테스트, TS 빌드 | [BackEnd/nestjs/deploy.sh](BackEnd/nestjs/deploy.sh) |
-| [deploy_fastapi.yml](../.github/workflows/deploy_fastapi.yml) | `BackEnd/fastapi/**`, `CI_CD/BackEnd/fastapi/**` | Python 3.12, 의존성, 문법·임포트 검사 | [BackEnd/fastapi/deploy.sh](BackEnd/fastapi/deploy.sh) |
+| [deploy_backend.yml](../.github/workflows/deploy_backend.yml) | `BackEnd/NestJS/**`, `CI_CD/BackEnd/nestjs/**` | Node 22, npm ci, 테스트, TS 빌드 | [BackEnd/nestjs/deploy.sh](BackEnd/nestjs/deploy.sh) |
+| [deploy_fastapi.yml](../.github/workflows/deploy_fastapi.yml) | `BackEnd/FastAPI/**`, `CI_CD/BackEnd/fastapi/**` | Python 3.12, 의존성, 문법·임포트 검사 | [BackEnd/fastapi/deploy.sh](BackEnd/fastapi/deploy.sh) |
 
 루트 `docker-compose.yml`, `CI_CD/nginx_https.conf`, `BackEnd/` 루트 NestJS 파일만 바뀌면 현재 push 경로 조건으로는 배포되지 않습니다. 필요한 워크플로우를 수동 실행합니다.
 
@@ -65,14 +65,14 @@ Compose의 `APP_ENV` 기본값은 `production`입니다. `local`, `development`,
 
 | 대상 | 읽는 파일 | 비고 |
 |---|---|---|
-| NestJS 컨테이너 | `BackEnd/nestjs/.env.${APP_ENV}` | Compose가 변수로 주입, 파일은 선택적이나 DB 값은 앱 기동에 필수 |
-| FastAPI 컨테이너 | `BackEnd/fastapi/.env` | APP_ENV별 파일 자동 선택 없음 |
+| NestJS 컨테이너 | `BackEnd/NestJS/.env.${APP_ENV}` | Compose가 변수로 주입, 파일은 선택적이나 DB 값은 앱 기동에 필수 |
+| FastAPI 컨테이너 | `BackEnd/FastAPI/.env` | APP_ENV별 파일 자동 선택 없음 |
 | FrontEnd 이미지 | Dockerfile이 생성한 기본 `.env.${APP_ENV}` | 호스트 `.env.*`는 이미지로 복사하지 않음 |
 
 NestJS 배포 스크립트는 대상 환경 파일이 없으면 다음 순서로 찾아 복사합니다. 전부 없으면 배포를 중단합니다.
 
 1. `/home/ec2-user/.env.${APP_ENV}`
-2. `/home/ec2-user/FURIOSA_BOOTCAMP_miniproject/BackEnd/nestjs/.env.${APP_ENV}`
+2. `/home/ec2-user/FURIOSA_BOOTCAMP_miniproject/BackEnd/NestJS/.env.${APP_ENV}`
 3. `/home/ec2-user/FURIOSA_BOOTCAMP_miniproject/BackEnd/.env.${APP_ENV}`
 4. `$HOME/.env.${APP_ENV}`
 

@@ -13,7 +13,7 @@ services:
   # ----------------------------------------------------------------------------
   backend:
     build:
-      context: ./BackEnd/nestjs
+      context: ./BackEnd/NestJS
       dockerfile: Dockerfile
       args:
         - APP_ENV=${APP_ENV:-production}
@@ -28,7 +28,7 @@ services:
       - HOST=0.0.0.0
     # 선택된 환경(APP_ENV)에 맞는 .env 파일 자동 로드 (.env.production / .env.development / .env.local)
     env_file:
-      - path: ./BackEnd/nestjs/.env.${APP_ENV:-production}
+      - path: ./BackEnd/NestJS/.env.${APP_ENV:-production}
         required: false
     # 호스트 OS(EC2)에서 구동 중인 PostgreSQL 접속 지원
     extra_hosts:
@@ -41,7 +41,7 @@ services:
   # ----------------------------------------------------------------------------
   fastapi:
     build:
-      context: ./BackEnd/fastapi
+      context: ./BackEnd/FastAPI
       dockerfile: Dockerfile
     container_name: travel-fastapi
     restart: always
@@ -51,7 +51,7 @@ services:
       - APP_ENV=${APP_ENV:-production}
       - PORT=8000
     env_file:
-      - path: ./BackEnd/fastapi/.env
+      - path: ./BackEnd/FastAPI/.env
         required: false
     networks:
       - travel-network

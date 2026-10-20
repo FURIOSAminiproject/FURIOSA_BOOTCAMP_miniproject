@@ -17,10 +17,10 @@
 | 서비스 | 워크플로우 | 호출하는 스크립트 | Compose 빌드 경로 / 서비스 |
 |---|---|---|---|
 | FrontEnd | `.github/workflows/deploy.yml` | `CI_CD/FrontEnd/{build,deploy}.sh` | `FrontEnd/` / `frontend` |
-| NestJS | `.github/workflows/deploy_backend.yml` | `CI_CD/BackEnd/nestjs/{build,deploy}.sh` | `BackEnd/nestjs/` / `backend` |
-| FastAPI | `.github/workflows/deploy_fastapi.yml` | `CI_CD/BackEnd/fastapi/{build,deploy}.sh` | `BackEnd/fastapi/` / `fastapi` |
+| NestJS | `.github/workflows/deploy_backend.yml` | `CI_CD/BackEnd/nestjs/{build,deploy}.sh` | `BackEnd/NestJS/` / `backend` |
+| FastAPI | `.github/workflows/deploy_fastapi.yml` | `CI_CD/BackEnd/fastapi/{build,deploy}.sh` | `BackEnd/FastAPI/` / `fastapi` |
 
-- `CI_CD/BackEnd/build.sh`와 `deploy.sh`는 현재 워크플로우에서 호출하지 않는다. 이 파일들은 `BackEnd/` 루트의 별도 NestJS 구성을 확인하지만 Compose는 `BackEnd/nestjs/`를 배포한다. 둘을 같은 경로로 취급하지 않는다.
+- `CI_CD/BackEnd/build.sh`와 `deploy.sh`는 현재 워크플로우에서 호출하지 않는다. 이 파일들은 `BackEnd/` 루트의 별도 NestJS 구성을 확인하지만 Compose는 `BackEnd/NestJS/`를 배포한다. 둘을 같은 경로로 취급하지 않는다.
 - `CI_CD/nginx_https.conf`는 호스트 Nginx용 별도 템플릿이다. 현재 frontend 이미지가 실제로 사용하는 파일은 `FrontEnd/nginx_http.conf`, `nginx_ssl.conf`, `docker-entrypoint.sh`이다.
 - FrontEnd/NestJS 아티팩트는 EC2로 다운로드되지만 최종 이미지는 EC2에서 Dockerfile로 다시 빌드한다. 검증한 dist가 그대로 배포된다고 설명하지 않는다.
 
@@ -40,9 +40,9 @@
 ## 환경과 TLS
 
 - 배포 스크립트의 APP_ENV 기본값은 production이다. AWS·Windows 또는 인증서 유무를 보고 DB 환경을 자동 선택하지 않는다. 작업할 환경을 명시한다.
-- NestJS의 Compose 환경 파일은 `BackEnd/nestjs/.env.${APP_ENV}`이다. NestJS 배포 스크립트만 외부 후보 경로에서 해당 파일을 복사한다.
+- NestJS의 Compose 환경 파일은 `BackEnd/NestJS/.env.${APP_ENV}`이다. NestJS 배포 스크립트만 외부 후보 경로에서 해당 파일을 복사한다.
 - frontend 배포는 backend/fastapi 의존 서비스도 시작·재생성할 수 있다. backend 환경 파일 준비와 기존 서비스에 미칠 영향을 확인한다.
-- FastAPI는 `BackEnd/fastapi/.env`를 사용하며 현재 외부 경로 자동 복사 기능은 없다.
+- FastAPI는 `BackEnd/FastAPI/.env`를 사용하며 현재 외부 경로 자동 복사 기능은 없다.
 - Compose의 명시적 environment는 env_file보다 우선한다. backend의 HOST·PORT·APP_ENV·NODE_ENV를 변경할 때 양쪽을 확인한다.
 - Docker Nginx의 TLS 선택은 시작 시 마운트된 인증서·키 파일 존재에 따른다. 최초 발급 후에는 템플릿을 다시 선택하도록 재시작해야 한다.
 - 정상적인 Compose 구성은 Nginx에서 TLS를 종료하고 내부 API에는 HTTP로 연결한다. 외부 HTTPS를 켜기 위해 NestJS 직접 HTTPS까지 함께 켜지 않는다.

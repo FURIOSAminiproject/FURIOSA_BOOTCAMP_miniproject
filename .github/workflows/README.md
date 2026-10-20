@@ -7,8 +7,8 @@
 | 워크플로우 | push 감시 경로 | 클라우드 빌드 | 배포 서비스 |
 |---|---|---|---|
 | [deploy.yml](deploy.yml) | FrontEnd/**, CI_CD/FrontEnd/**, 자기 YAML | Node 22, npm ci, Vite 빌드 | frontend |
-| [deploy_backend.yml](deploy_backend.yml) | BackEnd/nestjs/**, CI_CD/BackEnd/nestjs/**, 자기 YAML | Node 22, npm ci, 테스트·TS 빌드 | backend |
-| [deploy_fastapi.yml](deploy_fastapi.yml) | BackEnd/fastapi/**, CI_CD/BackEnd/fastapi/**, 자기 YAML | Python 3.12, 의존성·문법·임포트 확인 | fastapi |
+| [deploy_backend.yml](deploy_backend.yml) | BackEnd/NestJS/**, CI_CD/BackEnd/nestjs/**, 자기 YAML | Node 22, npm ci, 테스트·TS 빌드 | backend |
+| [deploy_fastapi.yml](deploy_fastapi.yml) | BackEnd/FastAPI/**, CI_CD/BackEnd/fastapi/**, 자기 YAML | Python 3.12, 의존성·문법·임포트 확인 | fastapi |
 
 자동 실행은 main push에서 해당 경로 조건이 맞을 때 시작한다. 세 워크플로우 모두 수동 workflow_dispatch도 지원한다. PR 트리거는 없다. Compose만 변경하거나 이 폴더의 Markdown만 변경하면 현재 paths에는 매칭되지 않는다.
 

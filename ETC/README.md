@@ -20,8 +20,8 @@ ETC/
 | 대상 | 설치 기준 |
 |---|---|
 | FrontEnd | `FrontEnd/package.json`, `package-lock.json` |
-| 현재 NestJS 배포 대상 | `BackEnd/nestjs/package.json`, `package-lock.json` |
-| FastAPI | `BackEnd/fastapi/requirements.txt` |
+| 현재 NestJS 배포 대상 | `BackEnd/NestJS/package.json`, `package-lock.json` |
+| FastAPI | `BackEnd/FastAPI/requirements.txt` |
 
 패키지 목록에 있는 라이브러리가 모두 실제 코드에서 사용된다는 의미는 아닙니다.
 

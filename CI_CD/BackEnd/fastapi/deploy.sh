@@ -10,7 +10,7 @@ set -euo pipefail
 
 # 1. 경로 설정 (CI_CD/BackEnd/fastapi -> 루트)
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-SOURCE_DIR="$PROJECT_ROOT/BackEnd/fastapi"
+SOURCE_DIR="$PROJECT_ROOT/BackEnd/FastAPI"
 APP_ENV="${APP_ENV:-production}"
 
 echo "===== [1/5] 배포 환경 및 저장소 확인 ====="
@@ -32,7 +32,7 @@ BACKUP_FILE="${BACKUP_DIR}/fastapi_backup_${TIMESTAMP}.tar.gz"
 mkdir -p "$BACKUP_DIR"
 if [ -d "$SOURCE_DIR" ]; then
     echo ">> 기존 FastAPI 디렉토리를 백업합니다: $BACKUP_FILE"
-    tar --exclude='__pycache__' --exclude='.env*' --exclude='venv' -czf "$BACKUP_FILE" -C "$PROJECT_ROOT" BackEnd/fastapi
+    tar --exclude='__pycache__' --exclude='.env*' --exclude='venv' -czf "$BACKUP_FILE" -C "$PROJECT_ROOT" BackEnd/FastAPI
     echo ">> [완료] FastAPI 백업 생성 성공 (크기: $(du -h "$BACKUP_FILE" | cut -f1))"
 
     # 최신 1개 백업만 유지하고 이전 백업 파일 자동 정리

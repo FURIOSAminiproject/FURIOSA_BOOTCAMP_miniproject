@@ -5,18 +5,18 @@
 ## 작업 시작 시 확인
 
 1. [README.md](README.md)에서 서비스 경계를, [REVIEW.md](REVIEW.md)에서 확인된 문제와 검증 한계를 읽는다.
-2. NestJS 작업은 [nestjs/AGENTS.md](nestjs/AGENTS.md), FastAPI 작업은 [fastapi/AGENTS.md](fastapi/AGENTS.md)를 읽는다.
+2. NestJS 작업은 [NestJS/AGENTS.md](NestJS/AGENTS.md), FastAPI 작업은 [FastAPI/AGENTS.md](FastAPI/AGENTS.md)를 읽는다.
 3. 배포 영향이 있으면 루트 [Compose](../docker-compose.yml), 해당 Dockerfile, `CI_CD/BackEnd/`와 `.github/workflows/`의 실제 호출 경로를 확인한다. 해당 폴더를 수정할 때는 그 폴더의 AGENTS.md도 읽는다.
 
 ## 배포 대상과 중복 소스
 
 | 위치 | 현재 역할 | 연결된 배포 |
 |---|---|---|
-| `BackEnd/nestjs/` | 실제 일정·문학 리뷰 API, DB 연결 | deploy_backend.yml → CI_CD/BackEnd/nestjs → Compose backend |
-| `BackEnd/fastapi/` | 독립 샘플 추천 API | deploy_fastapi.yml → CI_CD/BackEnd/fastapi → Compose fastapi |
+| `BackEnd/NestJS/` | 실제 일정·문학 리뷰 API, DB 연결 | deploy_backend.yml → CI_CD/BackEnd/nestjs → Compose backend |
+| `BackEnd/FastAPI/` | 독립 샘플 추천 API | deploy_fastapi.yml → CI_CD/BackEnd/fastapi → Compose fastapi |
 | `BackEnd/src`, `scripts`, `test` 등 | 별도 NestJS 사본 | 현재 Compose backend의 빌드 대상이 아님 |
 
-2026-10-19 검토 시 루트 NestJS와 nestjs의 구현·설정 25개 파일은 바이트 단위로 같았다. 자동 동기화는 없으므로 이후에도 같다고 가정하지 않는다. 루트만 수정하고 배포 대상까지 수정했다고 보고하지 않는다. 수정 요청의 대상이 불명확하면 실제 배포 경로를 우선 확인하고, 다른 사본에 적용할 필요와 범위를 판단해 명시한다. 중복 구조를 임의로 병합·삭제하지 않는다.
+2026-10-19 검토 시 루트 NestJS와 하위 `NestJS/`의 구현·설정 25개 파일은 바이트 단위로 같았다. 자동 동기화는 없으므로 이후에도 같다고 가정하지 않는다. 루트만 수정하고 배포 대상까지 수정했다고 보고하지 않는다. 수정 요청의 대상이 불명확하면 실제 배포 경로를 우선 확인하고, 다른 사본에 적용할 필요와 범위를 판단해 명시한다. 중복 구조를 임의로 병합·삭제하지 않는다.
 
 ## 실제 기능 경계
 

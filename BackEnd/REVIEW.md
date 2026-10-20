@@ -6,7 +6,7 @@
 
 ### B01 · P1 · 파싱 가능한 불완전한 AI 응답이 정상 응답으로 반환된다
 
-- 근거: [travel-engine.ts](nestjs/src/travel/travel-engine.ts)의 JSON.parse 뒤 raw.days와 raw.costs 등을 그대로 사용한다. [poetry.service.ts](nestjs/src/travel/poetry.service.ts)는 parsed.poemVerses 등 필수 필드를 검사하지 않는다. responseMimeType만 지정되어 있다.
+- 근거: [travel-engine.ts](NestJS/src/travel/travel-engine.ts)의 JSON.parse 뒤 raw.days와 raw.costs 등을 그대로 사용한다. [poetry.service.ts](NestJS/src/travel/poetry.service.ts)는 parsed.poemVerses 등 필수 필드를 검사하지 않는다. responseMimeType만 지정되어 있다.
 - 재현: SDK를 스텁으로 대체해 `{"days":[],"costs":{},"selectedAccommodation":{}}`를 반환시키면 빈 일정·비용 객체를 그대로 반환했다. 문학 리뷰에 필수 문학 필드가 없는 JSON을 주면 poemVerses가 undefined였다. 실제 Gemini 요청은 하지 않았다.
 - 영향: 예외가 나지 않으면 폴백으로 전환하지 않는다. 프론트가 필수 숫자·배열을 렌더링할 때 오류가 나거나 빈 일정을 정상 결과로 표시할 수 있다. API postJson에도 응답 구조 검사가 없다.
 - 개선 방향: 일정·리뷰 응답 스키마와 일수·비용·좌표 등의 조건을 검증한 뒤 채택하고, 실패한 경우 명확한 오류나 검증된 폴백을 반환한다. [프론트 검토](../FrontEnd/REVIEW.md)의 지도 HTML 처리도 함께 확인한다.
@@ -27,14 +27,14 @@
 
 ### B04 · P2 · Nginx 경유 FastAPI Swagger UI의 OpenAPI 경로가 맞지 않는다
 
-- 근거: [main.py](fastapi/main.py)는 기본 OpenAPI URL을 사용한다. 프론트 Nginx는 `/fastapi/`를 제거해 전달하지만 외부 `/openapi.json`을 FastAPI로 전달하는 location은 없다.
+- 근거: [main.py](FastAPI/main.py)는 기본 OpenAPI URL을 사용한다. 프론트 Nginx는 `/fastapi/`를 제거해 전달하지만 외부 `/openapi.json`을 FastAPI로 전달하는 location은 없다.
 - 검증: TestClient의 `/docs` HTML에 `url: '/openapi.json'`이 있음을 확인했다. 실제 Nginx 경유 브라우저 검증은 수행하지 않았다.
 - 영향: `/fastapi/docs`로 열면 브라우저가 `/fastapi/openapi.json`이 아닌 사이트 루트 경로를 요청해 명세 로딩에 실패할 수 있다. FastAPI 직접 포트의 `/docs`와 구분한다.
 - 개선 방향: 하위 경로 운영 정책에 맞춰 root_path/OpenAPI URL과 프록시를 조정하고 브라우저에서 확인한다. 현재 직접 접근 안내는 FastAPI README에 있다.
 
 ## 구현 범위 및 구성 주의점
 
-- 루트 NestJS와 nestjs의 src 12개, scripts 3개, test 3개 및 패키지·잠금 파일·컴파일·Docker·PM2·ignore 설정을 포함한 25개 파일이 바이트 단위로 같았다. 현재 배포 대상은 nestjs이며 자동 동기화는 없다.
+- 루트 NestJS와 하위 `NestJS/`의 src 12개, scripts 3개, test 3개 및 패키지·잠금 파일·컴파일·Docker·PM2·ignore 설정을 포함한 25개 파일이 바이트 단위로 같았다. 현재 배포 대상은 `NestJS/`이며 자동 동기화는 없다.
 - DB는 기동 시 필요하다. 일정·승인 저장과 서버 인증은 미구현이다. `/api/health`의 성공 문구는 DB 쿼리·일정 생성·실제 배포 완료를 검증한 결과가 아니다.
 - FastAPI는 샘플 API다. 1/2/14일 요청 모두 total_days만 달라지고 장소는 day=1 두 개였다. budget 두 값을 바꿔도 응답은 같았다. 실제 추론 미구현을 새 회귀 오류로 분류하지 않았다.
 - DB_SSL, 백엔드 직접 TLS, Nginx TLS 종료는 서로 다르다. ENABLE_TLS=true이나 키/인증서가 없으면 NestJS는 HTTP로 기동하면서 리다이렉트 미들웨어를 켠다. 직접 TLS를 켜면 현재 HTTP upstream과 충돌할 수 있다.
@@ -45,7 +45,7 @@
 
 | 검증 | 결과·범위 |
 |---|---|
-| NestJS `npm test` | nestjs 폴더에서 컴파일과 기존 5개 테스트 통과. Mock DataSource, 키 없는 폴백, 환경·DB 옵션 검사 |
+| NestJS `npm test` | NestJS 폴더에서 컴파일과 기존 5개 테스트 통과. Mock DataSource, 키 없는 폴백, 환경·DB 옵션 검사 |
 | 낮은 예산·긴 일정 | 실제 컴파일된 엔진을 키 없이 호출해 B02·제주 B03 재현 |
 | 불완전한 AI JSON | SDK 스텁으로 B01 재현. 실제 모델의 응답 품질·가용성 검증은 아님 |
 | FastAPI | AST 구문 확인 및 TestClient로 /, /health, /openapi.json, 정상 일수 1/2/14, 잘못된 입력 3개, budget 미사용, Swagger URL 확인 |

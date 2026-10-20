@@ -64,7 +64,7 @@ deploy 러너는 모두 `[self-hosted, linux]`이고 운영 서버 전용 라벨
 | 캐시 기준 파일 | FrontEnd·NestJS의 package-lock.json, FastAPI의 requirements.txt가 존재하고 경로 일치 |
 | 권한 | 세 파일 모두 contents: read |
 | FrontEnd 아티팩트 | frontend-dist; 업로드·다운로드 경로 FrontEnd/dist 일치 |
-| NestJS 아티팩트 | backend-dist; 업로드·다운로드 경로 BackEnd/nestjs/dist 일치 |
+| NestJS 아티팩트 | backend-dist; 업로드·다운로드 경로 BackEnd/NestJS/dist 일치 |
 | 아티팩트 검사 | FrontEnd/NestJS 모두 if-no-files-found: error, retention-days: 1 |
 | FastAPI 아티팩트 | 업로드·다운로드 단계 없음; 현재 소스 재빌드 방식과 일치 |
 

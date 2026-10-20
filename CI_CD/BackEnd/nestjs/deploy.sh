@@ -10,7 +10,7 @@ set -euo pipefail
 
 # 1. 경로 설정 (CI_CD/BackEnd/nestjs -> 루트)
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-SOURCE_DIR="$PROJECT_ROOT/BackEnd/nestjs"
+SOURCE_DIR="$PROJECT_ROOT/BackEnd/NestJS"
 APP_ENV="${APP_ENV:-production}"
 
 echo "===== [1/5] 배포 환경 및 저장소 확인 ====="
@@ -23,7 +23,7 @@ if [ ! -f "$TARGET_ENV_FILE" ]; then
     echo ">> [안내] 워크스페이스에 $TARGET_ENV_FILE 파일이 없어 EC2 공용 경로에서 검색합니다..."
     for CANDIDATE in \
         "/home/ec2-user/.env.$APP_ENV" \
-        "/home/ec2-user/FURIOSA_BOOTCAMP_miniproject/BackEnd/nestjs/.env.$APP_ENV" \
+        "/home/ec2-user/FURIOSA_BOOTCAMP_miniproject/BackEnd/NestJS/.env.$APP_ENV" \
         "/home/ec2-user/FURIOSA_BOOTCAMP_miniproject/BackEnd/.env.$APP_ENV" \
         "$HOME/.env.$APP_ENV"; do
         if [ -f "$CANDIDATE" ]; then

@@ -16,7 +16,7 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 
 # 2. BackEnd NestJS 프로젝트 디렉토리로 이동
-cd "$PROJECT_ROOT/BackEnd/nestjs"
+cd "$PROJECT_ROOT/BackEnd/NestJS"
 
 # 3. Node.js 및 npm 버전 확인
 echo "===== [1/5] Node.js 및 npm 버전 확인 ====="

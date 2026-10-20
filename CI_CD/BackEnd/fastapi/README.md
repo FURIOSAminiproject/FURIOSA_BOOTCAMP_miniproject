@@ -1,10 +1,10 @@
 # FastAPI CI/CD
 
-실행 기준은 [워크플로우](../../../.github/workflows/deploy_fastapi.yml), [build.sh](build.sh), [deploy.sh](deploy.sh), [Dockerfile](../../../BackEnd/fastapi/Dockerfile)입니다.
+실행 기준은 [워크플로우](../../../.github/workflows/deploy_fastapi.yml), [build.sh](build.sh), [deploy.sh](deploy.sh), [Dockerfile](../../../BackEnd/FastAPI/Dockerfile)입니다.
 
 ## 트리거와 빌드 검증
 
-`main` push의 `BackEnd/fastapi/**`, `CI_CD/BackEnd/fastapi/**`, `.github/workflows/deploy_fastapi.yml` 변경 또는 수동 실행으로 시작합니다.
+`main` push의 `BackEnd/FastAPI/**`, `CI_CD/BackEnd/fastapi/**`, `.github/workflows/deploy_fastapi.yml` 변경 또는 수동 실행으로 시작합니다.
 
 `ubuntu-latest`에 Python 3.12를 준비한 뒤 다음을 실행합니다.
 
@@ -20,14 +20,14 @@
 `[self-hosted, linux]` 러너에서 checkout 후 deploy.sh를 실행합니다.
 
 1. `main.py`, `requirements.txt`, `Dockerfile` 확인
-2. 작업 폴더의 `BackEnd/fastapi/`를 `backups/fastapi/fastapi_backup_*.tar.gz`로 압축. `__pycache__`, `.env*`, `venv` 제외, 최신 1개 유지
+2. 작업 폴더의 `BackEnd/FastAPI/`를 `backups/fastapi/fastapi_backup_*.tar.gz`로 압축. `__pycache__`, `.env*`, `venv` 제외, 최신 1개 유지
 3. `APP_ENV="$APP_ENV" docker compose up -d --build fastapi` (기본 production)
 4. 3초 후 `http://127.0.0.1:8000/health` 확인. 호스트 curl 실패 시 컨테이너 내부 Python urllib 요청 시도
 5. 최대 5회, 실패 간격 2초. 최종 실패 시 최근 로그 50줄 출력 및 종료 코드 1
 
 컨테이너는 Python 3.12 Slim에서 소스를 복사하고 비루트 appuser로 Uvicorn을 실행합니다. 포트는 명령의 `--port 8000`으로 고정됩니다. Compose는 호스트 루프백 8000에 공개하고, Nginx는 `fastapi:8000`으로 연결합니다.
 
-Compose가 `APP_ENV`를 전달하고 `BackEnd/fastapi/.env`를 선택적으로 주입합니다. APP_ENV에 따라 `.env.production` 등을 선택하지 않으며 NestJS와 같은 외부 환경 파일 자동 복사도 없습니다. 필요 설정은 배포 전에 준비합니다.
+Compose가 `APP_ENV`를 전달하고 `BackEnd/FastAPI/.env`를 선택적으로 주입합니다. APP_ENV에 따라 `.env.production` 등을 선택하지 않으며 NestJS와 같은 외부 환경 파일 자동 복사도 없습니다. 필요 설정은 배포 전에 준비합니다.
 
 ## 헬스체크와 복구
 

@@ -15,7 +15,7 @@ TypeORM은 기동 시 DB에 연결하고 진단 쿼리를 수행합니다. 일�
 ## 디렉토리
 
 ```text
-BackEnd/nestjs/
+BackEnd/NestJS/
 ├── src/
 │   ├── database/       # 접속 옵션, 모듈, 헬스체크, 진단 CLI
 │   ├── travel/         # 컨트롤러, 입력 검증, 일정 엔진, 문학 리뷰, 타입
@@ -65,7 +65,7 @@ ENABLE_TLS=false
 ## 실행 및 빌드
 
 ```bash
-cd BackEnd/nestjs
+cd BackEnd/NestJS
 npm install
 npm run db:check -- local
 npm run start:local
@@ -145,7 +145,7 @@ npm test
 APP_ENV=production docker compose up -d --build backend
 ```
 
-컨테이너는 `node dist/main.js`를 직접 실행하므로 `.env` 파일을 시작 스크립트로 읽지 않습니다. Compose가 `BackEnd/nestjs/.env.${APP_ENV}`를 환경변수로 주입합니다. `HOST=0.0.0.0`, `PORT=3001`은 Compose에서 지정합니다.
+컨테이너는 `node dist/main.js`를 직접 실행하므로 `.env` 파일을 시작 스크립트로 읽지 않습니다. Compose가 `BackEnd/NestJS/.env.${APP_ENV}`를 환경변수로 주입합니다. `HOST=0.0.0.0`, `PORT=3001`은 Compose에서 지정합니다.
 
 이 폴더에서 단독 실행하는 예시입니다. DB 설정을 전달하도록 `--env-file`을 지정합니다. 같은 값들을 각각 `-e`로 전달하는 방식도 가능합니다.
 

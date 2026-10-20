@@ -12,7 +12,7 @@
 ### C01 · P1 · frontend 단독 배포가 backend 환경 파일을 준비하지 않는다
 
 - 근거: [FrontEnd/deploy.sh](FrontEnd/deploy.sh) 52행은 `docker compose up -d --build frontend`를 실행한다. [Compose](../docker-compose.yml)의 frontend는 backend/fastapi에 의존하고, backend env_file은 `required: false`다. 환경 파일 외부 복사는 [NestJS deploy.sh](BackEnd/nestjs/deploy.sh) 21~46행에만 있다.
-- 발생 조건: 새 checkout 뒤 `BackEnd/nestjs/.env.production`이 없고 영구 파일은 EC2 홈에만 있는 상태에서 frontend 파이프라인만 실행한다. 같은 조건은 기존 env 파일이 checkout 정리로 제거된 경우에도 가능하다.
+- 발생 조건: 새 checkout 뒤 `BackEnd/NestJS/.env.production`이 없고 영구 파일은 EC2 홈에만 있는 상태에서 frontend 파이프라인만 실행한다. 같은 조건은 기존 env 파일이 checkout 정리로 제거된 경우에도 가능하다.
 - 영향: Compose가 의존 backend를 시작·재생성할 때 DB 설정이 누락될 수 있다. 정적 화면의 응답만으로 frontend 배포가 성공 처리되면 API 장애를 놓칠 수 있다.
 - 검증: 환경 파일이 없는 임시 폴더의 실제 `docker compose config`에서 DB_HOST·DB_NAME·DB_USER·DB_PASSWORD 4개 누락과 frontend의 두 의존성을 확인했다. 컨테이너를 실제 시작하지는 않았다.
 - 개선 방향: 의존 서비스 설정을 배포 전에 함께 준비하거나, backend가 이미 준비되어 있다는 전제를 검사한 뒤 frontend만 교체하도록 배포 계약을 명확히 한다.

@@ -6,7 +6,7 @@
 
 1. [README.md](README.md), [REVIEW.md](REVIEW.md): 구성·실행 방법·확인된 문제.
 2. 루트 [docker-compose.yml](../docker-compose.yml): 빌드 컨텍스트, 환경, 포트, 네트워크, 마운트, 의존성.
-3. [FrontEnd/Dockerfile](../FrontEnd/Dockerfile), [BackEnd/nestjs/Dockerfile](../BackEnd/nestjs/Dockerfile), [BackEnd/fastapi/Dockerfile](../BackEnd/fastapi/Dockerfile) 및 각 .dockerignore.
+3. [FrontEnd/Dockerfile](../FrontEnd/Dockerfile), [BackEnd/NestJS/Dockerfile](../BackEnd/NestJS/Dockerfile), [BackEnd/FastAPI/Dockerfile](../BackEnd/FastAPI/Dockerfile) 및 각 .dockerignore.
 4. `FrontEnd/docker-entrypoint.sh`, `nginx_http.conf`, `nginx_ssl.conf`, `nginx.conf`: 실제 웹 서버 설정 선택·프록시.
 5. 배포 변경 시 CI_CD와 .github/workflows의 호출 경로·AGENTS.md.
 

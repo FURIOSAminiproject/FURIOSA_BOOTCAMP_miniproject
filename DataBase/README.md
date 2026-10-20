@@ -4,7 +4,7 @@
 
 ## 설정의 기준
 
-현재 실행 대상은 `BackEnd/nestjs/`이며 DB 접속 옵션은 [database.config.ts](../BackEnd/nestjs/src/database/database.config.ts)에서 정의합니다. DB 서버는 Docker Compose에 포함되지 않습니다. 실제 서버 버전·주소·계정·권한은 운영 환경에서 확인하며 특정 EC2 IP나 계정명이 코드에 고정되어 있지 않습니다.
+현재 실행 대상은 `BackEnd/NestJS/`이며 DB 접속 옵션은 [database.config.ts](../BackEnd/NestJS/src/database/database.config.ts)에서 정의합니다. DB 서버는 Docker Compose에 포함되지 않습니다. 실제 서버 버전·주소·계정·권한은 운영 환경에서 확인하며 특정 EC2 IP나 계정명이 코드에 고정되어 있지 않습니다.
 
 | 항목 | 코드의 동작 |
 |---|---|
@@ -31,7 +31,7 @@ NestJS 시작 스크립트는 선택한 파일 한 개를 읽고 시스템 환�
 
 DB_NAME 기본값은 `scripts/start.cjs`와 이를 사용하는 진단 CLI에 적용되며 파일이나 시스템 환경변수로 재정의할 수 있습니다. Compose는 `node dist/main.js`를 직접 실행하므로 환경 파일에 DB_NAME을 명시해야 합니다.
 
-`BackEnd/nestjs/.env.local` 예시:
+`BackEnd/NestJS/.env.local` 예시:
 
 ```env
 DB_HOST=127.0.0.1
@@ -55,7 +55,7 @@ PostgreSQL 수신 주소, pg_hba.conf 및 네트워크 허용 범위를 실제 �
 ## 연결 진단
 
 ```bash
-cd BackEnd/nestjs
+cd BackEnd/NestJS
 npm install
 npm run db:check -- local
 npm run db:check -- dev

@@ -20,8 +20,8 @@
 | 서비스 | 컨테이너 이름 | 빌드 경로 | 호스트 포트 |
 |---|---|---|---|
 | frontend | travel-frontend | `FrontEnd/` | `80:80`, `443:443` |
-| backend | travel-backend | `BackEnd/nestjs/` | `127.0.0.1:3001:3001` |
-| fastapi | travel-fastapi | `BackEnd/fastapi/` | `127.0.0.1:8000:8000` |
+| backend | travel-backend | `BackEnd/NestJS/` | `127.0.0.1:3001:3001` |
+| fastapi | travel-fastapi | `BackEnd/FastAPI/` | `127.0.0.1:8000:8000` |
 
 Compose는 `travel-network` 브리지 네트워크를 생성합니다. 컨테이너는 `backend`, `fastapi` 서비스명으로 통신합니다. 실제 Docker 네트워크 이름에는 Compose 프로젝트 접두사가 붙을 수 있습니다.
 
@@ -58,12 +58,12 @@ NestJS는 소스를 다시 컴파일하고 `.env`를 이미지에 복사하지 �
 | 구성 | APP_ENV 적용 |
 |---|---|
 | FrontEnd | Docker 빌드 인수로 전달해 build:local / build:dev / build:prod 선택 |
-| NestJS | 빌드 인수 및 런타임 환경변수, `BackEnd/nestjs/.env.${APP_ENV}` 선택 |
-| FastAPI | 런타임 APP_ENV 표시, 파일은 항상 `BackEnd/fastapi/.env` |
+| NestJS | 빌드 인수 및 런타임 환경변수, `BackEnd/NestJS/.env.${APP_ENV}` 선택 |
+| FastAPI | 런타임 APP_ENV 표시, 파일은 항상 `BackEnd/FastAPI/.env` |
 
 Compose env_file은 `required: false`이므로 파일 누락 자체를 막지 않습니다. 하지만 NestJS는 필수 DB 값이 없으면 시작하지 못합니다. `env_file.required`를 지원하는 Docker Compose 2.24.0 이상을 준비합니다.
 
-예를 들어 로컬 실행은 `BackEnd/nestjs/.env.local`을 만듭니다.
+예를 들어 로컬 실행은 `BackEnd/NestJS/.env.local`을 만듭니다.
 
 ```env
 DB_HOST=host.docker.internal

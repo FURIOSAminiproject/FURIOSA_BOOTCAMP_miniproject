@@ -21,8 +21,8 @@ FastAPI는 별도 샘플 서비스입니다. 추천 API는 고정된 2개 장소
 | 구성 | 코드 기준 기술 | 위치 |
 |---|---|---|
 | 웹 | React 19, TypeScript 7, Vite 8, Tailwind CSS 4, Leaflet, Motion | `FrontEnd/` |
-| 일정 API | NestJS 11, TypeScript 5.9, TypeORM, PostgreSQL 드라이버, Google GenAI SDK | `BackEnd/nestjs/` |
-| 샘플 추천 API | FastAPI, Pydantic, Uvicorn, Python 3.12 컨테이너 | `BackEnd/fastapi/` |
+| 일정 API | NestJS 11, TypeScript 5.9, TypeORM, PostgreSQL 드라이버, Google GenAI SDK | `BackEnd/NestJS/` |
+| 샘플 추천 API | FastAPI, Pydantic, Uvicorn, Python 3.12 컨테이너 | `BackEnd/FastAPI/` |
 | 배포 | GitHub Actions, Docker Compose, Nginx | `.github/workflows/`, `CI_CD/`, `docker-compose.yml` |
 | EC2 IP 인증서 폐기 도구 | Python 3.9 이상, OpenSSL, EC2 IMDSv2, Certbot Docker | `CI_CD/certificates/` |
 
@@ -37,11 +37,11 @@ Node 기반 컨테이너와 CI는 Node.js 22를 사용합니다. PostgreSQL 서�
 
 Vite 개발/preview 프록시는 `/api`만 지원합니다. HTTPS는 Nginx 컨테이너 시작 시 마운트된 인증서·개인키 쌍을 선택하면 활성화됩니다. IP 인증서 폐기 도구가 차단한 동일 인증서는 선택에서 제외합니다.
 
-`BackEnd/` 루트에도 별도의 NestJS 소스·스크립트·패키지가 남아 있습니다. 현재 Compose와 NestJS GitHub Actions는 `BackEnd/nestjs/`를 사용하며, 두 소스는 자동 동기화되지 않습니다.
+`BackEnd/` 루트에도 별도의 NestJS 소스·스크립트·패키지가 남아 있습니다. 현재 Compose와 NestJS GitHub Actions는 `BackEnd/NestJS/`를 사용하며, 두 소스는 자동 동기화되지 않습니다.
 
 ## 로컬 실행
 
-로컬 Node.js는 22.12 이상인 22.x 버전과 접근 가능한 PostgreSQL을 준비합니다. 프론트의 잠금 파일에 기록된 Vite가 Node 22.12 이상을 요구합니다. `BackEnd/nestjs/.env.local`을 만들고 아래 값을 실제 연결 정보로 설정합니다. `DB_NAME` 기본값은 local=`travel_local`, development=`travel_test`, production=`travel_prod`이며 환경변수로 재정의할 수 있습니다.
+로컬 Node.js는 22.12 이상인 22.x 버전과 접근 가능한 PostgreSQL을 준비합니다. 프론트의 잠금 파일에 기록된 Vite가 Node 22.12 이상을 요구합니다. `BackEnd/NestJS/.env.local`을 만들고 아래 값을 실제 연결 정보로 설정합니다. `DB_NAME` 기본값은 local=`travel_local`, development=`travel_test`, production=`travel_prod`이며 환경변수로 재정의할 수 있습니다.
 
 ```env
 DB_HOST=127.0.0.1
@@ -57,7 +57,7 @@ ENABLE_TLS=false
 ```
 
 ```powershell
-cd BackEnd/nestjs
+cd BackEnd/NestJS
 npm install
 npm run db:check -- local
 npm run start:local
@@ -111,7 +111,7 @@ docker compose ps
 Compose 기본 환경은 `production`입니다. 단일 컨테이너 교체 방식이므로 배포 중 일시 중단이 발생할 수 있습니다.
 
 ```powershell
-cd BackEnd/nestjs
+cd BackEnd/NestJS
 npm test
 ```
 
@@ -153,7 +153,7 @@ python3 -B -m unittest discover -s CI_CD/certificates/tests -v
 ## 상세 문서
 
 - [FrontEnd](FrontEnd/README.md)
-- [BackEnd 구성](BackEnd/README.md), [NestJS](BackEnd/nestjs/README.md), [FastAPI](BackEnd/fastapi/README.md)
+- [BackEnd 구성](BackEnd/README.md), [NestJS](BackEnd/NestJS/README.md), [FastAPI](BackEnd/FastAPI/README.md)
 - [DB 연결 및 진단](DataBase/README.md)
 - [Docker 실행](Docker/README.md)
 - [CI/CD 및 HTTPS 운영](CI_CD/README.md)

@@ -17,7 +17,7 @@
 | 개발 프록시·빌드 | vite.config.ts, package.json, package-lock.json, tsconfig.json |
 | 운영 서빙 | Dockerfile, docker-entrypoint.sh, nginx_http.conf, nginx_ssl.conf |
 
-표의 src 하위 경로는 `FrontEnd/src/` 기준이다. API 변경 시 [NestJS 지침](../BackEnd/nestjs/AGENTS.md)과 서버 validation.ts/travel.types.ts도 읽는다. 배포 설정 변경 시 [Docker 지침](../Docker/AGENTS.md), CI_CD와 .github/workflows의 지침·실제 호출 파일도 확인한다.
+표의 src 하위 경로는 `FrontEnd/src/` 기준이다. API 변경 시 [NestJS 지침](../BackEnd/NestJS/AGENTS.md)과 서버 validation.ts/travel.types.ts도 읽는다. 배포 설정 변경 시 [Docker 지침](../Docker/AGENTS.md), CI_CD와 .github/workflows의 지침·실제 호출 파일도 확인한다.
 
 ## 실제 기능과 상태 소유권
 

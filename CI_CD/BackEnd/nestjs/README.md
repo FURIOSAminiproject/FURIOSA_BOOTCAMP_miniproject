@@ -1,10 +1,10 @@
 # NestJS CI/CD
 
-실행 기준은 [워크플로우](../../../.github/workflows/deploy_backend.yml), [build.sh](build.sh), [deploy.sh](deploy.sh), [Dockerfile](../../../BackEnd/nestjs/Dockerfile)입니다.
+실행 기준은 [워크플로우](../../../.github/workflows/deploy_backend.yml), [build.sh](build.sh), [deploy.sh](deploy.sh), [Dockerfile](../../../BackEnd/NestJS/Dockerfile)입니다.
 
 ## 트리거와 검증
 
-`main` push의 `BackEnd/nestjs/**`, `CI_CD/BackEnd/nestjs/**`, `.github/workflows/deploy_backend.yml` 변경 또는 수동 실행으로 시작합니다. `BackEnd/` 루트 소스나 `docker-compose.yml`만 바뀌면 자동 실행되지 않습니다.
+`main` push의 `BackEnd/NestJS/**`, `CI_CD/BackEnd/nestjs/**`, `.github/workflows/deploy_backend.yml` 변경 또는 수동 실행으로 시작합니다. `BackEnd/` 루트 소스나 `docker-compose.yml`만 바뀌면 자동 실행되지 않습니다.
 
 빌드 잡은 `ubuntu-latest`, Node 22를 사용합니다.
 
@@ -19,10 +19,10 @@
 
 ## 배포
 
-`[self-hosted, linux]` 러너에서 checkout하고 아티팩트를 `BackEnd/nestjs/dist`로 받은 후 deploy.sh를 실행합니다.
+`[self-hosted, linux]` 러너에서 checkout하고 아티팩트를 `BackEnd/NestJS/dist`로 받은 후 deploy.sh를 실행합니다.
 
 1. `APP_ENV` 기본값 `production` 선택
-2. `BackEnd/nestjs/.env.${APP_ENV}` 확인, 없으면 외부 후보 경로에서 복사. 끝까지 없으면 실패
+2. `BackEnd/NestJS/.env.${APP_ENV}` 확인, 없으면 외부 후보 경로에서 복사. 끝까지 없으면 실패
 3. `dist/main.js`, `package.json` 검사
 4. 작업 폴더 `BackEnd/`를 `backups/backend/backend_backup_*.tar.gz`로 압축. node_modules·`.env*` 제외, 최신 1개 유지
 5. 저장소 루트에서 `docker compose up -d --build backend`
