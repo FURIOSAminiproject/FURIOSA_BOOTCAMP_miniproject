@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { FullTravelPlan, TravelRequest, AgentLog, AgencyStats } from './types/travel';
 import { PRESET_JEJU_PLAN, PRESET_GYEONGJU_PLAN, INITIAL_AGENCY_STATS } from './data/presetData';
 import { orchestrateTravelPlan } from './services/aiTravelAgent';
@@ -23,11 +24,46 @@ import { TravelerSocialFeed } from './components/TravelerSocialFeed';
 import { AiTransformerStudio } from './components/AiTransformerStudio';
 import { WeatherTechStudio } from './components/WeatherTechStudio';
 import { AuthModal } from './components/auth/AuthModal';
-import { getCurrentUser, logoutUser, startSocialLogin, AuthUser } from './services/authService';
+import { getCurrentUser, logoutUser, AuthUser } from './services/authService';
 import { CheckCircle2 } from 'lucide-react';
 
 export default function App() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [currentTab, setCurrentTab] = useState<'EXPLORE' | 'REQUEST' | 'PLAN' | 'ADMIN' | 'STUDIO' | 'WEATHER_STUDIO'>('EXPLORE');
+
+  const pathByTab = {
+    EXPLORE: '/',
+    REQUEST: '/trips/new',
+    PLAN: '/trips',
+    ADMIN: '/admin',
+    STUDIO: '/studio',
+    WEATHER_STUDIO: '/weather-studio',
+  } as const;
+
+  const tabByPath: Record<string, typeof currentTab> = {
+    '/': 'EXPLORE',
+    '/trips/new': 'REQUEST',
+    '/trips': 'PLAN',
+    '/admin': 'ADMIN',
+    '/studio': 'STUDIO',
+    '/weather-studio': 'WEATHER_STUDIO',
+  };
+
+  const handleSelectTab = (tab: typeof currentTab) => {
+    setCurrentTab(tab);
+    if (location.pathname !== pathByTab[tab]) {
+      navigate(pathByTab[tab]);
+    }
+  };
+
+  React.useEffect(() => {
+    const tab = tabByPath[location.pathname] ?? 'EXPLORE';
+    setCurrentTab(tab);
+    if (!(location.pathname in tabByPath)) {
+      navigate('/', { replace: true });
+    }
+  }, [location.pathname, navigate]);
   const [isAdmin, setIsAdmin] = useState<boolean>(true); // Logged in as administrator
   
   // User Authentication state (v2 Auth integration)
@@ -64,9 +100,6 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Count pending approval plans
-  const pendingCount = plans.filter(p => p.request.status === 'PENDING_APPROVAL').length;
-
   // Authentication & OAuth session restore
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -87,10 +120,6 @@ export default function App() {
       })
       .catch(() => {});
   }, []);
-
-  const handleDirectGoogleLogin = () => {
-    startSocialLogin('google');
-  };
 
   const handleOpenLogin = () => {
     setAuthModalMode('login');
@@ -114,7 +143,7 @@ export default function App() {
   const handleRequestSubmit = async (req: TravelRequest) => {
     setIsGenerating(true);
     setAgentLogs([]);
-    setCurrentTab('REQUEST'); // Keep on request page to show real-time orchestration
+    handleSelectTab('REQUEST'); // Keep on request page to show real-time orchestration
 
     try {
       const newPlan = await orchestrateTravelPlan(req, (log) => {
@@ -140,7 +169,7 @@ export default function App() {
       });
 
       showToast(`'${req.destination}' AI 일정 설계 완료! 관리자 인가 대기 상태로 등록되었습니다.`);
-      setCurrentTab('PLAN');
+      handleSelectTab('PLAN');
     } catch (err) {
       console.error('Error generating travel plan:', err);
       showToast('일정 생성 중 오류가 발생했습니다. 다시 시도해주세요.');
@@ -199,7 +228,7 @@ export default function App() {
 
     setPlans(prev => prev.map(p => p.requestId === target.requestId ? revisingPlan : p));
     setSelectedPlan(revisingPlan);
-    setCurrentTab('PLAN');
+    handleSelectTab('PLAN');
     showToast('AI 에이전트 팀이 관리자 피드백을 반영하여 일정을 재조율하고 있습니다...');
 
     // Re-orchestrate with feedback
@@ -259,16 +288,9 @@ export default function App() {
       {/* Main Navigation Header */}
       <Header
         currentTab={currentTab}
-        onSelectTab={setCurrentTab}
-        isAdmin={isAdmin}
-        onToggleAdmin={() => {
-          setIsAdmin(!isAdmin);
-          showToast(!isAdmin ? '관리자 권한으로 로그인되었습니다.' : '일반 모드로 전환되었습니다.');
-        }}
-        pendingCount={pendingCount}
+        onSelectTab={handleSelectTab}
         currentUser={currentUser}
         onOpenLogin={handleOpenLogin}
-        onDirectGoogleLogin={handleDirectGoogleLogin}
         onLogout={handleLogout}
       />
 
@@ -279,34 +301,37 @@ export default function App() {
           <div className="space-y-12">
             {/* 1. Hero Banner with Jeju Coast image & "이렇게 진행돼요" */}
             <HeroBanner
-              onStartRequest={() => setCurrentTab('REQUEST')}
+              onStartRequest={() => {
+                setCurrentTab('REQUEST');
+                navigate('/trips/new');
+              }}
               onQuickExplore={(dest) => {
                 setTargetDestination(dest);
                 if (dest.includes('제주')) {
                   setSelectedPlan(PRESET_JEJU_PLAN);
-                  setCurrentTab('PLAN');
+                  handleSelectTab('PLAN');
                 } else if (dest.includes('경주')) {
                   setSelectedPlan(PRESET_GYEONGJU_PLAN);
-                  setCurrentTab('PLAN');
+                  handleSelectTab('PLAN');
                 } else {
-                  setCurrentTab('REQUEST');
+                  handleSelectTab('REQUEST');
                 }
               }}
-              onOpenStudio={() => setCurrentTab('STUDIO')}
-              onOpenWeatherStudio={() => setCurrentTab('WEATHER_STUDIO')}
+              onOpenStudio={() => handleSelectTab('STUDIO')}
+              onOpenWeatherStudio={() => handleSelectTab('WEATHER_STUDIO')}
             />
 
             {/* 2. "우리 여행사의 AI 에이전트 팀" & "인기 여행지" */}
             <AgentTeamIntro
               onSelectPlan={(plan) => {
                 setSelectedPlan(plan);
-                setCurrentTab('PLAN');
+                handleSelectTab('PLAN');
               }}
               onSelectDestination={(dest) => {
                 setTargetDestination(dest);
               }}
-              onOpenStudio={() => setCurrentTab('STUDIO')}
-              onOpenWeatherStudio={() => setCurrentTab('WEATHER_STUDIO')}
+              onOpenStudio={() => handleSelectTab('STUDIO')}
+              onOpenWeatherStudio={() => handleSelectTab('WEATHER_STUDIO')}
             />
 
             {/* 3. NEW: 10-Year Climate ML/DL Long-term Forecast & Smart Packing Widget */}
@@ -314,16 +339,16 @@ export default function App() {
               initialDestination={targetDestination}
               onApplyToTripRequest={(dest, start, end) => {
                 setTargetDestination(dest);
-                setCurrentTab('REQUEST');
+                handleSelectTab('REQUEST');
               }}
-              onOpenWeatherStudio={() => setCurrentTab('WEATHER_STUDIO')}
+              onOpenWeatherStudio={() => handleSelectTab('WEATHER_STUDIO')}
             />
 
             {/* 4. NEW: Traveler Social Feed & Shared Itineraries */}
             <TravelerSocialFeed
               onLoadPresetPlan={(plan) => {
                 setSelectedPlan(plan);
-                setCurrentTab('PLAN');
+                handleSelectTab('PLAN');
               }}
               onExploreDestination={(dest) => {
                 setTargetDestination(dest);
@@ -376,8 +401,7 @@ export default function App() {
 
             <TravelPlanDetail
               plan={selectedPlan}
-              isAdmin={isAdmin}
-              onOpenApprovalModal={() => {
+                    onOpenApprovalModal={() => {
                 setPlanForApproval(selectedPlan);
                 setApprovalModalOpen(true);
               }}
@@ -395,7 +419,7 @@ export default function App() {
             allPlans={plans}
             onSelectPlan={(plan) => {
               setSelectedPlan(plan);
-              setCurrentTab('PLAN');
+              handleSelectTab('PLAN');
             }}
             onOpenApproval={(plan) => {
               setPlanForApproval(plan);
@@ -407,17 +431,17 @@ export default function App() {
         {/* TAB 5: AI & TRANSFORMER ARCHITECTURE STUDIO */}
         {currentTab === 'STUDIO' && (
           <AiTransformerStudio
-            onNavigateToRequest={() => setCurrentTab('REQUEST')}
-            onNavigateToPlan={() => setCurrentTab('PLAN')}
-            onNavigateToWeatherStudio={() => setCurrentTab('WEATHER_STUDIO')}
+            onNavigateToRequest={() => handleSelectTab('REQUEST')}
+            onNavigateToPlan={() => handleSelectTab('PLAN')}
+            onNavigateToWeatherStudio={() => handleSelectTab('WEATHER_STUDIO')}
           />
         )}
 
         {/* TAB 6: WEATHER FORECAST TECH ANALYSIS STUDIO (LSTM & ENSEMBLE) */}
         {currentTab === 'WEATHER_STUDIO' && (
           <WeatherTechStudio
-            onNavigateToRequest={() => setCurrentTab('REQUEST')}
-            onNavigateToTransformerStudio={() => setCurrentTab('STUDIO')}
+            onNavigateToRequest={() => handleSelectTab('REQUEST')}
+            onNavigateToTransformerStudio={() => handleSelectTab('STUDIO')}
           />
         )}
       </main>

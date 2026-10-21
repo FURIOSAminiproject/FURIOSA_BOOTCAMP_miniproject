@@ -26,92 +26,47 @@ export const AgentTeamIntro: React.FC<AgentTeamIntroProps> = ({
 }) => {
   const agents = [
     {
-      name: '총괄 협연자 (마에스트로)',
-      role: 'SUPERVISOR & ORCHESTRATOR',
-      desc: '전체 에이전트 총괄 지휘·일차별 중복 차단 및 지도 연동 전수 감수, 무결점 오류 복구',
-      icon: <ShieldAlert className="w-5 h-5 text-emerald-700" />,
-      badge: '총괄 지휘',
+      name: '총괄 협연자',
+      role: 'LEAD ORCHESTRATOR',
+      desc: '사용자의 여행 의뢰를 분석하고 다섯 전문 AI 에이전트의 결과를 통합해 최종 여행 계획을 조율합니다.',
+      icon: <ShieldAlert className="w-6 h-6" />,
+      badge: '총괄 에이전트',
       highlight: true
     },
     {
-      name: '지식전달관 (알고리)',
-      role: 'STUDIO & TRANSFORMER',
-      desc: '트랜스포머 Self-Attention 및 딥러닝 원리 해설, 12개 에이전트 소스코드 전격 시현',
-      icon: <Sparkles className="w-5 h-5 text-violet-700" />,
-      badge: '스튜디오 총괄',
-      highlight: true
-    },
-    {
-      name: '기상·기후 관리관 (날씨지기)',
-      role: 'CLIMATE & REALTIME WEATHER',
-      desc: '10개년 ML 모델 장기 예측과 실시간 기상 관측 동시 분석, 기후 특보 경보 및 준비물',
-      icon: <CloudSun className="w-5 h-5 text-sky-600" />,
-      badge: '기상 관리',
-      highlight: true
-    },
-    {
-      name: '안전·위기관리 총괄관 (안전지킴이)',
-      role: 'SAFETY & EMERGENCY RISK',
-      desc: '최근 사건사고 빅데이터 정밀 분석, 24시 응급의료 연동 및 세계 최고 수준 안전 보장',
-      icon: <LifeBuoy className="w-5 h-5 text-emerald-600" />,
-      badge: '세계 최고 안전',
-      highlight: true
-    },
-    {
-      name: '접수 총괄 길라잡이',
-      role: 'INTAKE & CONCIERGE',
-      desc: '고객 의뢰 분석, 여행 스타일·동행자 특성 맞춤 전략 수립',
-      icon: <Send className="w-5 h-5 text-[#064e43]" />,
-      badge: '의뢰 분석'
+      name: '기상기후 관리관',
+      role: 'WEATHER & CLIMATE',
+      desc: '여행 날짜의 날씨와 기후 정보를 분석해 여행 일정과 준비물에 반영합니다.',
+      icon: <CloudSun className="w-5 h-5" />,
+      badge: '기상 분석'
     },
     {
       name: '관광지 명소박사',
-      role: 'ATTRACTIONS & NATURE',
-      desc: '권역별 핵심 랜드마크와 숨은 비경 탐색 (일차 간 중복 0건)',
-      icon: <Compass className="w-5 h-5 text-[#064e43]" />,
-      badge: '명소 엄선'
+      role: 'ATTRACTIONS & SIGHTSEEING',
+      desc: '여행 목적과 취향에 맞는 관광 명소와 숨은 여행지를 추천합니다.',
+      icon: <Compass className="w-5 h-5" />,
+      badge: '명소 추천'
     },
     {
       name: '미식가 큐레이터',
-      role: 'GOURMET & CAFES',
-      desc: '블루리본 로컬 향토 맛집과 오션/마운틴 파노라마 뷰 카페 엄선',
-      icon: <Utensils className="w-5 h-5 text-[#064e43]" />,
-      badge: '로컬 미식'
+      role: 'FOOD & LOCAL GOURMET',
+      desc: '지역 맛집과 카페를 탐색하고 여행 동선에 어울리는 식사 장소를 제안합니다.',
+      icon: <Utensils className="w-5 h-5" />,
+      badge: '미식 추천'
     },
     {
       name: '숙소 안식처',
-      role: 'BOUTIQUE & STAYS',
-      desc: '오션뷰 호텔, 전통 한옥스테이, 프라이빗 독채 풀빌라 매칭',
-      icon: <Hotel className="w-5 h-5 text-[#064e43]" />,
-      badge: '맞춤 숙소'
+      role: 'ACCOMMODATION',
+      desc: '여행 예산과 위치, 숙박 선호도에 맞는 숙소 선택을 지원합니다.',
+      icon: <Hotel className="w-5 h-5" />,
+      badge: '숙소 추천'
     },
     {
-      name: '동선지기 & 지도 연동관',
-      role: 'MOBILITY & GIS PUSH',
-      desc: '최단 이동 경로 계산, 네이버 & 구글 MAP 검색창 100% PUSH 연동',
-      icon: <Car className="w-5 h-5 text-[#064e43]" />,
-      badge: 'GIS 지도'
-    },
-    {
-      name: '일정 & 경비 설계사',
-      role: 'TIMELINE & BUDGET',
-      desc: '시간대별 분 단위 타임라인 및 항목별 실시간 총경비 투명 산출',
-      icon: <Calendar className="w-5 h-5 text-[#064e43]" />,
-      badge: '경비 편성'
-    },
-    {
-      name: '안전 & 품질 감수관',
-      role: 'AUDITOR & SAFETY',
-      desc: '예산 준수율·동선 안전성 감사 및 관리자 인가(승인) 상신',
-      icon: <ShieldCheck className="w-5 h-5 text-[#064e43]" />,
-      badge: '품질 감사'
-    },
-    {
-      name: '풍류시객 (문학 큐레이터)',
-      role: 'LITERARY ESSAY & POETRY',
-      desc: '선정된 음식점과 카페마다 감성 수필 3~4문장과 시(詩) 한 수 헌정',
-      icon: <Feather className="w-5 h-5 text-[#064e43]" />,
-      badge: '감성 문학'
+      name: '일정 및 경비 설계사',
+      role: 'ITINERARY & BUDGET',
+      desc: '이동 순서와 시간대별 일정을 구성하고 예상 경비를 정리합니다.',
+      icon: <Calendar className="w-5 h-5" />,
+      badge: '일정·예산'
     }
   ];
 
@@ -166,90 +121,105 @@ export const AgentTeamIntro: React.FC<AgentTeamIntroProps> = ({
 
   return (
     <div className="space-y-16">
-      {/* 1. "우리 여행사의 AI 에이전트 팀" - Elevated World-Class Roster */}
-      <section className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 border-b border-[#e8e4dc] pb-4">
-          <div>
-            <span className="text-xs font-bold text-[#064e43] uppercase tracking-wider font-mono">
-              AUTONOMOUS SPECIALISTS
-            </span>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-stone-900 tracking-tight font-serif mt-1">
-              우리 여행사의 AI 에이전트 팀
-            </h2>
-          </div>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <p className="text-xs sm:text-sm text-stone-500 max-w-md">
-              총괄 협연자와 지식전달관의 지휘 아래 12인의 특화 에이전트가 완벽한 하모니로 고객 한 분만을 위한 맞춤 일정을 직조합니다.
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              {onOpenStudio && (
-                <button
-                  onClick={onOpenStudio}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-700 hover:bg-violet-800 text-white text-xs font-bold shrink-0 transition-all shadow-xs cursor-pointer"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                  <span>트랜스포머 스튜디오</span>
-                  <ArrowRight className="w-3 h-3" />
-                </button>
-              )}
-              {onOpenWeatherStudio && (
-                <button
-                  onClick={onOpenWeatherStudio}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-700 hover:bg-sky-800 text-white text-xs font-bold shrink-0 transition-all shadow-xs cursor-pointer"
-                >
-                  <CloudSun className="w-3.5 h-3.5 text-sky-200" />
-                  <span>기상예보 기술 분석</span>
-                  <ArrowRight className="w-3 h-3" />
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {agents.map((agent) => (
-            <div
-              key={agent.name}
-              className={`rounded-3xl p-6 border shadow-xs space-y-4 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 ${
-                agent.highlight
-                  ? 'bg-gradient-to-br from-emerald-50/80 via-white to-teal-50/50 border-emerald-500/50 ring-1 ring-emerald-500/20'
-                  : 'bg-white border-[#e8e4dc] hover:border-[#064e43]/40'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center ${
-                  agent.highlight ? 'bg-emerald-700 text-white shadow-xs' : 'bg-teal-50 text-[#064e43]'
-                }`}>
-                  {agent.icon}
-                </div>
-                <div className="flex items-center gap-1.5">
-                  {agent.highlight && (
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  )}
-                  <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
-                    agent.highlight
-                      ? 'bg-emerald-700 text-white'
-                      : 'bg-stone-100 text-stone-600 border border-stone-200'
-                  }`}>
-                    {agent.badge}
-                  </span>
-                </div>
-              </div>
-
+      {/* 다이어그램 */}
+      <section className="space-y-8">
+        {/* AI 멀티 에이전트 구조 */}
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b border-[#e8e4dc] pb-4">
               <div>
-                <div className="text-[10px] font-mono tracking-wider text-stone-400 uppercase font-semibold">
-                  {agent.role}
-                </div>
-                <h3 className="font-bold text-stone-900 text-base sm:text-lg mt-0.5">
-                  {agent.name}
-                </h3>
-                <p className="text-xs text-stone-600 mt-1.5 leading-relaxed">
-                  {agent.desc}
+                <span className="text-xs font-bold text-[#064e43] uppercase tracking-wider font-mono">
+                  MULTI AI AGENT SYSTEM
+                </span>
+
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-stone-900 tracking-tight font-serif mt-1">
+                  우리 여행사의 AI 에이전트 팀
+                </h2>
+
+                <p className="text-sm text-stone-500 mt-2">
+                  총괄 협연자와 5명의 전문 AI 에이전트가 협업해 여행 계획을 완성합니다.
                 </p>
               </div>
             </div>
-          ))}
-        </div>
+
+            {/* 1. 총괄 에이전트 */}
+            <div className="flex flex-col items-center">
+              <div className="relative w-full max-w-md rounded-3xl border border-emerald-600 bg-gradient-to-br from-emerald-800 via-[#064e43] to-teal-900 p-6 sm:p-7 text-white shadow-xl shadow-emerald-950/15">
+                <div className="absolute right-5 top-5">
+                  <span className="rounded-full bg-white/15 px-3 py-1 text-[10px] font-bold tracking-wide text-emerald-50">
+                    LEAD AGENT
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/20">
+                    {agents[0].icon}
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] font-mono tracking-widest text-emerald-200">
+                      {agents[0].role}
+                    </p>
+
+                    <h3 className="mt-1 text-xl font-extrabold">
+                      {agents[0].name}
+                    </h3>
+
+                    <p className="mt-1 text-xs text-emerald-100">
+                      전체 의뢰 분석 · 전문 에이전트 조율 · 결과 통합
+                    </p>
+                  </div>
+                </div>
+
+                <p className="mt-4 border-t border-white/15 pt-4 text-sm leading-relaxed text-emerald-50">
+                  {agents[0].desc}
+                </p>
+              </div>
+
+              {/* 총괄 에이전트에서 전문 에이전트로 연결 */}
+              <div className="h-6 w-px bg-emerald-500" />
+
+              <div className="relative hidden h-5 w-[81%] lg:block">
+                <div className="absolute inset-x-0 top-0 h-px bg-emerald-400" />
+              </div>
+            </div>
+
+            {/* 2. 전문 AI 에이전트 5개 */}
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5 lg:pt-0">
+              {agents.slice(1).map((agent) => (
+                <div key={agent.name} className="relative">
+                  <div className="mx-auto h-5 w-px bg-emerald-400 lg:absolute lg:top-0 lg:left-1/2 lg:-translate-y-full" />
+
+                  <div className="h-full rounded-2xl border border-stone-200 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-emerald-400 hover:shadow-lg">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-[#064e43]">
+                      {agent.icon}
+                    </div>
+
+                    <p className="mt-4 text-[10px] font-mono font-semibold tracking-wider text-stone-400">
+                      {agent.role}
+                    </p>
+
+                    <h3 className="mt-1 text-base font-extrabold text-stone-900">
+                      {agent.name}
+                    </h3>
+
+                    <span className="mt-3 inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-800">
+                      {agent.badge}
+                    </span>
+
+                    <p className="mt-3 text-xs leading-relaxed text-stone-600">
+                      {agent.desc}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* 협업 구조 안내 */}
+            <div className="flex items-center justify-center gap-2 text-xs text-stone-500">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+              <span>
+                1개 총괄 에이전트 + 5개 전문 에이전트 협업 구조
+              </span>
+            </div>
       </section>
 
       {/* 2. "인기 여행지" - World-Class Curated Destinations Gallery */}
