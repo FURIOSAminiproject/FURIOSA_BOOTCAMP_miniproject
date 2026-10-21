@@ -60,8 +60,8 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
           </div>
 
           <p className="text-sm sm:text-base md:text-lg text-stone-200/90 leading-relaxed max-w-2xl font-light">
-            일정, 경비, 숙소, 교통, 맛집, 카페, 기상, 안전, 문학, 지식전달까지<br />
-            12인의 지능형 멀티에이전트가 중복 없이 자율 설계하고,<br />
+            일정, 경비, 숙소, 교통, 맛집, 카페, 기상정보까지<br />
+            5인의 지능형 멀티에이전트가 중복 없이 자율 설계하고,<br />
             전담 관리자가 최종 인가하는 대한민국 럭셔리 국내 여행의 새로운 기준.
           </p>
         </div>

@@ -16,7 +16,6 @@ import { TravelPlanDetail } from './components/TravelPlanDetail';
 import { AgentTeamIntro } from './components/AgentTeamIntro';
 import { AdminDashboard } from './components/AdminDashboard';
 import { AdminApprovalModal } from './components/AdminApprovalModal';
-import { WeatherPredictionWidget } from './components/WeatherPredictionWidget';
 import { ShareModal } from './components/ShareModal';
 import { PrintVoucher } from './components/PrintVoucher';
 import { GisVerificationModal } from './components/GisVerificationModal';
@@ -331,16 +330,6 @@ export default function App() {
                 setTargetDestination(dest);
               }}
               onOpenStudio={() => handleSelectTab('STUDIO')}
-              onOpenWeatherStudio={() => handleSelectTab('WEATHER_STUDIO')}
-            />
-
-            {/* 3. NEW: 10-Year Climate ML/DL Long-term Forecast & Smart Packing Widget */}
-            <WeatherPredictionWidget
-              initialDestination={targetDestination}
-              onApplyToTripRequest={(dest, start, end) => {
-                setTargetDestination(dest);
-                handleSelectTab('REQUEST');
-              }}
               onOpenWeatherStudio={() => handleSelectTab('WEATHER_STUDIO')}
             />
 

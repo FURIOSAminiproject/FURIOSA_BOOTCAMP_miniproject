@@ -177,7 +177,7 @@ export const AgentTeamIntro: React.FC<AgentTeamIntroProps> = ({
               {/* 총괄 에이전트에서 전문 에이전트로 연결 */}
               <div className="h-6 w-px bg-emerald-500" />
 
-              <div className="relative hidden h-5 w-[81%] lg:block">
+              <div className="relative hidden h-5 w-[81.5%] lg:block">
                 <div className="absolute inset-x-0 top-0 h-px bg-emerald-400" />
               </div>
             </div>
@@ -186,7 +186,7 @@ export const AgentTeamIntro: React.FC<AgentTeamIntroProps> = ({
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5 lg:pt-0">
               {agents.slice(1).map((agent) => (
                 <div key={agent.name} className="relative">
-                  <div className="mx-auto h-5 w-px bg-emerald-400 lg:absolute lg:top-0 lg:left-1/2 lg:-translate-y-full" />
+                  <div className="mx-auto h-13 w-px bg-emerald-400 lg:absolute lg:top-0 lg:left-1/2 lg:-translate-y-full" />
 
                   <div className="h-full rounded-2xl border border-stone-200 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-emerald-400 hover:shadow-lg">
                     <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-[#064e43]">
@@ -220,66 +220,6 @@ export const AgentTeamIntro: React.FC<AgentTeamIntroProps> = ({
                 1개 총괄 에이전트 + 5개 전문 에이전트 협업 구조
               </span>
             </div>
-      </section>
-
-      {/* 2. "인기 여행지" - World-Class Curated Destinations Gallery */}
-      <section className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 border-b border-[#e8e4dc] pb-4">
-          <div>
-            <span className="text-xs font-bold text-[#064e43] uppercase tracking-wider font-mono">
-              CURATED KOREAN DESTINATIONS
-            </span>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-stone-900 tracking-tight font-serif mt-1">
-              인기 여행지
-            </h2>
-          </div>
-          <p className="text-xs sm:text-sm text-stone-500 max-w-md">
-            클릭하시면 7인의 AI 에이전트가 완성한 정밀 일정표 및 10년 기후 기반 예측 정보를 즉시 열람할 수 있습니다.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {popularDestinations.map((dest) => (
-            <div
-              key={dest.id}
-              onClick={dest.onClick}
-              className="group relative rounded-3xl overflow-hidden shadow-sm border border-[#e8e4dc] h-80 cursor-pointer hover:shadow-xl hover:border-stone-400 transition-all duration-500 flex flex-col justify-between p-6"
-            >
-              {/* Background Photography with Zoom Effect */}
-              <img
-                src={dest.imageUrl}
-                alt={dest.name}
-                className="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-108 transition-transform duration-700 ease-out"
-              />
-
-              {/* Ambient Luxury Dark Gradient Overlay */}
-              <div className="absolute inset-0 bg-gradient-to-t from-stone-950/90 via-stone-950/40 to-stone-950/20 group-hover:from-stone-950/95 transition-colors duration-300" />
-
-              {/* Top Tag Badge */}
-              <div className="relative z-10 self-start">
-                <span className="px-3 py-1 rounded-full bg-stone-900/70 backdrop-blur-md border border-white/20 text-[11px] font-semibold text-white">
-                  {dest.tag}
-                </span>
-              </div>
-
-              {/* Bottom Content */}
-              <div className="relative z-10 space-y-1.5 text-white">
-                <span className="text-xs font-mono text-emerald-300 uppercase tracking-wider">
-                  {dest.sub}
-                </span>
-                <h3 className="text-2xl font-bold tracking-tight font-serif flex items-center justify-between">
-                  <span>{dest.name}</span>
-                  <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center group-hover:bg-[#e26a2c] group-hover:translate-x-1 transition-all">
-                    <ArrowRight className="w-4 h-4 text-white" />
-                  </div>
-                </h3>
-                <p className="text-xs text-stone-300 leading-relaxed line-clamp-2 pt-0.5">
-                  {dest.description}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
       </section>
     </div>
   );
