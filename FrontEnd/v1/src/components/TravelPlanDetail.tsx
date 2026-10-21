@@ -613,10 +613,10 @@ export const TravelPlanDetail: React.FC<TravelPlanDetailProps> = ({
       </div>
 
       {/* 6. Poetic Review Section: 수필 & 시 한 수 */}
-      <PoeticReviewSection
+      {/* <PoeticReviewSection
         reviews={plan.literaryReviews || []}
         culinaryPlaces={culinaryPlaces}
-      />
+      /> */}
 
       {/* 7. Modals: Local Expert Chat, Smart Packing Checklist, Hourly Weather & Outfit */}
       <LocalExpertChatModal

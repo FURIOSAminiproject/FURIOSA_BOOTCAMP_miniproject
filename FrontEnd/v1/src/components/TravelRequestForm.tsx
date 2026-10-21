@@ -18,13 +18,13 @@ export const TravelRequestForm: React.FC<TravelRequestFormProps> = ({
   isLoading,
   initialDestination = '제주, 전주, 부산, 강릉 등'
 }) => {
-  const [clientName, setClientName] = useState('홍길동');
-  const [clientContact, setClientContact] = useState('010-1234-5678');
+  const [clientName, setClientName] = useState('');
+  const [clientContact, setClientContact] = useState('');
   const [departureCity, setDepartureCity] = useState('서울');
   const [destination, setDestination] = useState(initialDestination === '제주, 전주, 부산, 강릉 등' ? '제주' : initialDestination);
   const [startDate, setStartDate] = useState('2026-11-20');
   const [endDate, setEndDate] = useState('2026-11-23');
-  const [adultCount, setAdultCount] = useState(2);
+  const [adultCount, setAdultCount] = useState(1);
   const [childCount, setChildCount] = useState(0);
   const [budgetManwon, setBudgetManwon] = useState(100); // In 만원 as per screenshot
   const [selectedStyles, setSelectedStyles] = useState<string[]>(['힐링', '맛집 탐방', '자연·풍경']);
@@ -87,29 +87,10 @@ export const TravelRequestForm: React.FC<TravelRequestFormProps> = ({
               여행 의뢰하기
             </h1>
           </div>
-
-          {/* Quick preset picker */}
-          <div className="flex items-center gap-1.5 text-xs">
-            <span className="text-stone-400 font-medium">원클릭 프리셋:</span>
-            <button
-              type="button"
-              onClick={() => loadPreset(PRESET_JEJU_REQUEST)}
-              className="px-2.5 py-1.5 rounded-xl bg-stone-100 hover:bg-[#064e43] hover:text-white text-stone-700 text-xs font-semibold transition-all shadow-2xs cursor-pointer"
-            >
-              제주 2박3일
-            </button>
-            <button
-              type="button"
-              onClick={() => loadPreset(PRESET_GYEONGJU_REQUEST)}
-              className="px-2.5 py-1.5 rounded-xl bg-stone-100 hover:bg-[#064e43] hover:text-white text-stone-700 text-xs font-semibold transition-all shadow-2xs cursor-pointer"
-            >
-              경주 1박2일
-            </button>
-          </div>
         </div>
 
         <p className="text-xs sm:text-sm text-stone-500 leading-relaxed">
-          조건만 알려주시면 12인의 전문 AI 에이전트가 중복 없는 일정·경비·숙소·교통·로컬 미식·기후·안전까지 완벽히 설계합니다. (최종 확정은 전담 관리자가 인가)
+          조건만 알려주시면 5인의 전문 AI 에이전트가 중복 없는 일정·경비·숙소·교통·로컬 미식·기후까지 완벽히 설계합니다.
         </p>
       </div>
 
@@ -140,7 +121,7 @@ export const TravelRequestForm: React.FC<TravelRequestFormProps> = ({
               required
               value={clientContact}
               onChange={(e) => setClientContact(e.target.value)}
-              placeholder="010-1234-5678"
+              placeholder="010-XXXX-XXXX"
               className="w-full text-sm border border-stone-200 rounded-xl px-3.5 py-2.5 focus:outline-hidden focus:border-[#064e43] focus:ring-1 focus:ring-[#064e43]"
             />
           </div>
