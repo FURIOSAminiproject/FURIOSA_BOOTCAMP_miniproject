@@ -66,3 +66,25 @@ origin/jiseokLee의 AuthModule·User·회원가입·로그인·OAuth를 현재 N
 사용자가 제공한 CI 로그에서 Node 테스트 6개는 통과했으나 Jest 단위 테스트가 NestJS 12의 ESM 패키지를 CommonJS require로 불러오며 실패했다. 이전 병합 검증은 로컬 Node 24.20.0에서 수행했으며, CI Node 22 검증을 대신하지 못했다. 공식 Node 22.23.3 Windows 바이너리로 같은 오류를 재현했다.
 
 테스트 전용 tsconfig.spec.json과 단위·E2E의 ESM 변환 설정을 추가하고 jest 객체를 명시적으로 가져오도록 수정했다. 명시적 jest import에 맞춰 mock 함수·nullable 비밀번호 해시의 타입도 보완했고 tsconfig.spec의 noEmit 타입 검사가 통과했다. 운영 컴파일·CI/Docker Node 22는 유지했다. Node 22.23.3에서 전체 npm test(6+4개), 모킹 E2E 1개 및 운영 빌드가 통과했고, Node 24.20.0에서도 Jest 단위 4개·E2E 1개가 캐시 없이 통과했다. 실제 GitHub Linux 러너 재실행·EC2 배포는 수행하지 않았다.
+
+## 2026-10-22 추가: TourAPI 장소 수집과 출처 기록
+
+실제 실행 경로인 NestJS/src/places에 독립 수집 모듈·서비스와 CLI를 추가했다. 목록·동기화·행사·단일 상세·분류 모드를 지원하고 기존 환경 로더를 통해 명시한 local/dev/prod 설정을 사용한다. 분류·지역 코드 조회, 기본 장소 UPSERT, 네 상세 API의 성공 묶음 저장을 분리하고 요청 예산·타임아웃·단일 재시도·페이지 이어받기를 제공한다. 인증키는 환경변수로 받고 오류·원본·출처 URL에서 제외한다.
+
+content_id/category_code 충돌 시 기존 UUID를 유지하며 목록 수집은 기존 상세를 보존한다. raw_data에는 API별 최신 items·수집 시각·인증정보를 제거한 요청 URL을 남긴다. 실제 내용이 같으면 unchanged이며 updated_at은 유지하고 수집 메타데이터만 갱신한다. showflag=0은 비활성화하며 후기 연결을 삭제하지 않는다. 장소의 source_url/source_type은 별도 변경 SQL로 추가했고 TourAPI 수집기는 API를 저장한다. CRAWLING 값은 허용하되 크롤러는 구현하지 않았다. 자동 스키마 변경 설정은 계속 false다.
+
+Node 22.23.3에서 npm test(Node 20개 + Jest 4개)와 운영 빌드가 통과했다. PGlite에서 실제 저장 SQL·UUID 유지·상세 병합·후기 FK 보존, 출처 인증정보 제거, 변경 SQL의 반복 실행·데이터 보존·미확인 출처 NULL을 검사했다. 실제 개발 DB travel_test.public에 분류 315개와 관광지 2개를 저장했으며 재수집 때 inserted=0/updated=0/unchanged=2와 UUID·상세 유지, 인증키 없는 source_url 및 source_type=API를 확인했다. 최초 연동 20회와 출처 추가 후 6회로 총 26회 TourAPI 요청을 사용했다. 실제 users·후기 데이터는 생성·변경하지 않았다.
+
+전국 전체 수집, 모든 관광타입의 실제 응답, 장소/후기 웹 CRUD, 자동 스케줄, ORS·ITS 연동과 운영 배포는 포함하지 않는다. 기존 B01~B04 및 회원 엔티티의 정수 ID 선언과 실제 개발 DB의 UUID 차이는 해결한 것으로 표시하지 않는다. 실행 방법·매핑·실패 후 재시도는 [수집 안내](NestJS/docs/TOUR_INGESTION.md)를 따른다.
+
+## 2026-10-22 추가: 장소 수집 책임 분리와 SOLID
+
+TourApiModule(HTTP)·TourPersistenceModule(DB)·TourIngestionModule(업무 흐름)로 분리했다. 분류·지역 준비는 TourReferenceService, 상세 묶음 조회는 TourDetailService, 목록 모드 구성은 TourListPlans, 순수 병합·변경 판정은 TourPlaceMapper가 담당한다. 기존 TourStore에는 장소 SQL만 남기고 분류 SQL은 TourCategoryRepository, 트랜잭션·잠금·스키마 확인은 TourDbSession으로 옮겼다. 서비스는 필요한 기능만 가진 인터페이스를 받고 실제 구현은 Nest factory에서 조립한다.
+
+전략 주입 시 수집 서비스 유지(OCP), HTTP/메모리 조회 구현의 공통 계약(LSP), 좁은 포트만으로 분류·상세 동작(ISP/DIP), 매핑·출처 정제와 잠금·롤백·연결 반환(SRP)을 확인하는 테스트 11개를 추가했다. 기존 수집 테스트 14개도 분리한 Nest 모듈 구성에서 통과했다. Node 22.23.3의 전체 npm test는 Node 31개 + Jest 4개, 총 35개 통과했고 운영 빌드도 통과했다. 격리 PGlite에서 분리한 저장소의 실제 SQL과 UUID·상세·후기 보존을 재검증했다. 검증 명령과 범위는 [장소 모듈 README](NestJS/src/places/README.md)에 기록했다.
+
+이번 리팩터링에서 원격 DB 쓰기·TourAPI 호출은 추가로 실행하지 않았다. 기존 개발 DB의 장소 2건은 부산 사하구 관광지를 page-size=2/max-pages=1로 제한한 실연동 결과다. 이전 nextPages.list=2로 다음 페이지가 있었고, 전국 전체 수집이나 두 곳만 존재한다는 의미가 아니다. 원격 DB·API 실연동 기록과 이번 대역/격리 엔진 검증을 구분한다. 기존 B01~B04·회원 ID 선언 차이·운영 배포 범위는 이번 변경으로 해결된 것으로 표시하지 않는다.
+
+### 배포 커밋 범위
+
+사용자 요청에 따라 수집 검증용 test/tour-ingestion.test.cjs와 test/tour-design.test.cjs, 임시 PGlite·실연동 도구는 배포 커밋에서 제외한다. 위 35개 통과 기록은 로컬 검증 파일을 포함한 결과이며, 해당 파일이 없는 배포 체크아웃의 npm test는 기존 Node 6개와 Jest 4개를 실행한다. 검증 파일 전용 package 명령은 배포 설정에서 제거했다. 실제 수집 진입점 scripts/tour-ingest.cjs와 src/places/ingest.ts는 운영 기능이므로 포함한다.

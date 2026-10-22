@@ -4,6 +4,8 @@ NestJS 12, TypeScript 6, TypeORM, PostgreSQL 드라이버와 `@google/genai`를 
 
 수정 전에는 [작업 지침](AGENTS.md)과 [백엔드 구현 검토 기록](../REVIEW.md)을 확인합니다. 검토 기록의 개선 항목은 현재 미수정입니다.
 
+장소 수집의 모듈 구성·SOLID 적용·테스트 결과·현재 장소가 2건인 이유는 [장소 모듈 README](src/places/README.md)에 정리했습니다.
+
 ## 구현 범위
 
 `src/travel/travel-engine.ts`는 Gemini 통합 프롬프트로 일정 JSON을 생성합니다. 키가 없거나 요청·파싱 과정이 실패하면 `generateProceduralKoreanPlan`을 사용합니다. 독립적인 7개 AI 에이전트의 호출·협업 파이프라인은 없습니다.
@@ -11,6 +13,8 @@ NestJS 12, TypeScript 6, TypeORM, PostgreSQL 드라이버와 `@google/genai`를 
 `poetry.service.ts`는 음식점/카페의 시·수필을 Gemini로 생성하고 실패 시 내장 문구로 폴백합니다. 일정 생성 중 대상 장소는 Gemini 일정 경로에서 최대 6곳, 절차적 일정 경로에서 최대 5곳입니다. 각 AI 요청 타임아웃은 60초이므로 장애 시 즉시 결과가 반환되는 것은 아닙니다. 장소 실재성·가격·최단 동선·안전 점수는 외부 실시간 데이터로 검증하지 않습니다.
 
 TypeORM은 기동 시 DB에 연결하고 진단 쿼리를 수행합니다. 회원가입·로그인·OAuth 사용자 정보는 `users`에 저장합니다. 일정·승인 저장 엔티티/API와 여행·관리자 API의 권한 검사는 없습니다. 프론트의 승인·반려 상태는 브라우저 메모리에서 관리됩니다.
+
+TourAPI 장소 수집은 [수집 CLI와 서비스](docs/TOUR_INGESTION.md)로 구현했습니다. 분류·지역 코드를 조회하고 장소 목록·설명·운영시간·요금·이미지를 `place_categories`와 `places`에 추가·갱신합니다. 기존 UUID와 상세·후기는 유지하며 공개 수집 HTTP 엔드포인트나 자동 스케줄은 추가하지 않았습니다.
 
 ## 디렉토리
 
@@ -20,10 +24,11 @@ BackEnd/NestJS/
 │   ├── auth/           # 회원가입·로그인·OAuth·세션 쿠키
 │   ├── users/          # User 엔티티
 │   ├── database/       # 접속 옵션, 모듈, 헬스체크, 진단 CLI
+│   ├── places/         # TourAPI 클라이언트, 변환, DB 저장, 수집 서비스·CLI 모듈
 │   ├── travel/         # 컨트롤러, 입력 검증, 일정 엔진, 문학 리뷰, 타입
 │   ├── app.module.ts   # 서비스 등록과 /api/health
 │   └── main.ts         # 네트워크 바인딩, 선택적 TLS, /api 접두사
-├── scripts/            # start.cjs, build.cjs, check-db.cjs
+├── scripts/            # start.cjs, build.cjs, check-db.cjs, tour-ingest.cjs
 ├── test/               # api, database, environment 테스트
 ├── Dockerfile
 ├── ecosystem.config.cjs
@@ -94,7 +99,21 @@ npm test
 
 진단 CLI는 `SELECT current_database() AS name`으로 연결된 DB 이름을 확인하며 데이터를 변경하지 않습니다. 연결 타임아웃은 5초이고 실행 시간은 네트워크 상태 등에 따라 달라집니다. `/api/health/db`의 `SELECT 1`과 구분합니다.
 
-`npm test`는 운영 소스를 컴파일한 뒤 Node 내장 테스트 6개와 Jest 단위 테스트 4개를 실행합니다. `npm run test:e2e -- --runInBand`는 모킹한 앱의 `/api` 응답을 검사합니다. API 테스트는 Mock DataSource를 사용하므로 운영 DB 연결 성공을 검증하는 테스트는 아닙니다. `synchronize`, `migrationsRun`, `dropSchema`는 모두 `false`입니다.
+`npm test`는 운영 소스를 컴파일한 뒤 기존 Node 내장 테스트 6개와 Jest 단위 테스트 4개를 실행합니다. 장소 수집 검증용 테스트 25개는 로컬에서만 보관하며 배포 커밋에는 포함하지 않습니다. 해당 파일이 있는 로컬 환경에서는 총 35개가 실행됩니다. `npm run test:e2e -- --runInBand`는 모킹한 앱의 `/api` 응답을 검사합니다. API 테스트는 Mock DataSource를 사용하므로 운영 DB 연결 성공을 검증하는 테스트는 아닙니다. `synchronize`, `migrationsRun`, `dropSchema`는 모두 `false`입니다.
+
+## TourAPI 장소 수집
+
+선택한 환경 파일 또는 시스템 환경에 TOUR_API_KEY를 설정한 뒤 실행합니다. 실제 키는 [.env.example](.env.example)을 참고해 별도 준비합니다.
+
+```powershell
+# 개발 DB, 부산 사하구 관광지 2건과 상세 정보
+npm run tour:ingest -- dev --region 26 --district 380 --content-type 12 --page-size 2 --max-pages 1
+
+# 변경분: 표시·비표시 모두 확인, 상세 호출은 생략
+npm run tour:ingest -- dev --mode sync --modified-since 20261021 --region 26 --list-only
+```
+
+기본은 한 페이지·상세 포함이며 API 예산은 실행당 200회입니다. nextPages가 있으면 전체 수집이 끝난 것이 아닙니다. 운영 모드는 빌드 후 dist CLI를 사용합니다. 상세 옵션·부분 실패·요금 해석·재수집 정책·실제 개발 DB 검증은 [수집 문서](docs/TOUR_INGESTION.md)를 참고합니다. 회원 인증 모듈이나 JWT_SECRET 없이 실행할 수 있고 후기·회원 테이블은 수정하지 않습니다.
 
 CI·Docker는 Node 22를 사용합니다. NestJS 12의 ESM 패키지를 Jest에서 불러오기 위해 단위·E2E 설정은 `tsconfig.spec.json`과 `useESM: true`를 사용하며 `.ts`를 ESM으로 처리합니다. 운영 컴파일은 기존 `tsconfig.build.json`을 유지합니다. CommonJS로 변환한 테스트가 Node 24.9 이상에서만 우연히 통과할 수 있으므로 CI의 Node 22에서도 확인합니다. [Jest의 require(ESM) 버전 차이](https://jestjs.io/docs/ecmascript-modules#require-of-esm)
 

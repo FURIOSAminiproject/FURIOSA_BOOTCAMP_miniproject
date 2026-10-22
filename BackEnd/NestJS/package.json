@@ -31,6 +31,7 @@
     "db:check:local": "node scripts/check-db.cjs local",
     "db:check:dev": "node scripts/check-db.cjs dev",
     "db:check:prod": "node scripts/check-db.cjs prod",
+    "tour:ingest": "node scripts/tour-ingest.cjs",
     "test:legacy": "node --test test/*.test.cjs",
     "test:unit": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand"
   },
