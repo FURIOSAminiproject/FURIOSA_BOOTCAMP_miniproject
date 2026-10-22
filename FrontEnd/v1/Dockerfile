@@ -49,7 +49,7 @@ COPY nginx_http.conf /etc/nginx/templates/nginx_http.conf
 COPY nginx_ssl.conf /etc/nginx/templates/nginx_ssl.conf
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
+RUN sed -i 's/\r$//' /docker-entrypoint.sh && chmod +x /docker-entrypoint.sh
 
 # HTTP(80) 및 HTTPS(443) 포트 개방
 EXPOSE 80 443
