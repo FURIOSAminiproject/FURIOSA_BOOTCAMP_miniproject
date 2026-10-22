@@ -4,6 +4,7 @@ import pebbleBeachImg from '../assets/images/pebble_beach_hero_1792222360356.jpg
 
 interface HeroBannerProps {
   onStartRequest: () => void;
+  onOpenTripArchive?: () => void;
   onQuickExplore?: (destination: string) => void;
   onOpenStudio?: () => void;
   onOpenWeatherStudio?: () => void;
@@ -11,6 +12,7 @@ interface HeroBannerProps {
 
 export const HeroBanner: React.FC<HeroBannerProps> = ({
   onStartRequest,
+  onOpenTripArchive,
   onQuickExplore,
   onOpenStudio,
   onOpenWeatherStudio
@@ -67,7 +69,21 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
         </div>
 
         {/* 우측 하단 여행 의뢰 CTA */}
-        <div className="absolute bottom-[30px] right-5 sm:right-8 z-20">
+        <div className="absolute bottom-[30px] right-5 sm:right-8 z-20 flex flex-col items-end gap-3">
+          {onOpenTripArchive && (
+            <button
+              onClick={onOpenTripArchive}
+              className="group/archive flex items-center gap-2 rounded-full
+                bg-white/95 px-5 py-3 sm:px-6 sm:py-3.5
+                text-[#064e43] text-sm sm:text-base font-semibold
+                shadow-xl transition-all duration-300 ease-out
+                hover:bg-white hover:scale-105 hover:shadow-2xl
+                active:scale-95"
+            >
+              <span>내 여행 보관함</span>
+              <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover/archive:translate-x-1.5" />
+            </button>
+          )}
           <button
             onClick={onStartRequest}
             className="group/cta flex items-center gap-2 rounded-full

@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { Compass, LogOut, LogIn, Menu, X } from 'lucide-react';
 import { AuthUser } from '../services/authService';
 
+type HeaderTab = 'EXPLORE' | 'REQUEST' | 'PLAN' | 'ARCHIVE' | 'ADMIN' | 'USER' | 'STUDIO' | 'WEATHER_STUDIO';
+
 interface HeaderProps {
-  currentTab: 'EXPLORE' | 'REQUEST' | 'PLAN' | 'ADMIN' | 'STUDIO' | 'WEATHER_STUDIO';
-  onSelectTab: (tab: 'EXPLORE' | 'REQUEST' | 'PLAN' | 'ADMIN' | 'STUDIO' | 'WEATHER_STUDIO') => void;
+  currentTab: HeaderTab;
+  onSelectTab: (tab: HeaderTab) => void;
   currentUser?: AuthUser | null;
   onOpenLogin?: () => void;
   onLogout?: () => void;
@@ -19,9 +21,22 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const handleNav = (tab: 'EXPLORE' | 'REQUEST' | 'PLAN' | 'ADMIN' | 'STUDIO' | 'WEATHER_STUDIO') => {
+  const handleNav = (tab: HeaderTab) => {
     onSelectTab(tab);
     setMobileMenuOpen(false);
+  };
+
+  const handleBrandClick = () => {
+    if (!currentUser) {
+      handleNav('EXPLORE');
+      return;
+    }
+
+    handleNav(currentUser.role === 'Admin' ? 'ADMIN' : 'USER');
+  };
+
+  const handleMyTrips = () => {
+    handleNav(currentUser && currentUser.role !== 'Admin' ? 'ARCHIVE' : 'PLAN');
   };
 
   return (
@@ -29,7 +44,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
         {/* Brand - Exactly matching screenshots */}
         <div
-          onClick={() => handleNav('EXPLORE')}
+          onClick={handleBrandClick}
           className="flex items-center gap-2.5 cursor-pointer select-none group"
         >
           <div className="w-9 h-9 rounded-full bg-[#064e43] text-white flex items-center justify-center shadow-xs">
@@ -54,9 +69,9 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
 
           <button
-            onClick={() => handleNav('PLAN')}
+            onClick={handleMyTrips}
             className={`transition-colors py-1 ${
-              currentTab === 'PLAN'
+              currentTab === 'ARCHIVE'
                 ? 'font-bold text-[#064e43]'
                 : 'hover:text-stone-900'
             }`}
@@ -113,7 +128,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={() => handleNav('EXPLORE')}
             className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold ${
-              currentTab === 'EXPLORE' ? 'bg-[#064e43] text-white' : 'text-stone-700 hover:bg-stone-100'
+              currentTab === 'EXPLORE' || currentTab === 'USER' ? 'bg-[#064e43] text-white' : 'text-stone-700 hover:bg-stone-100'
             }`}
           >
             홈 (소개 & 장기 기상예보)
@@ -127,9 +142,9 @@ export const Header: React.FC<HeaderProps> = ({
             여행 의뢰
           </button>
           <button
-            onClick={() => handleNav('PLAN')}
+            onClick={handleMyTrips}
             className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold ${
-              currentTab === 'PLAN' ? 'bg-[#064e43] text-white' : 'text-stone-700 hover:bg-stone-100'
+              currentTab === 'ARCHIVE' ? 'bg-[#064e43] text-white' : 'text-stone-700 hover:bg-stone-100'
             }`}
           >
             내 여행

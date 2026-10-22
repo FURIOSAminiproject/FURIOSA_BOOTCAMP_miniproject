@@ -22,6 +22,8 @@ import { GisVerificationModal } from './components/GisVerificationModal';
 import { TravelerSocialFeed } from './components/TravelerSocialFeed';
 import { AiTransformerStudio } from './components/AiTransformerStudio';
 import { WeatherTechStudio } from './components/WeatherTechStudio';
+import { UserHomePage } from './components/UserHomePage';
+import { TravelArchivePage } from './components/TravelArchivePage';
 import { AuthModal } from './components/auth/AuthModal';
 import { getCurrentUser, logoutUser, AuthUser } from './services/authService';
 import { CheckCircle2 } from 'lucide-react';
@@ -30,11 +32,12 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
   // const [currentTab, setCurrentTab] = useState<'EXPLORE' | 'REQUEST' | 'PLAN' | 'ADMIN' | 'STUDIO' | 'WEATHER_STUDIO'>('EXPLORE');
-  const [currentTab, setCurrentTab] = useState<'EXPLORE' | 'REQUEST' | 'PLAN' | 'ADMIN' | 'USER'   | 'STUDIO' | 'WEATHER_STUDIO'>('EXPLORE');
+  const [currentTab, setCurrentTab] = useState<'EXPLORE' | 'REQUEST' | 'PLAN' | 'ARCHIVE' | 'ADMIN' | 'USER' | 'STUDIO' | 'WEATHER_STUDIO'>('EXPLORE');
   const pathByTab = {
     EXPLORE: '/',
     REQUEST: '/trips/new',
     PLAN: '/trips',
+    ARCHIVE: '/trips/archive',
     ADMIN: '/Admin',
     USER: '/user',
     STUDIO: '/studio',
@@ -45,6 +48,7 @@ export default function App() {
     '/': 'EXPLORE',
     '/trips/new': 'REQUEST',
     '/trips': 'PLAN',
+    '/trips/archive': 'ARCHIVE',
     '/Admin': 'ADMIN',
     '/user': 'USER',
     '/studio': 'STUDIO',
@@ -441,6 +445,44 @@ export default function App() {
               }}
             />
           </div>
+        )}
+
+        {currentTab === 'USER' && (
+          <UserHomePage
+            onStartRequest={() => handleSelectTab('REQUEST')}
+            onOpenTripArchive={() => handleSelectTab('ARCHIVE')}
+            onQuickExplore={(destination) => {
+              setTargetDestination(destination);
+              if (destination.includes('제주')) {
+                setSelectedPlan(PRESET_JEJU_PLAN);
+                handleSelectTab('PLAN');
+              } else if (destination.includes('경주')) {
+                setSelectedPlan(PRESET_GYEONGJU_PLAN);
+                handleSelectTab('PLAN');
+              } else {
+                handleSelectTab('REQUEST');
+              }
+            }}
+            onSelectPlan={(plan) => {
+              setSelectedPlan(plan);
+              handleSelectTab('PLAN');
+            }}
+            onSelectDestination={setTargetDestination}
+            onOpenStudio={() => handleSelectTab('STUDIO')}
+            onOpenWeatherStudio={() => handleSelectTab('WEATHER_STUDIO')}
+          />
+        )}
+
+        {currentTab === 'ARCHIVE' && (
+          <TravelArchivePage
+            plans={plans}
+            userName={currentUser?.name || undefined}
+            onCreatePlan={() => handleSelectTab('REQUEST')}
+            onOpenPlan={(plan) => {
+              setSelectedPlan(plan);
+              handleSelectTab('PLAN');
+            }}
+          />
         )}
 
         {/* TAB 2: REQUEST FORM & LIVE ORCHESTRATION */}

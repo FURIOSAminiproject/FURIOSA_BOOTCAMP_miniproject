@@ -10,7 +10,10 @@ interface TravelRequestFormProps {
 }
 
 const STYLE_OPTIONS = [
-  '힐링', '자연·풍경', '맛집 탐방', '카페 투어', '역사·문화', '액티비티', '아이와 함께', '부모님과 함께', '사진 명소'
+  '힐링', '자연·풍경', '맛집 탐방', '카페 투어', '역사·문화', 
+  '액티비티', '아이와 함께', '부모님과 함께', '사진 명소', '캠핑·아웃도어', 
+  '쇼핑', '야경·조명', '예술·전시', '축제·이벤트', '와인·주류', '스포츠 관람', 
+  '테마파크', '휴양·리조트', '도보 여행', '자전거 여행'
 ];
 
 export const TravelRequestForm: React.FC<TravelRequestFormProps> = ({
@@ -96,32 +99,18 @@ export const TravelRequestForm: React.FC<TravelRequestFormProps> = ({
 
       {/* Main Form Box */}
       <form onSubmit={handleSubmit} className="bg-white rounded-3xl p-6 sm:p-9 border border-[#e5e0d8] shadow-sm space-y-6">
-        {/* Row 1: 대표자 이름 / 연락처 */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Row 1: 여행 제목 */}
+        <div className="grid grid-cols-1 sm:grid-cols-1">
           <div>
             <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-              대표자 이름
+              여행 제목
             </label>
             <input
               type="text"
               required
               value={clientName}
               onChange={(e) => setClientName(e.target.value)}
-              placeholder="홍길동"
-              className="w-full text-sm border border-stone-200 rounded-xl px-3.5 py-2.5 focus:outline-hidden focus:border-[#064e43] focus:ring-1 focus:ring-[#064e43]"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-              연락처
-            </label>
-            <input
-              type="text"
-              required
-              value={clientContact}
-              onChange={(e) => setClientContact(e.target.value)}
-              placeholder="010-XXXX-XXXX"
+              placeholder="자신만의 표현으로 여행을 설명해주세요. 예: 제주도 3박4일 힐링 여행"
               className="w-full text-sm border border-stone-200 rounded-xl px-3.5 py-2.5 focus:outline-hidden focus:border-[#064e43] focus:ring-1 focus:ring-[#064e43]"
             />
           </div>
@@ -145,7 +134,7 @@ export const TravelRequestForm: React.FC<TravelRequestFormProps> = ({
 
           <div>
             <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-              가고 싶은 곳
+              목적지
             </label>
             <input
               type="text"
@@ -238,7 +227,7 @@ export const TravelRequestForm: React.FC<TravelRequestFormProps> = ({
         {/* Row 6: 여행 스타일 pills */}
         <div className="space-y-2">
           <label className="block text-xs font-semibold text-stone-700">
-            여행 스타일
+            여행 테마
           </label>
           <div className="flex flex-wrap gap-2">
             {STYLE_OPTIONS.map((style) => {

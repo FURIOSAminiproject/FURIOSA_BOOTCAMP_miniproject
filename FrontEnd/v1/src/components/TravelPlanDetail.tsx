@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { FullTravelPlan, TravelPlace } from '../types/travel';
 import { TravelMapView } from './TravelMapView';
-import { PoeticReviewSection } from './PoeticReviewSection';
-import { TravelInsuranceDashboard } from './TravelInsuranceDashboard';
 import { LocalExpertChatModal } from './LocalExpertChatModal';
 import { SmartPackingChecklistModal } from './SmartPackingChecklistModal';
 import { HourlyWeatherOutfitModal } from './HourlyWeatherOutfitModal';
@@ -61,169 +59,6 @@ export const TravelPlanDetail: React.FC<TravelPlanDetailProps> = ({
 
   return (
     <div className="space-y-8">
-      {/* 1. Status Banner */}
-      <div className={`rounded-3xl p-5 sm:p-7 border shadow-xs transition-all ${
-        request.status === 'APPROVED'
-          ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
-          : request.status === 'PENDING_APPROVAL'
-          ? 'bg-amber-50/70 border-amber-200 text-amber-950'
-          : 'bg-blue-50/70 border-blue-200 text-blue-950'
-      }`}>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-start sm:items-center gap-3">
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-xs ${
-              request.status === 'APPROVED' ? 'bg-[#064e43] text-white' :
-              request.status === 'PENDING_APPROVAL' ? 'bg-[#e26a2c] text-white' :
-              'bg-blue-600 text-white'
-            }`}>
-              {request.status === 'APPROVED' ? <CheckCircle2 className="w-6 h-6 text-emerald-300" /> :
-               request.status === 'PENDING_APPROVAL' ? <Clock className="w-6 h-6" /> :
-               <RotateCcw className="w-6 h-6" />}
-            </div>
-
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-white/90 border border-stone-200">
-                  {request.status === 'APPROVED' ? '인가 완료 (APPROVED)' :
-                   request.status === 'PENDING_APPROVAL' ? '승인 대기 (PENDING APPROVAL)' : 'AI 재조율 중 (REVISING)'}
-                </span>
-                {request.approvedAt && (
-                  <span className="text-xs text-stone-500 font-mono">
-                    {request.approvedAt} 인가
-                  </span>
-                )}
-                {/* GIS Verification Badge */}
-                <button
-                  onClick={onOpenGisModal}
-                  className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 hover:bg-emerald-200 transition-colors flex items-center gap-1"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
-                  <span>GIS 지도 연동 검증 100% (중복 0건)</span>
-                </button>
-              </div>
-
-              <h2 className="text-lg sm:text-2xl font-bold mt-1 text-stone-900">
-                {request.status === 'APPROVED'
-                  ? `[확정] ${request.clientName} 고객님의 ${request.destination} 맞춤 여행 일정`
-                  : request.status === 'PENDING_APPROVAL'
-                  ? `[승인 대기] AI 에이전트 설계 완료 · 관리자 최종 인가를 대기하고 있습니다`
-                  : `[재작성 중] 관리자 수정 피드백을 반영하여 AI가 일정을 조정하고 있습니다`}
-              </h2>
-
-              {request.adminNote && (
-                <p className="text-xs sm:text-sm mt-1.5 text-stone-700 bg-white/80 p-2.5 rounded-xl border border-stone-200/60">
-                  <span className="font-semibold text-stone-900">관리자 소견:</span> {request.adminNote}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Action Buttons in Banner */}
-          <div className="flex items-center gap-2 self-end sm:self-center">
-            {isAdmin && request.status !== 'APPROVED' && (
-              <button
-                onClick={onOpenApprovalModal}
-                className="px-4 py-2.5 rounded-xl bg-[#064e43] hover:bg-[#043d34] text-white text-xs sm:text-sm font-bold shadow-md transition-all flex items-center gap-1.5"
-              >
-                <ShieldCheck className="w-4 h-4 text-emerald-300" />
-                관리자 인가 심사
-              </button>
-            )}
-
-            <button
-              onClick={onOpenGisModal}
-              className="px-3.5 py-2.5 rounded-xl bg-white border border-stone-300 text-stone-700 hover:bg-stone-50 text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5"
-            >
-              <Globe className="w-4 h-4 text-[#064e43]" />
-              <span>지도 PUSH 전수검증</span>
-            </button>
-
-            <button
-              onClick={onOpenShareModal}
-              className="px-3.5 py-2.5 rounded-xl bg-white border border-stone-300 text-stone-700 hover:bg-stone-50 text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
-            >
-              <Share2 className="w-4 h-4" />
-              공유
-            </button>
-
-            <button
-              onClick={() => setIsCalendarModalOpen(true)}
-              className="px-3.5 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#064e43] border border-emerald-300 text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
-              title="Google / Apple 캘린더와 여행 일정 자동 동기화 (.ics)"
-            >
-              <Calendar className="w-4 h-4 text-[#064e43]" />
-              <span>캘린더 동기화 (.ics)</span>
-            </button>
-
-            <button
-              onClick={onPrint}
-              className="px-3.5 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
-            >
-              <Printer className="w-4 h-4" />
-              일정표 출력
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Smart Travel Assistant & Quick Care Bar */}
-      <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-emerald-50/80 via-teal-50/60 to-sky-50/70 border border-emerald-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-[#064e43] text-white flex items-center justify-center shadow-xs shrink-0">
-            <Sparkles className="w-5 h-5 text-emerald-300" />
-          </div>
-          <div>
-            <h3 className="font-bold text-xs sm:text-sm text-stone-900 flex items-center gap-1.5">
-              <span>길벗 AI 스마트 컨시어지 & 케어 툴킷</span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-700 text-white font-mono">
-                LIVE
-              </span>
-            </h3>
-            <p className="text-[11px] text-stone-600 mt-0.5">
-              현지 로컬 전문가 1:1 대화, 실시간 시간대별 날씨·복장 가이드, 맞춤 패킹 체크리스트를 즉시 확인하세요.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Button 1: Local Expert Chat */}
-          <button
-            onClick={() => setIsExpertChatOpen(true)}
-            className="px-4 py-2.5 rounded-2xl bg-white hover:bg-emerald-50 text-[#064e43] border border-emerald-300 text-xs font-bold transition-all flex items-center gap-2 shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer"
-          >
-            <MessageSquare className="w-4 h-4 text-emerald-700" />
-            <span>1:1 현지 로컬 전문가 & 비상 챗</span>
-          </button>
-
-          {/* Button 2: Hourly Weather & Outfit Guide */}
-          <button
-            onClick={() => setIsHourlyWeatherOpen(true)}
-            className="px-4 py-2.5 rounded-2xl bg-white hover:bg-sky-50 text-sky-900 border border-sky-300 text-xs font-bold transition-all flex items-center gap-2 shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer"
-          >
-            <Sun className="w-4 h-4 text-amber-500" />
-            <span>시간대별 날씨 & 복장 가이드</span>
-          </button>
-
-          {/* Button 3: Smart Packing Checklist */}
-          <button
-            onClick={() => setIsSmartPackingOpen(true)}
-            className="px-4 py-2.5 rounded-2xl bg-white hover:bg-amber-50 text-amber-900 border border-amber-300 text-xs font-bold transition-all flex items-center gap-2 shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer"
-          >
-            <Briefcase className="w-4 h-4 text-amber-600" />
-            <span>스마트 패킹 체크리스트</span>
-          </button>
-
-          {/* Button 4: Export to Calendar (.ics) */}
-          <button
-            onClick={() => setIsCalendarModalOpen(true)}
-            className="px-4 py-2.5 rounded-2xl bg-white hover:bg-emerald-50 text-emerald-950 border border-emerald-300 text-xs font-bold transition-all flex items-center gap-2 shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer"
-          >
-            <Calendar className="w-4 h-4 text-emerald-700" />
-            <span>캘린더 동기화 (.ics)</span>
-          </button>
-        </div>
-      </div>
-
       {/* 2. Highlights & Plan Overview Cards */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#e5e0d8] shadow-xs space-y-6">
         <div>
@@ -324,34 +159,6 @@ export const TravelPlanDetail: React.FC<TravelPlanDetailProps> = ({
             </div>
           </div>
         </div>
-
-        {/* Supervisor & Quality Audit Banner */}
-        <div className="p-4 rounded-2xl bg-teal-50/60 border border-teal-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-          <div className="flex items-start sm:items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-teal-700 text-white flex items-center justify-center shrink-0">
-              <ShieldCheck className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="font-bold text-teal-950 flex items-center gap-1.5">
-                <span>총괄 협연자(Supervisor) 무결성 감사 결과: 100% 정상 통과</span>
-                <span className="text-[10px] bg-emerald-600 text-white px-1.5 py-0.2 rounded font-semibold">
-                  중복 0건
-                </span>
-              </div>
-              <p className="text-[11px] text-teal-800 mt-0.5">
-                전체 {days.length}일간의 일정 내 동일 장소 재방문 결함 원천 차단 완료. 모든 행선지({days.reduce((acc, d) => acc + d.places.length, 0)}곳)가 구글 MAP 및 네이버 지도 검색창에 정상 PUSH 연동됩니다.
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={onOpenGisModal}
-            className="px-3 py-1.5 rounded-xl bg-white border border-teal-300 text-teal-900 font-bold hover:bg-teal-100 transition-colors shrink-0 text-xs flex items-center gap-1 shadow-2xs self-start sm:self-center"
-          >
-            <Globe className="w-3.5 h-3.5 text-teal-700" />
-            <span>지도 연동 전수 검증창</span>
-          </button>
-        </div>
       </div>
 
       {/* 3. Interactive Leaflet Map View with Verification button */}
@@ -360,9 +167,6 @@ export const TravelPlanDetail: React.FC<TravelPlanDetailProps> = ({
         destinationName={request.destination}
         onOpenGisModal={onOpenGisModal}
       />
-
-      {/* 4. Real-time Risk Analysis & Safety Agent Custom Travel Insurance Plan */}
-      <TravelInsuranceDashboard plan={plan} />
 
       {/* 5. Day-by-Day Detailed Itinerary with Map PUSH Buttons */}
       <div className="space-y-6">
