@@ -1,3 +1,5 @@
+import * as dotenv from 'dotenv';
+dotenv.config({ path: require('path').resolve(__dirname, '../../.env.local') });
 import type { TypeOrmModuleOptions } from '@nestjs/typeorm';
 export function databaseOptions(env: NodeJS.ProcessEnv = process.env): TypeOrmModuleOptions {
   const required = (key: string): string => {

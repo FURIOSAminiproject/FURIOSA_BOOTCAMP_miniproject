@@ -33,4 +33,7 @@ export class User {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt!: Date;
+
+  @Column({ type: 'varchar', length: 20, default: 'user'})
+  role!: 'Admin' | 'user';
 }

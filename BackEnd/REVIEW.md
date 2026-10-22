@@ -66,3 +66,9 @@ origin/jiseokLee의 AuthModule·User·회원가입·로그인·OAuth를 현재 N
 사용자가 제공한 CI 로그에서 Node 테스트 6개는 통과했으나 Jest 단위 테스트가 NestJS 12의 ESM 패키지를 CommonJS require로 불러오며 실패했다. 이전 병합 검증은 로컬 Node 24.20.0에서 수행했으며, CI Node 22 검증을 대신하지 못했다. 공식 Node 22.23.3 Windows 바이너리로 같은 오류를 재현했다.
 
 테스트 전용 tsconfig.spec.json과 단위·E2E의 ESM 변환 설정을 추가하고 jest 객체를 명시적으로 가져오도록 수정했다. 명시적 jest import에 맞춰 mock 함수·nullable 비밀번호 해시의 타입도 보완했고 tsconfig.spec의 noEmit 타입 검사가 통과했다. 운영 컴파일·CI/Docker Node 22는 유지했다. Node 22.23.3에서 전체 npm test(6+4개), 모킹 E2E 1개 및 운영 빌드가 통과했고, Node 24.20.0에서도 Jest 단위 4개·E2E 1개가 캐시 없이 통과했다. 실제 GitHub Linux 러너 재실행·EC2 배포는 수행하지 않았다.
+
+## 2026-10-22 추가: tsx 개발 실행의 로그인 JWT 주입 오류
+
+`start:local` / `start:dev`는 `tsx`로 소스를 직접 실행한다. 이 경로에서 타입 메타데이터에만 의존하던 `AuthService`의 `JwtService`와 `ConfigService` 주입이 누락되어 로그인 중 `jwtService.signAsync` 호출이 실패할 수 있었다. 두 생성자 매개변수에 `@Inject()` 토큰을 명시했다.
+
+`tsx`로 `AuthModule`을 직접 로드한 뒤 모킹 사용자 저장소로 로그인하고 발급 JWT를 검증해 통과했다. Jest 단위 4개와 인증 통합 테스트도 통과했다. 전체 `npm test`에서는 기존 로컬 환경 파일의 DB 이름 덮어쓰기 때문에 환경 테스트 1개가 기대값과 달라 실패했으며, JWT 수정과는 별개다.

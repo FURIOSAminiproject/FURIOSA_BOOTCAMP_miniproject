@@ -83,6 +83,8 @@ npm run start:op
 
 `build:local`, `build:dev`, `build:op` / `build:prod`는 환경 파일 존재를 확인한 뒤 동일한 TypeScript 컴파일을 실행합니다. 빌드 스크립트가 DB 설정을 산출물에 주입하는 것은 아닙니다. 실행 환경은 시작 스크립트 또는 컨테이너 환경변수로 결정합니다.
 
+`start:local`과 `start:dev`는 `tsx`로 소스를 실행하므로 생성자 의존성은 타입 메타데이터 자동 추론에만 기대지 않고 `@Inject()` 등으로 토큰을 명시합니다.
+
 ## DB 진단과 테스트
 
 ```bash

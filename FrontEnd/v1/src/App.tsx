@@ -29,13 +29,14 @@ import { CheckCircle2 } from 'lucide-react';
 export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [currentTab, setCurrentTab] = useState<'EXPLORE' | 'REQUEST' | 'PLAN' | 'ADMIN' | 'STUDIO' | 'WEATHER_STUDIO'>('EXPLORE');
-
+  // const [currentTab, setCurrentTab] = useState<'EXPLORE' | 'REQUEST' | 'PLAN' | 'ADMIN' | 'STUDIO' | 'WEATHER_STUDIO'>('EXPLORE');
+  const [currentTab, setCurrentTab] = useState<'EXPLORE' | 'REQUEST' | 'PLAN' | 'ADMIN' | 'USER'   | 'STUDIO' | 'WEATHER_STUDIO'>('EXPLORE');
   const pathByTab = {
     EXPLORE: '/',
     REQUEST: '/trips/new',
     PLAN: '/trips',
-    ADMIN: '/admin',
+    ADMIN: '/Admin',
+    USER: '/user',
     STUDIO: '/studio',
     WEATHER_STUDIO: '/weather-studio',
   } as const;
@@ -44,7 +45,8 @@ export default function App() {
     '/': 'EXPLORE',
     '/trips/new': 'REQUEST',
     '/trips': 'PLAN',
-    '/admin': 'ADMIN',
+    '/Admin': 'ADMIN',
+    '/user': 'USER',
     '/studio': 'STUDIO',
     '/weather-studio': 'WEATHER_STUDIO',
   };
@@ -56,17 +58,39 @@ export default function App() {
     }
   };
 
-  React.useEffect(() => {
-    const tab = tabByPath[location.pathname] ?? 'EXPLORE';
-    setCurrentTab(tab);
-    if (!(location.pathname in tabByPath)) {
-      navigate('/', { replace: true });
-    }
-  }, [location.pathname, navigate]);
-  const [isAdmin, setIsAdmin] = useState<boolean>(true); // Logged in as administrator
+  // React.useEffect(() => {
+  //   if (!authReady) return;
+
+  //   const path = location.pathname;
+
+  //   if (path === '/Admin' && currentUser?.role !== 'Admin') {
+  //     navigate(currentUser ? '/user' : '/', { replace: true });
+
+  //     if (!currentUser) {
+  //       setAuthModalMode('login');
+  //       setAuthModalOpen(true);
+  //     }
+  //     return;
+  //   }
+
+  //   if (path === '/user' && !currentUser) {
+  //     navigate('/', { replace: true });
+  //     setAuthModalMode('login');
+  //     setAuthModalOpen(true);
+  //     return;
+  //   }
+
+  //   const tab = tabByPath[path] ?? 'EXPLORE';
+  //   setCurrentTab(tab);
+
+  //   if (!(path in tabByPath)) {
+  //     navigate('/', { replace: true });
+  //   }
+  // }, [location.pathname, navigate, currentUser, authReady]);
   
   // User Authentication state (v2 Auth integration)
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState<boolean>(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
   
@@ -101,24 +125,90 @@ export default function App() {
 
   // Authentication & OAuth session restore
   React.useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const oauthStatus = params.get('oauth');
-    if (oauthStatus === 'success') {
-      showToast('소셜 로그인이 성공적으로 완료되었습니다!');
-      window.history.replaceState({}, document.title, window.location.pathname);
-    } else if (oauthStatus === 'error') {
-      showToast(params.get('message') || '소셜 로그인에 실패했습니다. 다시 시도해주세요.');
-      window.history.replaceState({}, document.title, window.location.pathname);
+    let active = true;
+
+    const restoreSession = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const oauthStatus = params.get('oauth');
+
+      if (oauthStatus === 'error') {
+        showToast(
+          params.get('message') || '소셜 로그인에 실패했습니다.'
+        );
+
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname
+        );
+      }
+
+      try {
+        const user = await getCurrentUser();
+
+        if (!active) return;
+
+        setCurrentUser(user);
+
+        if (oauthStatus === 'success' && user) {
+          showToast('소셜 로그인이 성공적으로 완료되었습니다!');
+
+          navigate(
+            user.role === 'Admin' ? '/Admin' : '/user',
+            { replace: true }
+          );
+        } else if (oauthStatus === 'success' && !user) {
+          showToast('로그인 세션을 확인할 수 없습니다. 다시 로그인해주세요.');
+          window.history.replaceState(
+            {},
+            document.title,
+            window.location.pathname
+          );
+        }
+      } catch {
+        if (!active) return;
+        setCurrentUser(null);
+      } finally {
+        if (active) setAuthReady(true);
+      }
+    };
+
+    void restoreSession();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+  React.useEffect(() => {
+  // 로그인 상태 확인이 끝나기 전에는 권한 판단을 보류한다.
+    if (!authReady) return;
+
+    const path = location.pathname;
+
+    if (path === '/Admin' && currentUser?.role !== 'Admin') {
+      navigate(currentUser ? '/user' : '/', { replace: true });
+
+      if (!currentUser) {
+        setAuthModalMode('login');
+        setAuthModalOpen(true);
+      }
+      return;
     }
 
-    getCurrentUser()
-      .then(user => {
-        if (user) {
-          setCurrentUser(user);
-        }
-      })
-      .catch(() => {});
-  }, []);
+    if (path === '/user' && !currentUser) {
+      navigate('/', { replace: true });
+      setAuthModalMode('login');
+      setAuthModalOpen(true);
+      return;
+    }
+
+    const tab = tabByPath[path] ?? 'EXPLORE';
+    setCurrentTab(tab);
+
+    if (!(path in tabByPath)) {
+      navigate('/', { replace: true });
+    }
+  }, [location.pathname, navigate, currentUser, authReady]);
 
   const handleOpenLogin = () => {
     setAuthModalMode('login');
@@ -135,6 +225,13 @@ export default function App() {
 
   const handleLoginSuccess = (user: AuthUser) => {
     setCurrentUser(user);
+    setAuthModalOpen(false);
+
+    navigate(
+      user.role === 'Admin' ? '/Admin' : '/user',
+      { replace: true }
+    );
+
     showToast(`${user.name || user.email}님 환영합니다!`);
   };
 
@@ -402,20 +499,22 @@ export default function App() {
         )}
 
         {/* TAB 4: ADMIN APPROVAL CENTER */}
-        {currentTab === 'ADMIN' && (
-          <AdminDashboard
-            stats={agencyStats}
-            allPlans={plans}
-            onSelectPlan={(plan) => {
-              setSelectedPlan(plan);
-              handleSelectTab('PLAN');
-            }}
-            onOpenApproval={(plan) => {
-              setPlanForApproval(plan);
-              setApprovalModalOpen(true);
-            }}
-          />
-        )}
+        {currentTab === 'ADMIN' &&
+          authReady &&
+          currentUser?.role === 'Admin' && (
+            <AdminDashboard
+              stats={agencyStats}
+              allPlans={plans}
+              onSelectPlan={(plan) => {
+                setSelectedPlan(plan);
+                handleSelectTab('PLAN');
+              }}
+              onOpenApproval={(plan) => {
+                setPlanForApproval(plan);
+                setApprovalModalOpen(true);
+              }}
+            />
+          )}
 
         {/* TAB 5: AI & TRANSFORMER ARCHITECTURE STUDIO */}
         {currentTab === 'STUDIO' && (

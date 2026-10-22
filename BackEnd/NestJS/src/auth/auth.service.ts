@@ -4,6 +4,7 @@ import {
   BadRequestException,
   ConflictException,
   InternalServerErrorException,
+  Inject,
   UnauthorizedException,
   ServiceUnavailableException,
 } from '@nestjs/common';
@@ -25,7 +26,9 @@ export class AuthService {
 
   constructor(
     @InjectRepository(User) private readonly userRepository: Repository<User>,
+    @Inject(JwtService)
     private readonly jwtService: JwtService,
+    @Inject(ConfigService)
     private readonly config: ConfigService,
   ) {}
 
@@ -137,7 +140,7 @@ export class AuthService {
   }
 
   private publicUser(user: User) {
-    return { id: user.id, name: user.name, email: user.email, provider: user.authProvider };
+    return { id: user.id, name: user.name, email: user.email, provider: user.authProvider, role: user.role, };
   }
 
   private randomState() {
