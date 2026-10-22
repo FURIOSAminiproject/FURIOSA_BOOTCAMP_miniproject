@@ -4,3 +4,4 @@ dist/
 !.env*.example
 !env*.example
 *.log
+/data/tour-batch/

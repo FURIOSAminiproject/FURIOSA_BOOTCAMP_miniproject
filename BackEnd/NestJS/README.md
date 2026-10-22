@@ -14,7 +14,7 @@ NestJS 12, TypeScript 6, TypeORM, PostgreSQL 드라이버와 `@google/genai`를 
 
 TypeORM은 기동 시 DB에 연결하고 진단 쿼리를 수행합니다. 회원가입·로그인·OAuth 사용자 정보는 `users`에 저장합니다. 일정·승인 저장 엔티티/API와 여행·관리자 API의 권한 검사는 없습니다. 프론트의 승인·반려 상태는 브라우저 메모리에서 관리됩니다.
 
-TourAPI 장소 수집은 [수집 CLI와 서비스](docs/TOUR_INGESTION.md)로 구현했습니다. 분류·지역 코드를 조회하고 장소 목록·설명·운영시간·요금·이미지를 `place_categories`와 `places`에 추가·갱신합니다. 기존 UUID와 상세·후기는 유지하며 공개 수집 HTTP 엔드포인트나 자동 스케줄은 추가하지 않았습니다.
+TourAPI 장소 수집은 [수집 CLI와 서비스](docs/TOUR_INGESTION.md)로 구현했습니다. 분류·지역 코드를 조회하고 장소 목록·설명·운영시간·요금·이미지를 `place_categories`와 `places`에 추가·갱신합니다. 기존 UUID와 상세·후기는 유지하며 공개 수집 HTTP 엔드포인트는 없습니다. [매일 01:00 한국 시간 배치](src/places/batch/README.md)는 서버 시작 시 자동 등록되며 동일한 수집 서비스를 사용합니다. 별도 활성화 설정은 필요하지 않습니다.
 
 ## 디렉토리
 

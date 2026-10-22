@@ -4,6 +4,8 @@
 
 책임별 모듈 구조와 SOLID 적용·검증 기록, 현재 장소가 2건인 이유는 [장소 모듈 README](../src/places/README.md)를 참고한다.
 
+매일 01:00 한국 시간 변경분 수집은 [배치 안내](../src/places/batch/README.md)를 따른다. 서버 시작 시 설정 없이 자동 등록되며 새 API 클라이언트로 실행별 호출 예산을 초기화한다.
+
 ## 실행
 
 선택한 환경 파일 또는 시스템 환경변수에 `TOUR_API_KEY`를 설정한다. 디코딩 키와 1회 URL 인코딩된 키를 모두 받아 요청 시 한 번만 인코딩한다. 실제 키는 커밋하지 않는다. 사용자가 이전에 제공한 키를 실제 환경 파일에 자동 저장하지 않았다.
@@ -41,7 +43,7 @@ npm run tour:ingest -- dev --mode festivals --region 26 --event-start 20261022 -
 npm run tour:ingest -- dev --mode reference
 ```
 
-production 모드는 빌드된 dist/places/ingest.js를 사용하므로 먼저 npm run build 또는 npm run build:prod를 실행한다. 일반 웹 서버를 재시작하거나 공개 HTTP 수집 엔드포인트를 호출하는 방식은 아니다. 관리 역할이 없는 기존 인증 API에 임의 수집 권한을 추가하지 않았으며 서버 명령에서만 실행한다. 추후 작업 스케줄러는 같은 서비스를 호출할 수 있지만 자동 스케줄은 아직 없다.
+production 모드는 빌드된 dist/places/ingest.js를 사용하므로 먼저 npm run build 또는 npm run build:prod를 실행한다. 일반 웹 서버를 재시작하거나 공개 HTTP 수집 엔드포인트를 호출하는 방식은 아니다. 관리 역할이 없는 기존 인증 API에 임의 수집 권한을 추가하지 않았으며 서버 명령에서만 실행한다. 자동 스케줄은 별도 배치 모듈이 같은 서비스를 호출한다. CLI 자체에는 반복 실행 타이머가 없다.
 
 기존 v2의 places가 30컬럼이면 먼저 [출처 컬럼 추가 SQL](../../../DataBase/migrations/20261022_add_place_source_metadata.sql)을 적용한다. 최신 생성 DDL은 32컬럼이며 개발 DB travel_test에는 변경 SQL 적용을 완료했다. 자동 스키마 변경은 사용하지 않는다.
 
@@ -69,7 +71,7 @@ HTTP 5xx는 한 번만 재시도한다. 인증 오류·호출 한도·잘못된 
 1. DB v2 테이블을 확인하고 PostgreSQL 세션 advisory lock으로 같은 DB의 중복 수집 실행을 막는다.
 2. lclsSystmCode2(lclsSystmListYn=Y)를 전체 페이지 조회한다. 계층·동일 코드의 충돌을 검사한 뒤 대→중→소 순으로 한 트랜잭션에서 UPSERT한다. 분류 ID는 유지한다.
 3. ldongCode2(lDongListYn=N)로 시도 이름을 읽고, 등장한 시도별 시군구 이름을 메모리 사전에 추가한다. 별도 지역 테이블을 만들지 않는다.
-4. 지역 목록, 동기화 목록 또는 행사 목록을 페이지별로 읽는다. contentid가 같으면 같은 places 행을 갱신한다. 미지원 타입·잘못된 필수 장소 정보는 건너뛰고 제한된 issue 목록으로 알린다.
+4. 지역 목록, 동기화 목록 또는 행사 목록을 페이지별로 읽는다. contentid가 같으면 같은 places 행을 갱신한다. 미지원 관광타입은 ignored로 집계한다. 지원 타입의 잘못된 필수 장소 정보는 skipped와 제한된 issue 목록으로 알린다.
 5. 기본 모드에서는 장소마다 detailCommon2, detailIntro2, detailInfo2, detailImage2를 조회한다. 네 상세 요청이 모두 성공한 경우에만 상세 묶음을 저장한다. 상세 실패 전에 저장된 기본 장소는 유지되고, 기존 상세를 불완전한 응답으로 지우지 않는다.
 6. 각 장소 저장은 트랜잭션이다. 호출 사이에 장시간 DB 트랜잭션을 유지하지 않는다. 성공한 장소의 정보와 API별 최신 원본·수집 시각을 함께 반영한다.
 
@@ -100,7 +102,7 @@ HTTP 5xx는 한 번만 재시도한다. 인증 오류·호출 한도·잘못된 
 - 임시 PostgreSQL(PGlite): 실제 SQL UPSERT, 분류/장소 UUID 유지, 상세·원본 병합, unchanged 판정, 비표출 시 후기 FK 유지.
 - 2026-10-22 개발 DB travel_test.public에서 실제 TourAPI 연동: 분류 315개, 부산 사하구 장소 2개와 네 상세 API를 저장했다. 첫 실행 14회, 목록 재수집 6회로 총 20회 API 요청을 사용했다.
 - 장소는 부산 감천문화마을(contentid 1997221), 낙동강문화관(2554141)이었다. 재수집 결과 inserted=0, updated=0, unchanged=2였고 UUID·설명·상세 원본이 유지됐다.
-- 실제 검증은 지역 목록·분류/지역 코드·두 관광지 상세에 한정된다. 행사·숙박 등 모든 타입의 실제 응답, 전국 전체 수집, 운영 서버 배포·자동 스케줄, 웹 조회 API 구현은 포함하지 않는다.
+- 실제 검증은 지역 목록·분류/지역 코드·두 관광지 상세에 한정된다. 행사·숙박 등 모든 타입의 실제 응답, 전국 전체 수집, 운영 서버 배포·실제 새벽 실행, 웹 조회 API 구현은 포함하지 않는다. 스케줄러 자동 검증은 배치 README에 별도로 기록했다.
 
 출처 컬럼 추가 후에도 6요청으로 실제 목록 2건을 재수집해 source_url의 실제 쿼리 저장·인증키 제거와 source_type=API를 확인했다. 전체 실연동 테스트는 총 26요청이었다. [변경 기록](../../../DataBase/place_source_metadata_applied_2026-10-22.md)을 참고한다.
 

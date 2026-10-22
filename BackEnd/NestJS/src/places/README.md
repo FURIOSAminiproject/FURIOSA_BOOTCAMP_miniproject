@@ -1,6 +1,6 @@
 # 장소 수집 모듈
 
-TourAPI에서 분류·장소·상세정보를 읽어 PostgreSQL의 `place_categories`와 `places`에 저장한다. 실행 진입점은 서버 CLI이며 [전체 사용법](../../docs/TOUR_INGESTION.md)에서 환경변수·옵션·필드 매핑을 확인할 수 있다. 스키마 기준은 [DDL v2](../../../../DataBase/place_schema_v2.sql)다.
+TourAPI에서 분류·장소·상세정보를 읽어 PostgreSQL의 `place_categories`와 `places`에 저장한다. 실행 진입점은 서버 CLI와 [매일 01:00 한국 시간 배치](batch/README.md)이며 [전체 사용법](../../docs/TOUR_INGESTION.md)에서 환경변수·옵션·필드 매핑을 확인할 수 있다. 스키마 기준은 [DDL v2](../../../../DataBase/place_schema_v2.sql)다.
 
 ## 왜 places에 2건만 있는가
 
@@ -119,4 +119,4 @@ npm run build:prod
 
 일반 테스트는 API 응답과 DB를 대체한 자동 테스트이며 실제 TourAPI 가용성·원격 DB 연결을 검사하지 않는다. PGlite 검증은 임시 실행 환경에서 수행했으며 프로젝트 의존성이나 `npm test`에 포함하지 않았다. 기존 [실연동 기록](../../../../DataBase/place_source_metadata_applied_2026-10-22.md)은 분류 315개·장소 2건, 실제 API 26요청이다. 이번 리팩터링에서는 원격 DB에 추가 쓰기나 API 호출을 하지 않았다.
 
-장소·후기 웹 CRUD, 크롤러, 자동 수집 스케줄, ORS·ITS 연동과 운영 배포는 구현 범위에 포함하지 않는다.
+추가한 배치 모듈의 구조·활성화·실패 처리·검증은 [배치 README](batch/README.md)를 따른다. 장소·후기 웹 CRUD, 크롤러, ORS·ITS 연동과 운영 배포는 구현 범위에 포함하지 않는다.

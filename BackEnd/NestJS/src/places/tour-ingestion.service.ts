@@ -1,12 +1,12 @@
 import { TourApiError, TourStoreError, MappingError } from './tour-errors';
-import { text } from './tour-mapping';
+import { CONTENT_TYPES, text } from './tour-mapping';
 import type { IngestionDependencies } from './tour-ingestion.ports';
 import type { TourItem } from './tour-types';
 import type { IngestionOptions } from './tour-ingestion.options';
 
 export interface IngestionReport {
   startedAt: string; finishedAt?: string; status: 'running' | 'completed' | 'failed';
-  fetched: number; inserted: number; updated: number; unchanged: number; enriched: number; skipped: number;
+  fetched: number; inserted: number; updated: number; unchanged: number; enriched: number; skipped: number; ignored: number;
   apiRequests: number; categoryCount: number; nextPages: Record<string, number | null>;
   issues: { contentId: string | null; code: string }[]; error?: string;
 }
@@ -19,7 +19,7 @@ export class TourIngestionService {
   async run(options: IngestionOptions): Promise<IngestionReport> {
     const { api, gate, references, details, places, plans } = this.dependencies;
     const report: IngestionReport = { startedAt: new Date().toISOString(), status: 'running', fetched: 0,
-      inserted: 0, updated: 0, unchanged: 0, enriched: 0, skipped: 0, apiRequests: 0, categoryCount: 0, nextPages: {}, issues: [] };
+      inserted: 0, updated: 0, unchanged: 0, enriched: 0, skipped: 0, ignored: 0, apiRequests: 0, categoryCount: 0, nextPages: {}, issues: [] };
     try {
       await gate.withLock(async () => {
         await gate.assertSchema();
@@ -45,6 +45,10 @@ export class TourIngestionService {
             if (!page.items.length && (pageNo - 1) * options.pageSize < page.totalCount) throw new TourApiError('INCOMPLETE_PAGE', endpoint);
             for (const item of page.items) {
               report.fetched++;
+              if (/^\d+$/.test(String(item.contenttypeid)) && !CONTENT_TYPES.includes(Number(item.contenttypeid))) {
+                report.ignored++;
+                continue;
+              }
               try {
                 await context.ensureDistrict(item);
                 const saved = await places.save(item, { [endpoint]: { fetched_at: new Date().toISOString(), items: [item], source_url: page.sourceUrl } }, refs);
