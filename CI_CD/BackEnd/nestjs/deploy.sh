@@ -17,33 +17,8 @@ echo "===== [1/5] 배포 환경 및 저장소 확인 ====="
 echo "프로젝트 루트: $PROJECT_ROOT"
 echo "배포 환경: $APP_ENV"
 
-# 2. 환경 설정 파일(.env) 존재 확인 및 자동 복사
-TARGET_ENV_FILE="$SOURCE_DIR/.env.$APP_ENV"
-if [ ! -f "$TARGET_ENV_FILE" ]; then
-    echo ">> [안내] 워크스페이스에 $TARGET_ENV_FILE 파일이 없어 EC2 공용 경로에서 검색합니다..."
-    for CANDIDATE in \
-        "/home/ec2-user/.env.$APP_ENV" \
-        "/home/ec2-user/FURIOSA_BOOTCAMP_miniproject/BackEnd/NestJS/.env.$APP_ENV" \
-        "/home/ec2-user/FURIOSA_BOOTCAMP_miniproject/BackEnd/.env.$APP_ENV" \
-        "$HOME/.env.$APP_ENV"; do
-        if [ -f "$CANDIDATE" ]; then
-            echo ">> $CANDIDATE 에서 환경 설정 파일을 발견하여 복사했습니다!"
-            cp "$CANDIDATE" "$TARGET_ENV_FILE"
-            break
-        fi
-    done
-fi
-
-if [ ! -f "$TARGET_ENV_FILE" ]; then
-    echo "======================================================================"
-    echo "!! [치명적 에러] 환경 설정 파일이 없습니다: $TARGET_ENV_FILE"
-    echo "!! Docker 컨테이너에 주입할 DB_HOST, DB_USER, DB_PASSWORD 등이 누락되었습니다."
-    echo "!! EC2 터미널에서 /home/ec2-user/.env.$APP_ENV 또는 다음 위치에 파일을 생성해주세요:"
-    echo "   $TARGET_ENV_FILE"
-    echo "======================================================================"
-    exit 1
-fi
-echo ">> 환경 설정 파일 정상 확인 완료: $TARGET_ENV_FILE"
+# 2. 환경 파일 복원·필수 설정 검사. 백업·컨테이너 교체보다 먼저 실행한다.
+APP_ENV="$APP_ENV" bash "$PROJECT_ROOT/CI_CD/BackEnd/nestjs/prepare-env.sh"
 
 # 3. 빌드 산출물 무결성 검증
 echo "===== [2/5] 빌드 산출물 검증 ====="

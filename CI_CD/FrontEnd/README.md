@@ -4,7 +4,7 @@
 
 ## 실행 조건과 빌드
 
-`main` push에서 `FrontEnd/**`, `CI_CD/FrontEnd/**`, `.github/workflows/deploy.yml` 변경을 감지하며 수동 실행도 지원합니다. 동시성 그룹은 `frontend-production`, 취소 정책은 `cancel-in-progress: false`입니다.
+`main` push에서 `FrontEnd/**`, `CI_CD/FrontEnd/**`, `CI_CD/BackEnd/nestjs/prepare-env.sh`, `.github/workflows/deploy.yml` 변경을 감지하며 수동 실행도 지원합니다. 동시성 그룹은 `frontend-production`, 취소 정책은 `cancel-in-progress: false`입니다.
 
 `ubuntu-latest`에서 Node 22를 설정하고 build.sh가 다음 순서로 실행됩니다.
 
@@ -20,10 +20,11 @@
 배포 잡은 `[self-hosted, linux]`에서 소스를 checkout하고 아티팩트를 `FrontEnd/v1/dist`로 다운로드한 뒤 deploy.sh를 실행합니다.
 
 1. 기본 `APP_ENV=production`으로 경로 설정
-2. 실행 중인 호스트 Nginx를 감지하면 중지·비활성화 시도
-3. 작업 폴더의 `FrontEnd/`를 `backups/frontend/frontend_backup_*.tar.gz`로 압축, `.env*`와 node_modules 제외, 최신 1개 유지
-4. `APP_ENV="$APP_ENV" docker compose up -d --build frontend`
-5. 3초 후 HTTP 응답 확인, 첫 시도 포함 최대 5회 시도
+2. [공통 환경 검사](../BackEnd/nestjs/prepare-env.sh)로 NestJS 환경 파일 복원과 필수 DB·JWT·포트·DB_SSL 검사. 실패하면 서비스 중지·백업 전에 종료
+3. 실행 중인 호스트 Nginx를 감지하면 중지·비활성화 시도
+4. 작업 폴더의 `FrontEnd/`를 `backups/frontend/frontend_backup_*.tar.gz`로 압축, `.env*`와 node_modules 제외, 최신 1개 유지
+5. `APP_ENV="$APP_ENV" docker compose up -d --build frontend`
+6. 3초 후 HTTP 응답 확인, 첫 시도 포함 최대 5회 시도
 
 Compose 명령은 `--no-deps`를 사용하지 않으며 frontend의 backend/fastapi 의존 서비스도 시작 대상이 될 수 있습니다. 백엔드 DB 환경을 먼저 준비합니다. 호스트 Nginx 중지 권한이 없어도 스크립트는 진행하므로 포트 충돌 여부를 확인합니다.
 

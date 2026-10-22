@@ -90,6 +90,10 @@ docker logs --tail=50 travel-frontend
 
 **포함하지 않는 기능:** 신규 발급·일반 갱신의 IP 검증 게이트, 현재 IP에 맞는 인증서의 자동 선택, 자동 스케줄, EC2 종료 이벤트 처리, Nginx 자동 reload/restart. 기존 수동 Certbot 명령이나 별도 자동화가 이 도구를 우회하는 것까지 차단하지 않습니다.
 
+## 주기적인 IP·도메인 감시
+
+[MONITOR.md](MONITOR.md)의 설치 스크립트로 systemd timer를 활성화할 수 있습니다. 이 문서의 수동 도구와 동일한 차단·CA 폐기 처리를 사용하며, FRONTEND_URL과 DNS도 검사합니다. 위의 “포함하지 않는 기능” 목록은 수동 IP 도구의 범위입니다. 감시 설치만으로 신규 발급·정상 갱신·DDNS 갱신이 구성되지는 않습니다.
+
 ## 검증
 
 ```bash

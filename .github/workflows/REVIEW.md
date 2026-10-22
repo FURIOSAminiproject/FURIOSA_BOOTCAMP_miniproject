@@ -28,7 +28,7 @@
 
 ### W03 · P2 · checkout 이후 작업 폴더의 환경 파일·백업이 보존된다고 가정할 수 없다
 
-- 근거: 세 deploy 잡이 먼저 `actions/checkout@v4`를 실행하고 clean 입력을 재정의하지 않는다. 프로젝트 `.gitignore`는 `.env*`와 backups/를 제외한다. 외부 환경 파일 자동 복사는 NestJS deploy.sh에만 있다.
+- 근거: 세 deploy 잡이 먼저 `actions/checkout@v4`를 실행하고 clean 입력을 재정의하지 않는다. 프로젝트 `.gitignore`는 `.env*`와 backups/를 제외한다. 2026-10-22부터 FrontEnd/NestJS deploy.sh는 공통 prepare-env.sh로 NestJS 환경 파일을 복원·검사한다. FastAPI 환경 파일과 작업 폴더 백업은 별도로 보존해야 한다.
 - 발생 조건: 기존 Self-hosted 작업 폴더에 환경 파일·백업을 저장한 뒤 새 배포를 실행한다.
 - 영향: 다음 checkout에서 설정·백업이 제거 대상이 된다. frontend가 backend까지 시작하는 경우나 FastAPI의 별도 설정이 필요한 경우에는 환경 준비 순서도 문제가 된다. NestJS 외부 복원 로직만으로 모든 서비스를 보장할 수 없다.
 - 검증: 비밀값 없는 임시 Git 저장소에서 동일 정리 명령의 dry-run으로 NestJS 환경 파일, FastAPI 환경 파일, 백업 파일 3개가 삭제 예정 목록에 포함됨을 확인했다. 실제 프로젝트에는 해당 정리 명령을 실행하지 않았으며 fixture 파일도 dry-run 직후 남아 있음을 확인했다.
@@ -102,3 +102,8 @@ PyYAML의 YAML 1.1 bool 해석에서 on 키가 바뀌는 문제를 피하도록 
 ## 2026-10-20 병합: 프론트 실행 경로
 
 상대 브랜치의 v1 이동에 맞춰 frontend 캐시 파일과 아티팩트 업로드·다운로드를 FrontEnd/v1로 연결했다. 현재 브랜치의 jobs·러너·권한·동시성·CI_CD 스크립트 호출은 유지했다. v2는 별도 보존하며 자동 배포 앱은 v1이다. 실제 GitHub 이벤트나 EC2 배포는 실행하지 않았다. 위 W 항목의 상태는 이번 병합으로 해결된 것으로 변경하지 않는다.
+
+## 2026-10-22 공유 helper 감시 경로 검토
+
+- frontend paths에 `CI_CD/BackEnd/nestjs/prepare-env.sh`를 추가했다. NestJS 워크플로우는 기존 `CI_CD/BackEnd/nestjs/**`로 같은 파일을 감지한다.
+- 공유 helper 변경의 main push 일치, 다른 브랜치 push 제외, 수동 실행 조건을 로컬에서 확인했다. GitHub Actions를 실제 실행하지 않았다. W01/W02와 FastAPI·백업에 대한 W03의 제한은 유지한다.

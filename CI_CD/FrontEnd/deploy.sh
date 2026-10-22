@@ -16,6 +16,9 @@ echo "===== [1/5] 프론트엔드 배포 환경 및 저장소 확인 ====="
 echo "프로젝트 루트: $PROJECT_ROOT"
 echo "배포 환경: $APP_ENV"
 
+# 의존 backend도 재생성될 수 있다. 호스트 Nginx 중지·백업 전에 환경을 검증한다.
+APP_ENV="$APP_ENV" bash "$PROJECT_ROOT/CI_CD/BackEnd/nestjs/prepare-env.sh"
+
 # 2. 호스트 Nginx 서비스 점검 (Docker 컨테이너가 80/443 포트를 배타적으로 점유하도록 보장)
 echo "===== [2/5] 호스트 Nginx 점검 및 포트 충돌 방지 ====="
 if command -v systemctl >/dev/null 2>&1; then

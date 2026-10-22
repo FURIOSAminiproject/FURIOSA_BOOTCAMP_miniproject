@@ -1,0 +1,12 @@
+[Unit]
+Description=Periodically check EC2 IP and domain certificate use
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=5min
+AccuracySec=30s
+RandomizedDelaySec=30s
+Unit=travel-certificate-monitor.service
+
+[Install]
+WantedBy=timers.target

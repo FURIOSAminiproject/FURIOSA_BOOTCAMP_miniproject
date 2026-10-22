@@ -22,7 +22,7 @@
 `[self-hosted, linux]` 러너에서 checkout하고 아티팩트를 `BackEnd/NestJS/dist`로 받은 후 deploy.sh를 실행합니다.
 
 1. `APP_ENV` 기본값 `production` 선택
-2. `BackEnd/NestJS/.env.${APP_ENV}` 확인, 없으면 외부 후보 경로에서 복사. 끝까지 없으면 실패
+2. 공통 [prepare-env.sh](prepare-env.sh)로 `BackEnd/NestJS/.env.${APP_ENV}` 확인·복원(권한 600), Compose 환경의 DB·JWT·포트·DB_SSL 검사. 실패하면 백업·컨테이너 교체 전에 종료. FrontEnd 배포도 같은 검사 사용
 3. `dist/main.js`, `package.json` 검사
 4. 작업 폴더 `BackEnd/`를 `backups/backend/backend_backup_*.tar.gz`로 압축. node_modules·`.env*` 제외, 최신 1개 유지
 5. 저장소 루트에서 `docker compose up -d --build backend`
