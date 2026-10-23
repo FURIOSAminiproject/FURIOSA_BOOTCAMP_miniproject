@@ -16,6 +16,7 @@ import * as bcrypt from 'bcryptjs';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { User } from '../users/entities/user.entity';
+import { isIP } from 'node:net';
 
 export type OAuthProvider = 'google' | 'kakao' | 'naver';
 type OAuthProfile = { subject: string; email: string | null; name: string };
@@ -78,6 +79,7 @@ export class AuthService {
     const state = this.randomState();
     const clientId = this.requiredEnv(`${provider.toUpperCase()}_CLIENT_ID`);
     const callback = this.requiredEnv(`${provider.toUpperCase()}_CALLBACK_URL`);
+    if (provider === 'google') this.validateGoogleCallback(callback);
     const url = new URL(provider === 'google'
       ? 'https://accounts.google.com/o/oauth2/v2/auth'
       : provider === 'kakao'
@@ -145,6 +147,24 @@ export class AuthService {
 
   private randomState() {
     return require('node:crypto').randomBytes(32).toString('hex') as string;
+  }
+
+  private validateGoogleCallback(callback: string) {
+    let url: URL;
+    try {
+      url = new URL(callback);
+    } catch {
+      throw new ServiceUnavailableException('GOOGLE_CALLBACK_URL은 유효한 URL이어야 합니다.');
+    }
+    const host = url.hostname.replace(/^\[|\]$/g, '');
+    const loopback = host === 'localhost' || host === '::1' || (isIP(host) === 4 && host.startsWith('127.'));
+    if ((!loopback && isIP(host)) || (!loopback && url.protocol !== 'https:') ||
+        !['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.hash) {
+      throw new ServiceUnavailableException('GOOGLE_CALLBACK_URL은 HTTPS 도메인을 사용해야 합니다. 공인 IP는 Google OAuth에서 허용되지 않습니다. 로컬 개발은 http://localhost/auth/google/callback을 사용하세요.');
+    }
+    if (url.pathname !== '/auth/google/callback') {
+      throw new ServiceUnavailableException('GOOGLE_CALLBACK_URL 경로는 /auth/google/callback이어야 합니다.');
+    }
   }
 
   private requiredEnv(name: string) {

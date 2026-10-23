@@ -29,6 +29,12 @@ if [ ! -f "$TARGET_ENV_FILE" ]; then
             break
         fi
     done
+else
+    # 작업 폴더 내 수정된 최신 설정이 영구 보존되도록 외부 백업 파일에도 자동 동기화
+    if [ -w "/home/ec2-user" ]; then
+        cp -f "$TARGET_ENV_FILE" "/home/ec2-user/.env.$APP_ENV" 2>/dev/null || true
+        chmod 600 "/home/ec2-user/.env.$APP_ENV" 2>/dev/null || true
+    fi
 fi
 
 if [ ! -f "$TARGET_ENV_FILE" ]; then

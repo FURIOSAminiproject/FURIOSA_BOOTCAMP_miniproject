@@ -13,8 +13,8 @@ test('merged auth routes preserve sessions, OAuth state and the existing API pre
     DB_HOST: '127.0.0.1', DB_USER: 'test', DB_PASSWORD: 'test', DB_NAME: 'auth_test',
     JWT_SECRET: 'offline-auth-test-secret-at-least-32-characters', NODE_ENV: 'development',
     GOOGLE_CLIENT_ID: 'offline-client', GOOGLE_CLIENT_SECRET: 'offline-secret',
-    GOOGLE_CALLBACK_URL: 'http://localhost:3001/auth/google/callback',
-    FRONTEND_URL: 'http://localhost:3000',
+    GOOGLE_CALLBACK_URL: 'http://localhost/auth/google/callback',
+    FRONTEND_URL: 'http://localhost/',
   });
   const users = [];
   const repository = {
@@ -47,6 +47,7 @@ test('merged auth routes preserve sessions, OAuth state and the existing API pre
     if (String(url) === 'https://oauth2.googleapis.com/token') {
       tokenCalls++;
       assert.equal(options.body.get('code'), 'offline-code');
+      assert.equal(options.body.get('redirect_uri'), 'http://localhost/auth/google/callback');
       return Response.json({ access_token: 'offline-access-token' });
     }
     if (String(url) === 'https://openidconnect.googleapis.com/v1/userinfo') {
@@ -64,6 +65,9 @@ test('merged auth routes preserve sessions, OAuth state and the existing API pre
   try {
     assert.equal((await fetch(base + '/api/health')).status, 200);
     assert.equal((await fetch(base + '/auth/me')).status, 200);
+    const cors = await fetch(base + '/auth/me', { headers: { Origin: 'http://localhost' } });
+    assert.equal(cors.headers.get('access-control-allow-origin'), 'http://localhost');
+    assert.equal(cors.headers.get('access-control-allow-credentials'), 'true');
     assert.equal((await fetch(base + '/api/auth/me')).status, 404);
     const payload = { name: 'Local User', email: 'local@example.com', password: 'test-password' };
     assert.equal((await post('/auth/register', payload)).status, 201);
@@ -96,13 +100,17 @@ test('merged auth routes preserve sessions, OAuth state and the existing API pre
     const callback = await fetch(base + '/auth/google/callback?code=offline-code&state=' + state, {
       redirect: 'manual', headers: { Cookie: stateCookie },
     });
-    assert.equal(callback.headers.get('location'), 'http://localhost:3000/?oauth=success');
+    assert.equal(callback.headers.get('location'), 'http://localhost/?oauth=success');
     const oauthCookie = callback.headers.getSetCookie().find(value => value.startsWith('trip_session=')).split(';')[0];
     const oauthMe = await fetch(base + '/auth/me', { headers: { Cookie: oauthCookie } });
     assert.equal((await oauthMe.json()).user.provider, 'google');
     assert.equal(tokenCalls, 1);
     assert.equal(profileCalls, 1);
     assert.equal(users.length, 2);
+    process.env.NODE_ENV = 'production';
+    const productionStart = await fetch(base + '/auth/google', { redirect: 'manual' });
+    assert.match(productionStart.headers.get('set-cookie'), /; Secure/);
+    assert.match(productionStart.headers.get('set-cookie'), /SameSite=Lax/);
   } finally {
     global.fetch = originalFetch;
     await app.close();

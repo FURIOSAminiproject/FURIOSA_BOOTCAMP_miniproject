@@ -9,17 +9,19 @@ function normalizeMode(rawMode) {
   return rawMode || 'local';
 }
 
-function createLaunch(rawMode, inherited = process.env) {
+function createLaunch(rawMode, inherited = process.env, root = resolve(__dirname, '..')) {
   const mode = normalizeMode(rawMode);
   if (!['local', 'development', 'production'].includes(mode)) throw new Error('Choose local, dev(elopment), or prod(uction)/op');
-  const root = resolve(__dirname, '..');
   const envFile = resolve(root, '.env.' + mode);
+  // Match Compose env_file order: service defaults, then shared backend settings.
+  const envFiles = [envFile, resolve(root, '..', '.env.' + mode)];
   const defaultDbName = mode === 'local' ? 'travel_local' : (mode === 'development' ? 'travel_test' : 'travel_prod');
-  const fileContent = existsSync(envFile) ? parseEnv(readFileSync(envFile, 'utf8')) : { DB_NAME: defaultDbName };
+  const fileContent = Object.assign({}, ...envFiles.map(file =>
+    existsSync(file) ? parseEnv(readFileSync(file, 'utf8')) : {}));
   // Deployment environment variables override the selected file.
   const env = { DB_NAME: defaultDbName, ...fileContent, ...inherited, APP_ENV: mode, NODE_ENV: mode === 'production' ? 'production' : 'development' };
   const args = mode !== 'production' ? ['--import', 'tsx', '--watch', 'src/main.ts'] : ['dist/main.js'];
-  return { root, envFile, env, args };
+  return { root, envFile, envFiles, env, args };
 }
 module.exports = { createLaunch };
 if (require.main === module) {

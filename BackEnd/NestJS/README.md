@@ -43,7 +43,7 @@ BackEnd/NestJS/
 
 ## 환경 설정
 
-선택한 `.env.*` 한 파일을 읽고 시스템 환경변수를 우선합니다. 실제 파일은 별도로 준비합니다.
+npm과 PM2는 선택한 모드의 `NestJS/.env.*` → 상위 `BackEnd/.env.*` → 시스템 환경변수 순서로 덮어씁니다. 두 파일의 순서는 Compose `env_file`과 같습니다. 파일은 선택 사항이며 실제 값은 별도로 준비합니다. DB 모듈은 `.env.local`을 추가로 읽지 않습니다.
 
 | 모드 | 파일 | DB_NAME 기본값 | 실행 방식 |
 |---|---|---|---|
@@ -173,7 +173,7 @@ CI·Docker는 Node 22를 사용합니다. NestJS 12의 ESM 패키지를 Jest에�
 APP_ENV=production docker compose up -d --build backend
 ```
 
-컨테이너는 `node dist/main.js`를 직접 실행하므로 `.env` 파일을 시작 스크립트로 읽지 않습니다. Compose가 `BackEnd/NestJS/.env.${APP_ENV}`를 환경변수로 주입합니다. `HOST=0.0.0.0`, `PORT=3001`은 Compose에서 지정합니다.
+컨테이너는 `node dist/main.js`를 직접 실행하므로 `.env` 파일을 시작 스크립트로 읽지 않습니다. Compose가 `BackEnd/NestJS/.env.${APP_ENV}` 다음 `BackEnd/.env.${APP_ENV}`를 읽어 환경변수로 주입하며 뒤의 파일 값이 우선합니다. `HOST=0.0.0.0`, `PORT=3001`은 Compose에서 지정합니다.
 
 이 폴더에서 단독 실행하는 예시입니다. DB 설정을 전달하도록 `--env-file`을 지정합니다. 같은 값들을 각각 `-e`로 전달하는 방식도 가능합니다.
 
@@ -197,12 +197,13 @@ docker run -d --name travel-backend --env-file .env.production --add-host host.d
 | GET /auth/{google,kakao,naver} | state 쿠키와 공급자 인증 URL 발급 |
 | GET /auth/{google,kakao,naver}/callback | state 검증, 토큰·프로필 조회, 사용자 저장·세션 발급 |
 
-선택한 `.env.local` / `.env.development` / `.env.production`에 다음 값을 준비합니다. Compose도 같은 모드 파일을 주입하며 ConfigModule은 별도 `.env`를 추가로 읽지 않습니다.
+선택한 `.env.local` / `.env.development` / `.env.production`에 다음 값을 준비합니다. npm·PM2·Compose 모두 서비스 파일보다 상위 `BackEnd/.env.<mode>`의 값이 우선합니다. ConfigModule은 별도 `.env`를 추가로 읽지 않습니다. 서비스 폴더만 배포하면 서비스 파일 또는 시스템 환경에 필요한 값을 모두 준비합니다.
 
 - `JWT_SECRET`: 32자 이상의 무작위 비밀값이 필수입니다. 기본 비밀값은 제공하지 않으며 누락 시 앱 기동이 실패합니다. `node -e "console.log(require('node:crypto').randomBytes(48).toString('hex'))"`로 생성한 값을 안전하게 보관합니다.
-- `FRONTEND_URL`: 로그인 후 돌아갈 실제 프론트 origin. 기본은 `http://localhost:3000`입니다. CORS credentials도 이 origin에만 허용합니다.
+- `FRONTEND_URL`: 로그인 후 돌아갈 실제 프론트 origin. 기본은 Vite 실행 스크립트의 80번 포트에 맞춘 `http://localhost`입니다. CORS credentials도 이 origin에만 허용합니다.
 - 공급자별 `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CALLBACK_URL`; `KAKAO_*`, `NAVER_*`도 같은 이름 규칙입니다. 카카오 Client Secret만 선택적입니다.
-- 콜백 URL은 로컬에서 `http://localhost:3001/auth/google/callback`, Nginx 경유 환경에서 `https://실제호스트/auth/google/callback`처럼 설정하고 공급자 콘솔의 등록값과 맞춥니다.
+- 콜백 URL은 로컬에서 Vite `/auth` 프록시를 경유하는 `http://localhost/auth/google/callback`, 운영에서는 `https://roadfriendtrip.freeddns.org/auth/google/callback`을 사용합니다. Google Console의 웹 애플리케이션 OAuth 클라이언트에 두 주소를 각각 승인된 리디렉션 URI로 정확히 등록합니다. 운영 `FRONTEND_URL`도 `https://roadfriendtrip.freeddns.org`로 맞추고 브라우저에서도 해당 도메인으로 접속합니다. 시작 요청과 콜백의 호스트가 다르면 state 쿠키가 전달되지 않습니다.
+- Google은 localhost 외 IP 주소 콜백을 허용하지 않습니다. 서버는 공인 IP·원격 HTTP·잘못된 콜백 경로를 인증 요청 전에 거부합니다. HTTPS 인증서만 추가해 공인 IP 주소를 사용하는 것으로 해결되지 않습니다.
 - production 세션·state 쿠키에는 Secure가 붙으므로 외부 접속은 HTTPS가 필요합니다. 시작 스크립트의 로컬 HTTP 실행은 local/development 모드를 사용합니다. Compose의 NODE_ENV 기본값은 APP_ENV와 별개로 production이므로 HTTP로 인증을 검증할 때는 NODE_ENV=development도 명시합니다. DB_SSL과 별개입니다.
 
 [환경 변수 예시](.env.example)는 항목 안내용입니다. 실제 키·비밀번호를 넣어 커밋하지 않습니다. 기존 `users` 테이블이 있는 DB에는 [OAuth 컬럼 SQL](migrations/20261019_add_oauth_columns.sql)을 별도로 검토·적용해야 합니다. 이 SQL은 users 테이블을 새로 만들지 않으며, 앱·배포가 스키마를 자동 생성하거나 마이그레이션하지 않습니다.

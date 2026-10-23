@@ -10,7 +10,7 @@ export function configureApp(app: INestApplication) {
     exclude: [{ path: 'auth/*path', method: RequestMethod.ALL }],
   });
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: (process.env.FRONTEND_URL || 'http://localhost').replace(/\/$/, ''),
     credentials: true,
   });
 }

@@ -13,10 +13,10 @@
 
 | 실행 경로 | 동작 |
 |---|---|
-| scripts/start.cjs | local/dev/prod/op 정규화 → 선택한 `.env.*` 한 파일 → 시스템 환경 우선 → APP_ENV/NODE_ENV는 모드로 확정 |
+| scripts/start.cjs | local/dev/prod/op 정규화 → NestJS/.env.<mode> → BackEnd/.env.<mode> → 시스템 환경 우선 → APP_ENV/NODE_ENV는 모드로 확정 |
 | scripts/build.cjs | 환경 파일 존재만 확인하고 TypeScript 컴파일; DB 환경을 번들에 주입하지 않음 |
 | Docker CMD | `node dist/main.js` 직접 실행; Compose가 환경을 주입, start.cjs를 거치지 않음 |
-| PM2 ecosystem | `.env.production`을 읽는 별도 경로; env 객체 마지막의 파일 값이 앞선 기본값을 덮음 |
+| PM2 ecosystem | start.cjs의 createLaunch(production)을 공유하며 같은 두 파일·시스템 환경 우선순위를 사용 |
 
 - `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`은 필수다. 직접 실행과 Compose의 DB_NAME 기본값 유무를 혼동하지 않는다.
 - `DB_SSL=true`는 PostgreSQL TLS이며 인증서를 검증한다. 웹 HTTPS 설정과 별개다.

@@ -92,7 +92,7 @@ export class AuthController {
   ) {
     const expectedState = req.cookies?.[`oauth_state_${provider}`];
     res.clearCookie(`oauth_state_${provider}`, { path: `/auth/${provider}/callback` });
-    const frontend = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const frontend = (process.env.FRONTEND_URL || 'http://localhost').replace(/\/$/, '');
     try {
       if (!code || !state || !expectedState || state !== expectedState) {
         throw new BadRequestException('OAuth state 검증에 실패했습니다. 다시 로그인해주세요.');

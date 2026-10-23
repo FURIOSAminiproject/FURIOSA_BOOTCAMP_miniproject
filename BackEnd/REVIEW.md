@@ -1,5 +1,13 @@
 # BackEnd 구현 검토 기록
 
+## 2026-10-23 추가: Google OAuth 환경 로딩과 콜백 주소
+
+AuthModal의 Google 버튼부터 `/auth/google`, 콜백, 세션 복원까지 추적했다. npm·PM2가 서비스 환경 파일만 읽어 상위 BackEnd 파일의 Google 키를 누락하던 문제를 수정했다. 이제 서비스 파일 → 상위 BackEnd 파일 → 시스템 환경 순서이며 Compose의 두 파일 순서와 일치한다. DB 설정의 무조건적인 `.env.local` 추가 로딩도 제거했다. 로컬 프론트 복귀·CORS 기본값을 실제 Vite 80번 포트의 `http://localhost`로 맞추고 마지막 슬래시를 정리했다.
+
+로컬 환경 파일 6개의 복귀/콜백 URL을 local·development는 `http://localhost`, production은 사용자가 지정한 `https://roadfriendtrip.freeddns.org` 기준으로 갱신했다. 콜백 경로는 `/auth/google/callback`이며 비밀값은 복사하거나 기록하지 않았다. 해당 환경 파일은 Git 추적 대상이 아니므로 운영 서버의 영구 환경 파일에도 같은 URL을 반영해야 한다. Google 콜백의 공인 IP·원격 HTTP·잘못된 경로를 조기에 거부한다. Google Console에는 로컬·운영 콜백을 승인된 리디렉션 URI로 정확히 등록해야 한다.
+
+Node 22.23.3에서 Node 회귀 9개, Jest 단위 8개, 모킹 E2E 1개와 production 빌드를 통과했다. 환경 우선순위, 잘못된 콜백 거부, state 검증, 토큰 교환의 콜백 일치, 세션 복원, CORS origin, production Secure 쿠키를 확인했다. 샌드박스의 루프백 EACCES로 HTTP 테스트는 제한 밖에서 실행했으며 DB·Google 응답은 모킹했다. 실제 Google 로그인·운영 DB·Google Console 변경·서버 배포는 수행하지 않았다. 기존 ITS·ORS 캐시 모킹의 스키마 진단 로그는 인증 검증과 별개다.
+
 ## 2026-10-23 추가: ITS·ORS DB 캐시와 만료 정리
 
 실제 배포 대상 NestJS에 routing-cache 모듈과 POST /api/routes, GET /api/traffic을 추가했다. 정규화한 실제 요청 조건과 계약 버전의 해시로 DB 캐시를 읽고, ORS 24시간/ITS 5분 만료 뒤 다음 요청에서 제공자 API를 다시 호출해 컬럼별로 저장한다. 같은 프로세스의 동시 요청은 합치고 ITS 헤더/구간 교체는 트랜잭션으로 처리한다. 새 수집 시각부터 TTL을 계산하며 외부/저장 실패를 성공 결과나 최신 데이터로 대체하지 않는다. 외부 API를 DB 트랜잭션 안에서 호출하지 않는다.
