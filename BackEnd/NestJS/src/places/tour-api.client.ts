@@ -13,7 +13,10 @@ function integer(value: unknown, min: number): number | undefined {
   return Number.isSafeInteger(n) && n >= min ? n : undefined;
 }
 export function tourConfig(env: NodeJS.ProcessEnv): TourConfig {
-  let key = env.TOUR_API_KEY?.trim();
+  let raw = env.TOUR_API_KEY ?? env.TOUR_API_key ?? env.TOUR_KEY ?? env.tour_api_key;
+  let key = raw?.trim();
+  if (key?.startsWith('"') && key.endsWith('"')) key = key.slice(1, -1).trim();
+  if (key?.startsWith("'") && key.endsWith("'")) key = key.slice(1, -1).trim();
   if (!key) throw new TourApiError('MISSING_KEY');
   try { key = decodeURIComponent(key); } catch { throw new TourApiError('INVALID_KEY_ENCODING'); }
   const number = (name: string, fallback: number, min: number, max: number) => {
