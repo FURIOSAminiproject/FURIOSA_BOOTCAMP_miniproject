@@ -18,7 +18,9 @@ function createLaunch(rawMode, inherited = process.env) {
   const fileContent = existsSync(envFile) ? parseEnv(readFileSync(envFile, 'utf8')) : { DB_NAME: defaultDbName };
   // Deployment environment variables override the selected file.
   const env = { DB_NAME: defaultDbName, ...fileContent, ...inherited, APP_ENV: mode, NODE_ENV: mode === 'production' ? 'production' : 'development' };
-  const args = mode !== 'production' ? ['--import', 'tsx', '--watch', 'src/main.ts'] : ['dist/main.js'];
+  const args = mode !== 'production'
+  ? ['node_modules/@nestjs/cli/bin/nest.js', 'start', '--watch']
+  : ['dist/main.js'];
   return { root, envFile, env, args };
 }
 module.exports = { createLaunch };

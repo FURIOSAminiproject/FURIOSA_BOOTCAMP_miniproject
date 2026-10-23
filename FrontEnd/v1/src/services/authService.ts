@@ -9,17 +9,18 @@ export interface RegisterPayload {
   password: string;
 }
 
-export interface AuthUser {
-  id: string;
-  name: string;
-  email: string | null;
-  provider: string;
-}
 
 export interface RegisterResponse {
   success: boolean;
   message: string;
   data?: { id: string; name: string; email: string | null; createdAt: string };
+}
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string | null;
+  provider: string;
+  role: 'Admin' | 'user';
 }
 
 const API_BASE = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/$/, '');

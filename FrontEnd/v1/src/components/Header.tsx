@@ -1,35 +1,42 @@
 import React, { useState } from 'react';
-import { Compass, LogOut, LogIn, Menu, X, ShieldCheck, User } from 'lucide-react';
+import { Compass, LogOut, LogIn, Menu, X } from 'lucide-react';
 import { AuthUser } from '../services/authService';
 
+type HeaderTab = 'EXPLORE' | 'REQUEST' | 'PLAN' | 'ARCHIVE' | 'ADMIN' | 'USER' | 'STUDIO' | 'WEATHER_STUDIO';
+
 interface HeaderProps {
-  currentTab: 'EXPLORE' | 'REQUEST' | 'PLAN' | 'ADMIN' | 'STUDIO' | 'WEATHER_STUDIO';
-  onSelectTab: (tab: 'EXPLORE' | 'REQUEST' | 'PLAN' | 'ADMIN' | 'STUDIO' | 'WEATHER_STUDIO') => void;
-  isAdmin: boolean;
-  onToggleAdmin: () => void;
-  pendingCount: number;
+  currentTab: HeaderTab;
+  onSelectTab: (tab: HeaderTab) => void;
   currentUser?: AuthUser | null;
   onOpenLogin?: () => void;
-  onDirectGoogleLogin?: () => void;
   onLogout?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   currentTab,
   onSelectTab,
-  isAdmin,
-  onToggleAdmin,
-  pendingCount,
   currentUser,
   onOpenLogin,
-  onDirectGoogleLogin,
   onLogout,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const handleNav = (tab: 'EXPLORE' | 'REQUEST' | 'PLAN' | 'ADMIN' | 'STUDIO' | 'WEATHER_STUDIO') => {
+  const handleNav = (tab: HeaderTab) => {
     onSelectTab(tab);
     setMobileMenuOpen(false);
+  };
+
+  const handleBrandClick = () => {
+    if (!currentUser) {
+      handleNav('EXPLORE');
+      return;
+    }
+
+    handleNav(currentUser.role === 'Admin' ? 'ADMIN' : 'USER');
+  };
+
+  const handleMyTrips = () => {
+    handleNav(currentUser && currentUser.role !== 'Admin' ? 'ARCHIVE' : 'PLAN');
   };
 
   return (
@@ -37,7 +44,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
         {/* Brand - Exactly matching screenshots */}
         <div
-          onClick={() => handleNav('EXPLORE')}
+          onClick={handleBrandClick}
           className="flex items-center gap-2.5 cursor-pointer select-none group"
         >
           <div className="w-9 h-9 rounded-full bg-[#064e43] text-white flex items-center justify-center shadow-xs">
@@ -62,74 +69,14 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
 
           <button
-            onClick={() => handleNav('PLAN')}
+            onClick={handleMyTrips}
             className={`transition-colors py-1 ${
-              currentTab === 'PLAN'
+              currentTab === 'ARCHIVE'
                 ? 'font-bold text-[#064e43]'
                 : 'hover:text-stone-900'
             }`}
           >
             내 여행
-          </button>
-
-          {/* AI & Transformer Studio Tab */}
-          <button
-            onClick={() => handleNav('STUDIO')}
-            className={`transition-all px-3 py-1.5 rounded-full flex items-center gap-1.5 ${
-              currentTab === 'STUDIO'
-                ? 'bg-violet-800 text-white font-bold shadow-xs'
-                : 'hover:text-stone-900 text-stone-700'
-            }`}
-          >
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-violet-600"></span>
-            </span>
-            <span>AI 스튜디오</span>
-            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full font-mono ${
-              currentTab === 'STUDIO' ? 'bg-amber-300 text-stone-950' : 'bg-violet-100 text-violet-800'
-            }`}>
-              Transformer
-            </span>
-          </button>
-
-          {/* NEW: Weather AI & LSTM Tech Studio Tab */}
-          <button
-            onClick={() => handleNav('WEATHER_STUDIO')}
-            className={`transition-all px-3 py-1.5 rounded-full flex items-center gap-1.5 ${
-              currentTab === 'WEATHER_STUDIO'
-                ? 'bg-sky-800 text-white font-bold shadow-xs'
-                : 'hover:text-stone-900 text-stone-700'
-            }`}
-          >
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-600"></span>
-            </span>
-            <span>기상예보 기술 분석</span>
-            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full font-mono ${
-              currentTab === 'WEATHER_STUDIO' ? 'bg-amber-300 text-stone-950' : 'bg-sky-100 text-sky-800'
-            }`}>
-              LSTM·앙상블
-            </span>
-          </button>
-
-          <button
-            onClick={() => handleNav('ADMIN')}
-            className={`transition-all px-3 py-1.5 rounded-full flex items-center gap-1.5 ${
-              currentTab === 'ADMIN'
-                ? 'bg-[#064e43] text-white font-semibold'
-                : 'hover:text-stone-900'
-            }`}
-          >
-            <span>관리자</span>
-            {pendingCount > 0 && (
-              <span className={`w-4 h-4 rounded-full text-[10px] font-bold flex items-center justify-center ${
-                currentTab === 'ADMIN' ? 'bg-amber-400 text-stone-950' : 'bg-rose-600 text-white'
-              }`}>
-                {pendingCount}
-              </span>
-            )}
           </button>
         </nav>
 
@@ -152,20 +99,6 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              {/* Direct Google Login Button */}
-              <button
-                onClick={onDirectGoogleLogin || onOpenLogin}
-                className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white hover:bg-stone-50 border border-stone-300 text-xs font-semibold text-stone-700 shadow-2xs hover:shadow-xs transition-all cursor-pointer group"
-                title="Google 계정으로 빠른 로그인"
-              >
-                <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.87c2.26-2.09 3.67-5.17 3.67-9.15z"/>
-                  <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.87-3.05c-1.08.72-2.45 1.16-4.06 1.16-3.13 0-5.78-2.11-6.73-4.96H1.25v3.15C3.25 21.36 7.31 24 12 24z"/>
-                  <path fill="#FBBC05" d="M5.27 14.24c-.25-.72-.38-1.49-.38-2.24s.13-1.52.38-2.24V6.61H1.25C.45 8.22 0 10.06 0 12s.45 3.78 1.25 5.39l4.02-3.15z"/>
-                  <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.25 2.64 1.25 6.61l4.02 3.15c.95-2.85 3.6-4.96 6.73-4.96z"/>
-                </svg>
-                <span>Google 로그인</span>
-              </button>
 
               {/* Full Auth Modal trigger */}
               <button
@@ -178,16 +111,6 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             </div>
           )}
-
-          {/* Admin toggle */}
-          <button
-            onClick={onToggleAdmin}
-            className="hidden xl:flex items-center gap-1 text-[11px] text-stone-400 hover:text-stone-600 transition-colors ml-1 cursor-pointer"
-            title="관리자 권한 토글"
-          >
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>{isAdmin ? '관리자 ON' : '관리자 OFF'}</span>
-          </button>
 
           {/* Mobile menu trigger */}
           <button
@@ -205,7 +128,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={() => handleNav('EXPLORE')}
             className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold ${
-              currentTab === 'EXPLORE' ? 'bg-[#064e43] text-white' : 'text-stone-700 hover:bg-stone-100'
+              currentTab === 'EXPLORE' || currentTab === 'USER' ? 'bg-[#064e43] text-white' : 'text-stone-700 hover:bg-stone-100'
             }`}
           >
             홈 (소개 & 장기 기상예보)
@@ -219,53 +142,12 @@ export const Header: React.FC<HeaderProps> = ({
             여행 의뢰
           </button>
           <button
-            onClick={() => handleNav('PLAN')}
+            onClick={handleMyTrips}
             className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold ${
-              currentTab === 'PLAN' ? 'bg-[#064e43] text-white' : 'text-stone-700 hover:bg-stone-100'
+              currentTab === 'ARCHIVE' ? 'bg-[#064e43] text-white' : 'text-stone-700 hover:bg-stone-100'
             }`}
           >
             내 여행
-          </button>
-          <button
-            onClick={() => handleNav('STUDIO')}
-            className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-between ${
-              currentTab === 'STUDIO' ? 'bg-violet-800 text-white' : 'text-stone-700 hover:bg-stone-100'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-violet-500" />
-              <span>AI 트랜스포머 스튜디오</span>
-            </div>
-            <span className="text-[10px] bg-amber-400 text-stone-900 px-2 py-0.5 rounded-full font-bold">
-              코드 전격 공개
-            </span>
-          </button>
-          <button
-            onClick={() => handleNav('WEATHER_STUDIO')}
-            className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-between ${
-              currentTab === 'WEATHER_STUDIO' ? 'bg-sky-800 text-white' : 'text-stone-700 hover:bg-stone-100'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-sky-500" />
-              <span>기상예보 기술 분석 스튜디오</span>
-            </div>
-            <span className="text-[10px] bg-amber-400 text-stone-900 px-2 py-0.5 rounded-full font-bold">
-              LSTM·앙상블
-            </span>
-          </button>
-          <button
-            onClick={() => handleNav('ADMIN')}
-            className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-between ${
-              currentTab === 'ADMIN' ? 'bg-[#064e43] text-white' : 'text-stone-700 hover:bg-stone-100'
-            }`}
-          >
-            <span>관리자 승인 센터</span>
-            {pendingCount > 0 && (
-              <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-xs font-bold">
-                {pendingCount}건 대기
-              </span>
-            )}
           </button>
           <div className="pt-3 border-t border-stone-200 space-y-2">
             {currentUser ? (
@@ -285,21 +167,6 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="space-y-1.5">
                 <button
                   onClick={() => {
-                    onDirectGoogleLogin?.();
-                    setMobileMenuOpen(false);
-                  }}
-                  className="w-full py-2.5 px-3 rounded-xl bg-white border border-stone-300 text-xs font-semibold text-stone-800 flex items-center justify-center gap-2 shadow-2xs"
-                >
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.87c2.26-2.09 3.67-5.17 3.67-9.15z"/>
-                    <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.87-3.05c-1.08.72-2.45 1.16-4.06 1.16-3.13 0-5.78-2.11-6.73-4.96H1.25v3.15C3.25 21.36 7.31 24 12 24z"/>
-                    <path fill="#FBBC05" d="M5.27 14.24c-.25-.72-.38-1.49-.38-2.24s.13-1.52.38-2.24V6.61H1.25C.45 8.22 0 10.06 0 12s.45 3.78 1.25 5.39l4.02-3.15z"/>
-                    <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.25 2.64 1.25 6.61l4.02 3.15c.95-2.85 3.6-4.96 6.73-4.96z"/>
-                  </svg>
-                  <span>Google 계정으로 로그인</span>
-                </button>
-                <button
-                  onClick={() => {
                     onOpenLogin?.();
                     setMobileMenuOpen(false);
                   }}
@@ -310,16 +177,6 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
               </div>
             )}
-            <button
-              onClick={() => {
-                onToggleAdmin();
-                setMobileMenuOpen(false);
-              }}
-              className="w-full text-left px-3.5 py-2 text-xs text-stone-500 flex items-center gap-1.5"
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>{isAdmin ? '관리자 권한 해제' : '관리자 권한으로 로그인'}</span>
-            </button>
           </div>
         </div>
       )}

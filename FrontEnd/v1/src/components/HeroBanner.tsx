@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Sparkles, MapPin, ClipboardCheck, ArrowRight, ShieldCheck, Compass, Calendar, Users, ChevronRight, Globe, Award, CloudSun } from 'lucide-react';
+import { Sparkles, MapPin, ClipboardCheck, ArrowRight, Compass, Calendar, Users, ChevronRight, Award, CloudSun } from 'lucide-react';
 import pebbleBeachImg from '../assets/images/pebble_beach_hero_1792222360356.jpg';
 
 interface HeroBannerProps {
   onStartRequest: () => void;
+  onOpenTripArchive?: () => void;
   onQuickExplore?: (destination: string) => void;
   onOpenStudio?: () => void;
   onOpenWeatherStudio?: () => void;
@@ -11,6 +12,7 @@ interface HeroBannerProps {
 
 export const HeroBanner: React.FC<HeroBannerProps> = ({
   onStartRequest,
+  onOpenTripArchive,
   onQuickExplore,
   onOpenStudio,
   onOpenWeatherStudio
@@ -23,7 +25,7 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
   return (
     <div className="space-y-16">
       {/* 1. World-Class Luxury Hero Section with Sunlit Mongdol Pebble Beach Scenery */}
-      <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-stone-200/60 min-h-[540px] sm:min-h-[620px] flex flex-col justify-between group">
+      <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-stone-200/60 min-h-[440px] sm:min-h-[500px] flex flex-col justify-between group">
         {/* Background photo: Bright and pristine Korean Mongdol Pebble Beach with crystal azure sea */}
         <img
           src={pebbleBeachImg}
@@ -43,17 +45,6 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
             <span className="text-stone-300">·</span>
             <span className="font-semibold text-stone-700">AI 멀티에이전트 자율운영 여행사</span>
           </div>
-
-          <div className="hidden sm:flex items-center gap-3 text-xs text-white drop-shadow-md">
-            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-stone-950/40 backdrop-blur-md border border-white/20">
-              <ShieldCheck className="w-4 h-4 text-emerald-300" />
-              관리자 인가 보증
-            </span>
-            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-stone-950/40 backdrop-blur-md border border-white/20">
-              <Globe className="w-4 h-4 text-sky-300" />
-              네이버 & 구글 MAP 100% PUSH 연동
-            </span>
-          </div>
         </div>
 
         {/* Center Main Editorial Copy */}
@@ -71,92 +62,43 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
           </div>
 
           <p className="text-sm sm:text-base md:text-lg text-stone-200/90 leading-relaxed max-w-2xl font-light">
-            일정, 경비, 숙소, 교통, 맛집, 카페, 기상, 안전, 문학, 지식전달까지 — 12인의 지능형 멀티에이전트가 중복 없이 자율 설계하고, 전담 관리자가 최종 인가하는 대한민국 럭셔리 국내 여행의 새로운 기준.
+            일정, 경비, 숙소, 교통, 맛집, 카페, 기상정보까지<br />
+            5인의 지능형 멀티에이전트가 중복 없이 자율 설계하고,<br />
+            전담 관리자가 최종 인가하는 대한민국 럭셔리 국내 여행의 새로운 기준.
           </p>
-
-          <div className="flex flex-wrap items-center gap-3 pt-2">
-            <button
-              onClick={onStartRequest}
-              className="px-7 py-4 rounded-2xl bg-gradient-to-r from-[#e26a2c] to-[#d05c20] hover:from-[#d05c20] hover:to-[#ba4e16] text-white font-bold text-sm sm:text-base shadow-xl shadow-orange-950/30 transition-all flex items-center gap-2.5 group cursor-pointer active:scale-95"
-            >
-              <span>내 여행 의뢰하기</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </button>
-
-            <button
-              onClick={() => {
-                if (onQuickExplore) onQuickExplore('제주도');
-              }}
-              className="px-6 py-4 rounded-2xl bg-stone-900/60 hover:bg-stone-900/80 backdrop-blur-md border border-stone-600/70 text-white font-semibold text-xs sm:text-sm transition-all flex items-center gap-2 cursor-pointer"
-            >
-              <Compass className="w-4 h-4 text-emerald-400" />
-              <span>제주 시그니처 여정 보기</span>
-            </button>
-
-            {onOpenStudio && (
-              <button
-                onClick={onOpenStudio}
-                className="px-5 py-3.5 rounded-2xl bg-violet-950/70 hover:bg-violet-900/90 backdrop-blur-md border border-violet-500/50 text-white font-bold text-xs sm:text-sm transition-all flex items-center gap-2 cursor-pointer shadow-lg"
-              >
-                <Sparkles className="w-4 h-4 text-violet-300" />
-                <span>AI 트랜스포머 스튜디오</span>
-                <span className="text-[10px] bg-amber-400 text-stone-950 px-2 py-0.5 rounded-full font-extrabold">
-                  코드 공개
-                </span>
-              </button>
-            )}
-
-            {onOpenWeatherStudio && (
-              <button
-                onClick={onOpenWeatherStudio}
-                className="px-5 py-3.5 rounded-2xl bg-sky-950/70 hover:bg-sky-900/90 backdrop-blur-md border border-sky-500/50 text-white font-bold text-xs sm:text-sm transition-all flex items-center gap-2 cursor-pointer shadow-lg"
-              >
-                <CloudSun className="w-4 h-4 text-sky-300" />
-                <span>기상예보 기술 분석</span>
-                <span className="text-[10px] bg-sky-400 text-stone-950 px-2 py-0.5 rounded-full font-extrabold">
-                  LSTM·앙상블
-                </span>
-              </button>
-            )}
-          </div>
         </div>
 
-        {/* Bottom Floating Luxury Concierge Bar - Bright Glass */}
-        <div className="relative z-10 p-4 sm:p-6 bg-white/90 backdrop-blur-md border-t border-white/70 shadow-sm">
-          <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs">
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
-              <span className="text-stone-600 font-bold shrink-0">추천 여행지:</span>
-              {popularDestinations.map((dest) => (
-                <button
-                  key={dest}
-                  onClick={() => {
-                    setSelectedDestination(dest);
-                    if (onQuickExplore) onQuickExplore(dest);
-                  }}
-                  className={`px-3 py-1.5 rounded-full transition-all shrink-0 font-medium ${
-                    selectedDestination === dest
-                      ? 'bg-[#064e43] text-white font-bold shadow-xs'
-                      : 'bg-stone-100/90 hover:bg-stone-200 text-stone-700 border border-stone-200/60'
-                  }`}
-                >
-                  {dest}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex items-center justify-between md:justify-end gap-3 text-stone-600 font-medium">
-              <div className="flex items-center gap-1.5">
-                <Award className="w-4 h-4 text-amber-500" />
-                <span className="font-bold text-stone-900">99.8%</span>
-                <span className="text-stone-500">동선 정합도</span>
-              </div>
-              <span className="text-stone-300">|</span>
-              <div className="flex items-center gap-1.5">
-                <span className="font-bold text-emerald-700">0건</span>
-                <span className="text-stone-500">일차별 장소 중복률</span>
-              </div>
-            </div>
-          </div>
+        {/* 우측 하단 여행 의뢰 CTA */}
+        <div className="absolute bottom-[30px] right-5 sm:right-8 z-20 flex flex-col items-end gap-3">
+          {onOpenTripArchive && (
+            <button
+              onClick={onOpenTripArchive}
+              className="group/archive flex items-center gap-2 rounded-full
+                bg-white/95 px-5 py-3 sm:px-6 sm:py-3.5
+                text-[#064e43] text-sm sm:text-base font-semibold
+                shadow-xl transition-all duration-300 ease-out
+                hover:bg-white hover:scale-105 hover:shadow-2xl
+                active:scale-95"
+            >
+              <span>내 여행 보관함</span>
+              <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover/archive:translate-x-1.5" />
+            </button>
+          )}
+          <button
+            onClick={onStartRequest}
+            className="group/cta flex items-center gap-2 rounded-full
+              bg-[#e26a2c] px-5 py-3 sm:px-6 sm:py-3.5
+              text-white text-sm sm:text-base font-medium
+              shadow-xl shadow-orange-950/25
+              transition-all duration-300 ease-out
+              hover:bg-[#c95720] hover:scale-105 hover:shadow-2xl
+              active:scale-95"
+          >
+            <span className="transition-all duration-300 group-hover/cta:font-extrabold group-hover/cta:tracking-wide">
+              여행 의뢰하기
+            </span>
+            <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover/cta:translate-x-1.5" />
+          </button>
         </div>
       </div>
 
@@ -171,9 +113,6 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
               이렇게 진행돼요
             </h2>
           </div>
-          <p className="text-xs sm:text-sm text-stone-500 max-w-md">
-            자율적인 AI 에이전트의 정밀한 설계와 전문 관리자의 철저한 검증으로 완성되는 3단계 안심 프로세스
-          </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

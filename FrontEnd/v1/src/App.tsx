@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { FullTravelPlan, TravelRequest, AgentLog, AgencyStats } from './types/travel';
 import { PRESET_JEJU_PLAN, PRESET_GYEONGJU_PLAN, INITIAL_AGENCY_STATS } from './data/presetData';
 import { orchestrateTravelPlan } from './services/aiTravelAgent';
@@ -15,23 +16,85 @@ import { TravelPlanDetail } from './components/TravelPlanDetail';
 import { AgentTeamIntro } from './components/AgentTeamIntro';
 import { AdminDashboard } from './components/AdminDashboard';
 import { AdminApprovalModal } from './components/AdminApprovalModal';
-import { WeatherPredictionWidget } from './components/WeatherPredictionWidget';
 import { ShareModal } from './components/ShareModal';
 import { PrintVoucher } from './components/PrintVoucher';
 import { GisVerificationModal } from './components/GisVerificationModal';
 import { TravelerSocialFeed } from './components/TravelerSocialFeed';
 import { AiTransformerStudio } from './components/AiTransformerStudio';
 import { WeatherTechStudio } from './components/WeatherTechStudio';
+import { UserHomePage } from './components/UserHomePage';
+import { TravelArchivePage } from './components/TravelArchivePage';
 import { AuthModal } from './components/auth/AuthModal';
-import { getCurrentUser, logoutUser, startSocialLogin, AuthUser } from './services/authService';
+import { getCurrentUser, logoutUser, AuthUser } from './services/authService';
 import { CheckCircle2 } from 'lucide-react';
 
 export default function App() {
-  const [currentTab, setCurrentTab] = useState<'EXPLORE' | 'REQUEST' | 'PLAN' | 'ADMIN' | 'STUDIO' | 'WEATHER_STUDIO'>('EXPLORE');
-  const [isAdmin, setIsAdmin] = useState<boolean>(true); // Logged in as administrator
+  const navigate = useNavigate();
+  const location = useLocation();
+  // const [currentTab, setCurrentTab] = useState<'EXPLORE' | 'REQUEST' | 'PLAN' | 'ADMIN' | 'STUDIO' | 'WEATHER_STUDIO'>('EXPLORE');
+  const [currentTab, setCurrentTab] = useState<'EXPLORE' | 'REQUEST' | 'PLAN' | 'ARCHIVE' | 'ADMIN' | 'USER' | 'STUDIO' | 'WEATHER_STUDIO'>('EXPLORE');
+  const pathByTab = {
+    EXPLORE: '/',
+    REQUEST: '/trips/new',
+    PLAN: '/trips',
+    ARCHIVE: '/trips/archive',
+    ADMIN: '/Admin',
+    USER: '/user',
+    STUDIO: '/studio',
+    WEATHER_STUDIO: '/weather-studio',
+  } as const;
+
+  const tabByPath: Record<string, typeof currentTab> = {
+    '/': 'EXPLORE',
+    '/trips/new': 'REQUEST',
+    '/trips': 'PLAN',
+    '/trips/archive': 'ARCHIVE',
+    '/Admin': 'ADMIN',
+    '/user': 'USER',
+    '/studio': 'STUDIO',
+    '/weather-studio': 'WEATHER_STUDIO',
+  };
+
+  const handleSelectTab = (tab: typeof currentTab) => {
+    setCurrentTab(tab);
+    if (location.pathname !== pathByTab[tab]) {
+      navigate(pathByTab[tab]);
+    }
+  };
+
+  // React.useEffect(() => {
+  //   if (!authReady) return;
+
+  //   const path = location.pathname;
+
+  //   if (path === '/Admin' && currentUser?.role !== 'Admin') {
+  //     navigate(currentUser ? '/user' : '/', { replace: true });
+
+  //     if (!currentUser) {
+  //       setAuthModalMode('login');
+  //       setAuthModalOpen(true);
+  //     }
+  //     return;
+  //   }
+
+  //   if (path === '/user' && !currentUser) {
+  //     navigate('/', { replace: true });
+  //     setAuthModalMode('login');
+  //     setAuthModalOpen(true);
+  //     return;
+  //   }
+
+  //   const tab = tabByPath[path] ?? 'EXPLORE';
+  //   setCurrentTab(tab);
+
+  //   if (!(path in tabByPath)) {
+  //     navigate('/', { replace: true });
+  //   }
+  // }, [location.pathname, navigate, currentUser, authReady]);
   
   // User Authentication state (v2 Auth integration)
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState<boolean>(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
   
@@ -64,33 +127,92 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Count pending approval plans
-  const pendingCount = plans.filter(p => p.request.status === 'PENDING_APPROVAL').length;
-
   // Authentication & OAuth session restore
   React.useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const oauthStatus = params.get('oauth');
-    if (oauthStatus === 'success') {
-      showToast('소셜 로그인이 성공적으로 완료되었습니다!');
-      window.history.replaceState({}, document.title, window.location.pathname);
-    } else if (oauthStatus === 'error') {
-      showToast(params.get('message') || '소셜 로그인에 실패했습니다. 다시 시도해주세요.');
-      window.history.replaceState({}, document.title, window.location.pathname);
+    let active = true;
+
+    const restoreSession = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const oauthStatus = params.get('oauth');
+
+      if (oauthStatus === 'error') {
+        showToast(
+          params.get('message') || '소셜 로그인에 실패했습니다.'
+        );
+
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname
+        );
+      }
+
+      try {
+        const user = await getCurrentUser();
+
+        if (!active) return;
+
+        setCurrentUser(user);
+
+        if (oauthStatus === 'success' && user) {
+          showToast('소셜 로그인이 성공적으로 완료되었습니다!');
+
+          navigate(
+            user.role === 'Admin' ? '/Admin' : '/user',
+            { replace: true }
+          );
+        } else if (oauthStatus === 'success' && !user) {
+          showToast('로그인 세션을 확인할 수 없습니다. 다시 로그인해주세요.');
+          window.history.replaceState(
+            {},
+            document.title,
+            window.location.pathname
+          );
+        }
+      } catch {
+        if (!active) return;
+        setCurrentUser(null);
+      } finally {
+        if (active) setAuthReady(true);
+      }
+    };
+
+    void restoreSession();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+  React.useEffect(() => {
+  // 로그인 상태 확인이 끝나기 전에는 권한 판단을 보류한다.
+    if (!authReady) return;
+
+    const path = location.pathname;
+
+    if (path === '/Admin' && currentUser?.role !== 'Admin') {
+      navigate(currentUser ? '/user' : '/', { replace: true });
+
+      if (!currentUser) {
+        setAuthModalMode('login');
+        setAuthModalOpen(true);
+      }
+      return;
     }
 
-    getCurrentUser()
-      .then(user => {
-        if (user) {
-          setCurrentUser(user);
-        }
-      })
-      .catch(() => {});
-  }, []);
+    if (path === '/user' && !currentUser) {
+      navigate('/', { replace: true });
+      setAuthModalMode('login');
+      setAuthModalOpen(true);
+      return;
+    }
 
-  const handleDirectGoogleLogin = () => {
-    startSocialLogin('google');
-  };
+    const tab = tabByPath[path] ?? 'EXPLORE';
+    setCurrentTab(tab);
+
+    if (!(path in tabByPath)) {
+      navigate('/', { replace: true });
+    }
+  }, [location.pathname, navigate, currentUser, authReady]);
 
   const handleOpenLogin = () => {
     setAuthModalMode('login');
@@ -107,6 +229,13 @@ export default function App() {
 
   const handleLoginSuccess = (user: AuthUser) => {
     setCurrentUser(user);
+    setAuthModalOpen(false);
+
+    navigate(
+      user.role === 'Admin' ? '/Admin' : '/user',
+      { replace: true }
+    );
+
     showToast(`${user.name || user.email}님 환영합니다!`);
   };
 
@@ -114,7 +243,7 @@ export default function App() {
   const handleRequestSubmit = async (req: TravelRequest) => {
     setIsGenerating(true);
     setAgentLogs([]);
-    setCurrentTab('REQUEST'); // Keep on request page to show real-time orchestration
+    handleSelectTab('REQUEST'); // Keep on request page to show real-time orchestration
 
     try {
       const newPlan = await orchestrateTravelPlan(req, (log) => {
@@ -140,7 +269,7 @@ export default function App() {
       });
 
       showToast(`'${req.destination}' AI 일정 설계 완료! 관리자 인가 대기 상태로 등록되었습니다.`);
-      setCurrentTab('PLAN');
+      handleSelectTab('PLAN');
     } catch (err) {
       console.error('Error generating travel plan:', err);
       showToast('일정 생성 중 오류가 발생했습니다. 다시 시도해주세요.');
@@ -199,7 +328,7 @@ export default function App() {
 
     setPlans(prev => prev.map(p => p.requestId === target.requestId ? revisingPlan : p));
     setSelectedPlan(revisingPlan);
-    setCurrentTab('PLAN');
+    handleSelectTab('PLAN');
     showToast('AI 에이전트 팀이 관리자 피드백을 반영하여 일정을 재조율하고 있습니다...');
 
     // Re-orchestrate with feedback
@@ -259,16 +388,9 @@ export default function App() {
       {/* Main Navigation Header */}
       <Header
         currentTab={currentTab}
-        onSelectTab={setCurrentTab}
-        isAdmin={isAdmin}
-        onToggleAdmin={() => {
-          setIsAdmin(!isAdmin);
-          showToast(!isAdmin ? '관리자 권한으로 로그인되었습니다.' : '일반 모드로 전환되었습니다.');
-        }}
-        pendingCount={pendingCount}
+        onSelectTab={handleSelectTab}
         currentUser={currentUser}
         onOpenLogin={handleOpenLogin}
-        onDirectGoogleLogin={handleDirectGoogleLogin}
         onLogout={handleLogout}
       />
 
@@ -279,57 +401,88 @@ export default function App() {
           <div className="space-y-12">
             {/* 1. Hero Banner with Jeju Coast image & "이렇게 진행돼요" */}
             <HeroBanner
-              onStartRequest={() => setCurrentTab('REQUEST')}
+              onStartRequest={() => {
+                setCurrentTab('REQUEST');
+                navigate('/trips/new');
+              }}
               onQuickExplore={(dest) => {
                 setTargetDestination(dest);
                 if (dest.includes('제주')) {
                   setSelectedPlan(PRESET_JEJU_PLAN);
-                  setCurrentTab('PLAN');
+                  handleSelectTab('PLAN');
                 } else if (dest.includes('경주')) {
                   setSelectedPlan(PRESET_GYEONGJU_PLAN);
-                  setCurrentTab('PLAN');
+                  handleSelectTab('PLAN');
                 } else {
-                  setCurrentTab('REQUEST');
+                  handleSelectTab('REQUEST');
                 }
               }}
-              onOpenStudio={() => setCurrentTab('STUDIO')}
-              onOpenWeatherStudio={() => setCurrentTab('WEATHER_STUDIO')}
+              onOpenStudio={() => handleSelectTab('STUDIO')}
+              onOpenWeatherStudio={() => handleSelectTab('WEATHER_STUDIO')}
             />
 
             {/* 2. "우리 여행사의 AI 에이전트 팀" & "인기 여행지" */}
             <AgentTeamIntro
               onSelectPlan={(plan) => {
                 setSelectedPlan(plan);
-                setCurrentTab('PLAN');
+                handleSelectTab('PLAN');
               }}
               onSelectDestination={(dest) => {
                 setTargetDestination(dest);
               }}
-              onOpenStudio={() => setCurrentTab('STUDIO')}
-              onOpenWeatherStudio={() => setCurrentTab('WEATHER_STUDIO')}
-            />
-
-            {/* 3. NEW: 10-Year Climate ML/DL Long-term Forecast & Smart Packing Widget */}
-            <WeatherPredictionWidget
-              initialDestination={targetDestination}
-              onApplyToTripRequest={(dest, start, end) => {
-                setTargetDestination(dest);
-                setCurrentTab('REQUEST');
-              }}
-              onOpenWeatherStudio={() => setCurrentTab('WEATHER_STUDIO')}
+              onOpenStudio={() => handleSelectTab('STUDIO')}
+              onOpenWeatherStudio={() => handleSelectTab('WEATHER_STUDIO')}
             />
 
             {/* 4. NEW: Traveler Social Feed & Shared Itineraries */}
             <TravelerSocialFeed
               onLoadPresetPlan={(plan) => {
                 setSelectedPlan(plan);
-                setCurrentTab('PLAN');
+                handleSelectTab('PLAN');
               }}
               onExploreDestination={(dest) => {
                 setTargetDestination(dest);
               }}
             />
           </div>
+        )}
+
+        {currentTab === 'USER' && (
+          <UserHomePage
+            onStartRequest={() => handleSelectTab('REQUEST')}
+            onOpenTripArchive={() => handleSelectTab('ARCHIVE')}
+            onQuickExplore={(destination) => {
+              setTargetDestination(destination);
+              if (destination.includes('제주')) {
+                setSelectedPlan(PRESET_JEJU_PLAN);
+                handleSelectTab('PLAN');
+              } else if (destination.includes('경주')) {
+                setSelectedPlan(PRESET_GYEONGJU_PLAN);
+                handleSelectTab('PLAN');
+              } else {
+                handleSelectTab('REQUEST');
+              }
+            }}
+            onSelectPlan={(plan) => {
+              setSelectedPlan(plan);
+              handleSelectTab('PLAN');
+            }}
+            onSelectDestination={setTargetDestination}
+            onOpenStudio={() => handleSelectTab('STUDIO')}
+            onOpenWeatherStudio={() => handleSelectTab('WEATHER_STUDIO')}
+          />
+        )}
+
+        {currentTab === 'ARCHIVE' && (
+          <TravelArchivePage
+            plans={plans}
+            userName={currentUser?.name || undefined}
+            onCreatePlan={() => handleSelectTab('REQUEST')}
+            onOpenPlan={(plan) => {
+              setSelectedPlan(plan);
+              handleSelectTab('PLAN');
+            }}
+          />
         )}
 
         {/* TAB 2: REQUEST FORM & LIVE ORCHESTRATION */}
@@ -376,8 +529,7 @@ export default function App() {
 
             <TravelPlanDetail
               plan={selectedPlan}
-              isAdmin={isAdmin}
-              onOpenApprovalModal={() => {
+                    onOpenApprovalModal={() => {
                 setPlanForApproval(selectedPlan);
                 setApprovalModalOpen(true);
               }}
@@ -389,35 +541,37 @@ export default function App() {
         )}
 
         {/* TAB 4: ADMIN APPROVAL CENTER */}
-        {currentTab === 'ADMIN' && (
-          <AdminDashboard
-            stats={agencyStats}
-            allPlans={plans}
-            onSelectPlan={(plan) => {
-              setSelectedPlan(plan);
-              setCurrentTab('PLAN');
-            }}
-            onOpenApproval={(plan) => {
-              setPlanForApproval(plan);
-              setApprovalModalOpen(true);
-            }}
-          />
-        )}
+        {currentTab === 'ADMIN' &&
+          authReady &&
+          currentUser?.role === 'Admin' && (
+            <AdminDashboard
+              stats={agencyStats}
+              allPlans={plans}
+              onSelectPlan={(plan) => {
+                setSelectedPlan(plan);
+                handleSelectTab('PLAN');
+              }}
+              onOpenApproval={(plan) => {
+                setPlanForApproval(plan);
+                setApprovalModalOpen(true);
+              }}
+            />
+          )}
 
         {/* TAB 5: AI & TRANSFORMER ARCHITECTURE STUDIO */}
         {currentTab === 'STUDIO' && (
           <AiTransformerStudio
-            onNavigateToRequest={() => setCurrentTab('REQUEST')}
-            onNavigateToPlan={() => setCurrentTab('PLAN')}
-            onNavigateToWeatherStudio={() => setCurrentTab('WEATHER_STUDIO')}
+            onNavigateToRequest={() => handleSelectTab('REQUEST')}
+            onNavigateToPlan={() => handleSelectTab('PLAN')}
+            onNavigateToWeatherStudio={() => handleSelectTab('WEATHER_STUDIO')}
           />
         )}
 
         {/* TAB 6: WEATHER FORECAST TECH ANALYSIS STUDIO (LSTM & ENSEMBLE) */}
         {currentTab === 'WEATHER_STUDIO' && (
           <WeatherTechStudio
-            onNavigateToRequest={() => setCurrentTab('REQUEST')}
-            onNavigateToTransformerStudio={() => setCurrentTab('STUDIO')}
+            onNavigateToRequest={() => handleSelectTab('REQUEST')}
+            onNavigateToTransformerStudio={() => handleSelectTab('STUDIO')}
           />
         )}
       </main>
