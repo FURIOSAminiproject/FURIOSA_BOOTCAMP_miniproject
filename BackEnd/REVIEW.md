@@ -67,8 +67,44 @@ origin/jiseokLee의 AuthModule·User·회원가입·로그인·OAuth를 현재 N
 
 테스트 전용 tsconfig.spec.json과 단위·E2E의 ESM 변환 설정을 추가하고 jest 객체를 명시적으로 가져오도록 수정했다. 명시적 jest import에 맞춰 mock 함수·nullable 비밀번호 해시의 타입도 보완했고 tsconfig.spec의 noEmit 타입 검사가 통과했다. 운영 컴파일·CI/Docker Node 22는 유지했다. Node 22.23.3에서 전체 npm test(6+4개), 모킹 E2E 1개 및 운영 빌드가 통과했고, Node 24.20.0에서도 Jest 단위 4개·E2E 1개가 캐시 없이 통과했다. 실제 GitHub Linux 러너 재실행·EC2 배포는 수행하지 않았다.
 
+<<<<<<< HEAD
 ## 2026-10-22 추가: tsx 개발 실행의 로그인 JWT 주입 오류
 
 `start:local` / `start:dev`는 `tsx`로 소스를 직접 실행한다. 이 경로에서 타입 메타데이터에만 의존하던 `AuthService`의 `JwtService`와 `ConfigService` 주입이 누락되어 로그인 중 `jwtService.signAsync` 호출이 실패할 수 있었다. 두 생성자 매개변수에 `@Inject()` 토큰을 명시했다.
 
 `tsx`로 `AuthModule`을 직접 로드한 뒤 모킹 사용자 저장소로 로그인하고 발급 JWT를 검증해 통과했다. Jest 단위 4개와 인증 통합 테스트도 통과했다. 전체 `npm test`에서는 기존 로컬 환경 파일의 DB 이름 덮어쓰기 때문에 환경 테스트 1개가 기대값과 달라 실패했으며, JWT 수정과는 별개다.
+=======
+## 2026-10-22 추가: TourAPI 장소 수집과 출처 기록
+
+실제 실행 경로인 NestJS/src/places에 독립 수집 모듈·서비스와 CLI를 추가했다. 목록·동기화·행사·단일 상세·분류 모드를 지원하고 기존 환경 로더를 통해 명시한 local/dev/prod 설정을 사용한다. 분류·지역 코드 조회, 기본 장소 UPSERT, 네 상세 API의 성공 묶음 저장을 분리하고 요청 예산·타임아웃·단일 재시도·페이지 이어받기를 제공한다. 인증키는 환경변수로 받고 오류·원본·출처 URL에서 제외한다.
+
+content_id/category_code 충돌 시 기존 UUID를 유지하며 목록 수집은 기존 상세를 보존한다. raw_data에는 API별 최신 items·수집 시각·인증정보를 제거한 요청 URL을 남긴다. 실제 내용이 같으면 unchanged이며 updated_at은 유지하고 수집 메타데이터만 갱신한다. showflag=0은 비활성화하며 후기 연결을 삭제하지 않는다. 장소의 source_url/source_type은 별도 변경 SQL로 추가했고 TourAPI 수집기는 API를 저장한다. CRAWLING 값은 허용하되 크롤러는 구현하지 않았다. 자동 스키마 변경 설정은 계속 false다.
+
+Node 22.23.3에서 npm test(Node 20개 + Jest 4개)와 운영 빌드가 통과했다. PGlite에서 실제 저장 SQL·UUID 유지·상세 병합·후기 FK 보존, 출처 인증정보 제거, 변경 SQL의 반복 실행·데이터 보존·미확인 출처 NULL을 검사했다. 실제 개발 DB travel_test.public에 분류 315개와 관광지 2개를 저장했으며 재수집 때 inserted=0/updated=0/unchanged=2와 UUID·상세 유지, 인증키 없는 source_url 및 source_type=API를 확인했다. 최초 연동 20회와 출처 추가 후 6회로 총 26회 TourAPI 요청을 사용했다. 실제 users·후기 데이터는 생성·변경하지 않았다.
+
+전국 전체 수집, 모든 관광타입의 실제 응답, 장소/후기 웹 CRUD, 자동 스케줄, ORS·ITS 연동과 운영 배포는 포함하지 않는다. 기존 B01~B04 및 회원 엔티티의 정수 ID 선언과 실제 개발 DB의 UUID 차이는 해결한 것으로 표시하지 않는다. 실행 방법·매핑·실패 후 재시도는 [수집 안내](NestJS/docs/TOUR_INGESTION.md)를 따른다.
+
+## 2026-10-22 추가: 장소 수집 책임 분리와 SOLID
+
+TourApiModule(HTTP)·TourPersistenceModule(DB)·TourIngestionModule(업무 흐름)로 분리했다. 분류·지역 준비는 TourReferenceService, 상세 묶음 조회는 TourDetailService, 목록 모드 구성은 TourListPlans, 순수 병합·변경 판정은 TourPlaceMapper가 담당한다. 기존 TourStore에는 장소 SQL만 남기고 분류 SQL은 TourCategoryRepository, 트랜잭션·잠금·스키마 확인은 TourDbSession으로 옮겼다. 서비스는 필요한 기능만 가진 인터페이스를 받고 실제 구현은 Nest factory에서 조립한다.
+
+전략 주입 시 수집 서비스 유지(OCP), HTTP/메모리 조회 구현의 공통 계약(LSP), 좁은 포트만으로 분류·상세 동작(ISP/DIP), 매핑·출처 정제와 잠금·롤백·연결 반환(SRP)을 확인하는 테스트 11개를 추가했다. 기존 수집 테스트 14개도 분리한 Nest 모듈 구성에서 통과했다. Node 22.23.3의 전체 npm test는 Node 31개 + Jest 4개, 총 35개 통과했고 운영 빌드도 통과했다. 격리 PGlite에서 분리한 저장소의 실제 SQL과 UUID·상세·후기 보존을 재검증했다. 검증 명령과 범위는 [장소 모듈 README](NestJS/src/places/README.md)에 기록했다.
+
+이번 리팩터링에서 원격 DB 쓰기·TourAPI 호출은 추가로 실행하지 않았다. 기존 개발 DB의 장소 2건은 부산 사하구 관광지를 page-size=2/max-pages=1로 제한한 실연동 결과다. 이전 nextPages.list=2로 다음 페이지가 있었고, 전국 전체 수집이나 두 곳만 존재한다는 의미가 아니다. 원격 DB·API 실연동 기록과 이번 대역/격리 엔진 검증을 구분한다. 기존 B01~B04·회원 ID 선언 차이·운영 배포 범위는 이번 변경으로 해결된 것으로 표시하지 않는다.
+
+### 배포 커밋 범위
+
+사용자 요청에 따라 수집 검증용 test/tour-ingestion.test.cjs와 test/tour-design.test.cjs, 임시 PGlite·실연동 도구는 배포 커밋에서 제외한다. 위 35개 통과 기록은 로컬 검증 파일을 포함한 결과이며, 해당 파일이 없는 배포 체크아웃의 npm test는 기존 Node 6개와 Jest 4개를 실행한다. 검증 파일 전용 package 명령은 배포 설정에서 제거했다. 실제 수집 진입점 scripts/tour-ingest.cjs와 src/places/ingest.ts는 운영 기능이므로 포함한다.
+
+## 2026-10-22 추가: 매일 01:00 한국 시간 TourAPI 배치
+
+NestJS 12 호환 @nestjs/schedule 12.0.2를 런타임 의존성에 추가하고 AppModule에 배치 모듈을 연결했다. 사용자 결정에 따라 활성화 플래그를 제거하고 모든 서버 시작 시 Cron 0 0 1 * * *, Asia/Seoul를 자동 등록한다. 인증키 검사는 실제 수집 시 수행하며 누락 시 해당 배치 실패만 기록한다. 서버 시작 직후에는 실행하지 않는다. 기존 Dockerfile은 잠금 파일로 운영 의존성을 설치하므로 별도 cron 설치 없이 같은 서버 프로세스에서 동작한다.
+
+날짜·필터 검증, 시간 트리거, 성공 기록 파일, 배치 흐름을 책임별로 나눴다. CLI와 배치는 공통 실행 팩터리를 통해 기존 수집 서비스·매퍼·저장소를 재사용한다. 매번 새 API 클라이언트를 생성해 요청 예산이 누적되지 않도록 했다. 미지원 관광타입은 ignored, 잘못된 지원 타입 정보는 skipped로 구분한다. 전체 페이지 처리·skipped=0·성공 기록 파일 저장을 모두 만족해야 성공 날짜를 전진시킨다. 실패·페이지 제한·호출 예산 초과는 이전 날짜를 유지하고 로그로 알린다.
+
+성공 날짜는 새 DB 테이블 없이 파일에 원자적으로 저장한다. Compose의 tour-batch-data 볼륨을 추가해 컨테이너 교체 후에도 유지한다. 마지막 성공일보다 하루 앞에서 겹쳐 읽으며, 실패 기간이 길면 기본 2일 전보다 더 과거에서 재조회한다. 최초 전체 데이터 수집은 별도 CLI 작업이다. Cron의 waitForCompletion, 로컬 실행 플래그와 기존 DB advisory lock으로 동시 수집을 막지만 다중 독립 서버의 날짜별 정확히 1회 처리를 보장하는 작업 큐는 아니다. 현재 한 백엔드 인스턴스 구성을 따른다.
+
+Node 22.23.3에서 저장소 밖 배치 검증 17개가 통과했다. 실제 Nest Cron 등록·한국 시간 다음 실행·콜백, 설정 없는 자동 등록·키 누락 시 서버 유지, 성공 날짜·중단 기간, 불완전 처리·오류·잠금·중복, 파일 교체·손상 검사를 포함한다. 격리 PGlite에서 공통 팩터리부터 실제 SQL 저장·상세·비활성화·성공 기록·재수집 UUID 유지까지 연결했다(advisory lock 응답은 대역). 기존 npm test 35개와 운영 빌드도 통과했다. 배치 검증은 커밋 대상에 넣지 않았다. 원격 DB/실제 API/운영 배포/실제 새벽 실행은 검사하지 않았다. [배치 README](NestJS/src/places/batch/README.md)에 설정과 제한을 기록했다. 기존 B01~B04와 회원 ID 선언 차이는 미해결 상태다.
+
+후속 사용자 요청으로 활성화 설정과 enabled 분기를 완전히 제거했다. 이전 활성화 플래그 값이 남아 있어도 동작에 영향을 주지 않는다. 서버 시작 시 항상 스케줄이 등록되며, 별도 플래그 없이 01:00 자동 실행·인증키 누락 시 배치 실패 로그를 다시 검증했다.
+>>>>>>> 92fb82b39333e59ab755106a8880870b0b6311ee

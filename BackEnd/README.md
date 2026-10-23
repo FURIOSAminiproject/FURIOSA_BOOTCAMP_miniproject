@@ -25,6 +25,8 @@ NestJS → TypeORM → PostgreSQL 연결 및 진단
 
 DB는 기동 시 연결하며 회원가입·로그인·OAuth 사용자를 `users`에 저장합니다. 일정·승인 데이터 저장과 여행·관리자 API 권한 검사는 구현되지 않았습니다. 승인·반려는 프론트 메모리 상태입니다. 인증은 `/auth/*`, 여행·진단은 `/api/*` 경로입니다.
 
+TourAPI 분류·장소 수집은 NestJS의 [서버 수집 명령](NestJS/docs/TOUR_INGESTION.md)으로 실행합니다. 책임별 모듈·SOLID 적용·검증 결과는 [장소 모듈 README](NestJS/src/places/README.md)에 기록했습니다. 공개 수집 HTTP 경로는 없습니다. [매일 01:00 한국 시간 배치](NestJS/src/places/batch/README.md)는 서버가 켜지면 자동 등록되며, 기존 환경 선택 규칙으로 대상 DB를 고릅니다. 장소 조회·후기 작성 API와 기존 AI 일정 생성의 DB 연결은 이번 수집 기능에 포함하지 않습니다.
+
 ## 실행
 
 아래 경로 이동 명령은 각각 저장소 루트에서 시작합니다. NestJS는 환경 파일 또는 시스템 환경변수로 DB 접속 정보를 준비해야 합니다.

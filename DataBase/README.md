@@ -2,6 +2,33 @@
 
 현재 NestJS는 PostgreSQL에 연결하고 상태를 확인하며 `users`에 회원가입·OAuth 사용자를 저장합니다. 일정·승인 데이터를 저장하는 엔티티·저장 API는 구현되어 있지 않습니다. 프론트의 일정과 승인 상태는 React 메모리 상태입니다.
 
+## 최신 장소 스키마 — 2026-10-22
+
+현재 장소 영역의 기준은 [DDL v2](place_schema_v2.sql), [전체 테이블 명세](table_spec_2026-10-18.md), [통합 설계 설명](place_design_v2.md)입니다. 테이블 명세 파일명은 기존 링크를 위해 유지하며 본문은 2026-10-22 기준으로 갱신했습니다.
+
+| 테이블 | 한글명 | 컬럼 수 | 출처 |
+|---|---|---:|---|
+| place_categories | 장소 분류 | 5 | TourAPI 분류 코드·이름과 내부 계층 연결 |
+| places | 장소 정보 | 32 | TourAPI 장소 정보와 최신 수집 정보 |
+| place_reviews | 장소 후기 | 7 | 로그인 사용자 입력과 작성·수정 시각 |
+
+place_category_map과 place_sources는 제외했습니다. places.category_id로 소분류 하나를 직접 연결하고 대·중분류는 상위 분류로 조회합니다. 외부 콘텐츠 ID·원본 JSON·수집 시각은 places에 유지합니다. 좋아요·수집 관리·ORS·ITS 전용 테이블은 최신 DDL에 포함하지 않습니다. ORS·ITS 연동은 이번 배포 범위에 포함하지 않습니다.
+
+TourAPI 수집 로직은 [NestJS 수집 서비스·CLI](../BackEnd/NestJS/docs/TOUR_INGESTION.md)로 구현했습니다. 개발 DB에 분류 315개와 관광지 2개의 목록·상세를 실제 저장하고 재수집 시 UUID·상세 유지와 중복 방지를 확인했습니다. 출처 URL·수집 방식을 places에 추가했으며 회원·후기 데이터는 수집 대상이 아닙니다.
+
+### UUID 전제와 현재 백엔드의 차이
+
+새 장소·분류·후기 ID와 리뷰 작성자 user_id는 UUID입니다. 개발 DB travel_test.public.users.user_id는 실제 UUID PK인 것을 확인했습니다. 현재 [User 엔티티](../BackEnd/NestJS/src/users/entities/user.entity.ts)는 정수 자동 증가 전략으로 선언되어 있어 DB와 다릅니다. 이 DDL은 users나 회원 코드를 변경하지 않습니다. 다른 환경에서는 적용 전에 실제 회원 ID 타입을 확인합니다.
+
+### DDL 실행 순서
+
+1. DBeaver에서 대상 DB·스키마를 선택하고 기존 users.user_id가 UUID PK인지 확인합니다. users와 새 테이블이 같은 스키마에 있다는 전제입니다.
+2. 새 테이블이 없는 환경에서 [place_schema_v2.sql](place_schema_v2.sql) 전체를 BEGIN부터 COMMIT까지 SQL 스크립트로 실행합니다. 파일 안에서 분류 → 장소 → 후기 순으로 생성합니다.
+3. 기존 v2 30컬럼 환경은 [출처 컬럼 추가 SQL](migrations/20261022_add_place_source_metadata.sql)만 실행합니다. 개발 DB에는 적용 완료했습니다. 다른 기존 구조는 별도 변경·이관 SQL이 필요합니다. `place_schema_v1.sql`은 이전 초안이므로 v2와 연속 실행하지 않습니다. 오류로 트랜잭션이 실패 상태라면 ROLLBACK 후 원인을 확인합니다.
+4. 분류를 대 → 중 → 소 순서로 넣고 장소를 수집합니다. UUID는 서버가 전달하고 재수집 시 유지합니다. updated_at은 UPDATE에서 명시적으로 변경합니다.
+
+임시 PostgreSQL 엔진에서 DDL·제약조건 등 27개 검증을 통과했습니다. 이후 2026-10-22 11:38:48 KST에 개발 DB travel_test.public에 세 테이블을 생성하고 COMMIT했습니다. 총 42개 컬럼·FK 4개·컬럼 주석 42개를 확인했습니다. [실행 기록](place_schema_v2_applied_2026-10-22.md)을 참고하며, 같은 개발 DB에서 신규 생성 SQL을 다시 실행하지 않습니다. 최초 생성 이후 13:40:16 KST에 출처 컬럼 추가 SQL도 적용해 현재 총 44개 컬럼·주석 44개입니다. 개발 DB의 TourAPI 수집 검증은 위 수집 안내에 별도 기록했습니다. 분류 단계·JSON 내부 항목·리뷰 권한은 별도 서버 검증 대상입니다.
+
 ## 설정의 기준
 
 현재 실행 대상은 `BackEnd/NestJS/`이며 DB 접속 옵션은 [database.config.ts](../BackEnd/NestJS/src/database/database.config.ts)에서 정의합니다. DB 서버는 Docker Compose에 포함되지 않습니다. 실제 서버 버전·주소·계정·권한은 운영 환경에서 확인하며 특정 EC2 IP나 계정명이 코드에 고정되어 있지 않습니다.
@@ -90,6 +117,6 @@ DBeaver에서 PostgreSQL 연결을 만들고 실제 환경 파일과 같은 호�
 
 ## 인증 사용자 스키마
 
-현재 기준은 [User 엔티티](../BackEnd/NestJS/src/users/entities/user.entity.ts)입니다. [2026-10-18 테이블 명세](table_spec_2026-10-18.md)는 이전 설계 기록이므로 현재 엔티티·실제 DB 스키마와 대조해야 합니다.
+현재 인증 구현의 기준은 [User 엔티티](../BackEnd/NestJS/src/users/entities/user.entity.ts)입니다. [테이블 명세](table_spec_2026-10-18.md)는 최신 장소·분류·후기 DDL과 기존 회원·여행 초안을 구분해 설명합니다. 명세의 UUID 목표 설계와 현재 정수 자동 증가 회원 선언은 서로 다르며, 기존 회원의 실제 타입·OAuth 컬럼·NULL 허용 여부는 엔티티·실제 DB와 대조해야 합니다.
 
 기존 users 테이블에는 [OAuth 변경 SQL](../BackEnd/NestJS/migrations/20261019_add_oauth_columns.sql)이 email/password_hash의 NULL 허용, auth_provider/provider_subject 컬럼, 공급자·식별자 유니크 인덱스를 적용합니다. users 테이블 생성은 포함하지 않습니다. 실제 DB의 컬럼 타입·기본값·권한을 확인한 뒤 DB 관리자가 별도 적용합니다. 앱이나 배포는 자동 실행하지 않습니다. 사용자 저장에는 해당 테이블·ID 생성에 필요한 쓰기 권한도 필요합니다.

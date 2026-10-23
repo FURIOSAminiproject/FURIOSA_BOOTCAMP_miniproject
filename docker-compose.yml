@@ -30,6 +30,8 @@ services:
     env_file:
       - path: ./BackEnd/NestJS/.env.${APP_ENV:-production}
         required: false
+    volumes:
+      - tour-batch-data:/app/data/tour-batch
     # 호스트 OS(EC2)에서 구동 중인 PostgreSQL 접속 지원
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -84,3 +86,6 @@ services:
 networks:
   travel-network:
     driver: bridge
+
+volumes:
+  tour-batch-data:

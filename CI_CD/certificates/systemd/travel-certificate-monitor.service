@@ -1,0 +1,16 @@
+[Unit]
+Description=Check EC2 certificate use and revoke retired certificates
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/travel-certificates
+Environment=PYTHONDONTWRITEBYTECODE=1
+UMask=0077
+ExecStart=/usr/bin/python3 /opt/travel-certificates/monitor_certificates.py --config /etc/travel-certificates/monitor.json --apply
+TimeoutStartSec=15min
+StandardOutput=journal
+StandardError=journal

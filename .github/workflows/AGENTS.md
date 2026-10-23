@@ -40,7 +40,7 @@
 - 동시성 그룹은 서비스별로 분리되어 있다. 같은 Docker 호스트·Compose 프로젝트를 공유한다면 서비스 간 잠금 범위도 검토한다. 실제 러너 수·배치는 별도 확인 사항이다.
 - `cancel-in-progress: false`가 모든 실행을 보존하는 FIFO 대기열을 의미하지는 않는다. 실행 중 작업 취소와 대기 중 작업 교체 정책을 구분한다.
 - `actions/checkout@v4`의 기본 정리는 ignored 파일도 대상으로 한다. `.env`, 인증서, 백업을 checkout 작업 폴더에 영구 보관하는 전제로 설계하지 않는다.
-- NestJS 배포 스크립트의 환경 파일 복원과 frontend/fastapi 경로의 준비 상태가 다르다. checkout 옵션 변경이나 frontend 단독 배포 시 의존 서비스를 확인한다.
+- FrontEnd와 NestJS는 공통 prepare-env.sh로 NestJS 환경 파일을 복원·검사한다. FastAPI 환경 파일은 별도 준비가 필요하다. frontend paths에는 공유 helper도 포함한다. checkout 옵션 변경이나 frontend 단독 배포 시 의존 서비스를 확인한다.
 - job timeout과 스크립트의 HTTP 요청 timeout은 별개다. YAML에 timeout이 없다고 무제한이라고 설명하지 않는다.
 
 ## 권한과 실행 코드

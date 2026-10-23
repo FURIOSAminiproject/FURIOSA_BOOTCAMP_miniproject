@@ -1,0 +1,9 @@
+{
+  "config_dir": "/etc/letsencrypt",
+  "identity_env": "/home/ec2-user/.env.production",
+  "frontend_container": "travel-frontend",
+  "confirmations": 3,
+  "grace_seconds": 900,
+  "max_sample_gap_seconds": 900,
+  "direct_dns": true
+}

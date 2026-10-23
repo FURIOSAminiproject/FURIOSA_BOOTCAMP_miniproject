@@ -32,7 +32,7 @@ travel-backend        → 별도로 준비한 PostgreSQL
 
 | 워크플로우 | 감시 경로 | 클라우드 검증 | EC2 스크립트 |
 |---|---|---|---|
-| [deploy.yml](../.github/workflows/deploy.yml) | `FrontEnd/**`, `CI_CD/FrontEnd/**` | Node 22, npm ci, Vite 빌드 | [FrontEnd/deploy.sh](FrontEnd/deploy.sh) |
+| [deploy.yml](../.github/workflows/deploy.yml) | `FrontEnd/**`, `CI_CD/FrontEnd/**`, `CI_CD/BackEnd/nestjs/prepare-env.sh` | Node 22, npm ci, Vite 빌드 | [FrontEnd/deploy.sh](FrontEnd/deploy.sh) |
 | [deploy_backend.yml](../.github/workflows/deploy_backend.yml) | `BackEnd/NestJS/**`, `CI_CD/BackEnd/nestjs/**` | Node 22, npm ci, 테스트, TS 빌드 | [BackEnd/nestjs/deploy.sh](BackEnd/nestjs/deploy.sh) |
 | [deploy_fastapi.yml](../.github/workflows/deploy_fastapi.yml) | `BackEnd/FastAPI/**`, `CI_CD/BackEnd/fastapi/**` | Python 3.12, 의존성, 문법·임포트 검사 | [BackEnd/fastapi/deploy.sh](BackEnd/fastapi/deploy.sh) |
 
@@ -44,7 +44,7 @@ travel-backend        → 별도로 준비한 PostgreSQL
 
 ## EC2 및 Self-hosted 러너 준비
 
-1. Git, curl, tar, Docker Engine 및 Docker Compose 플러그인을 준비합니다. `env_file.required: false` 구문을 지원하는 Compose 2.24.0 이상을 사용합니다.
+1. Git, curl, tar, Python 3, Docker Engine 및 Docker Compose 플러그인을 준비합니다. `env_file.required: false` 구문을 지원하는 Compose 2.24.0 이상을 사용합니다.
 2. Docker 데몬을 시작하고 러너 실행 계정에 Docker 사용 권한을 부여합니다.
 3. GitHub 저장소 Settings → Actions → Runners에서 서버 아키텍처에 맞는 러너 다운로드·등록 명령을 확인합니다. 등록 토큰은 저장소에 기록하지 않습니다.
 4. 러너에 `self-hosted`, `linux` 라벨이 있는지 확인하고 서비스로 실행합니다.
@@ -69,12 +69,14 @@ Compose의 `APP_ENV` 기본값은 `production`입니다. `local`, `development`,
 | FastAPI 컨테이너 | `BackEnd/FastAPI/.env` | APP_ENV별 파일 자동 선택 없음 |
 | FrontEnd 이미지 | Dockerfile이 생성한 기본 `.env.${APP_ENV}` | 호스트 `.env.*`는 이미지로 복사하지 않음 |
 
-NestJS 배포 스크립트는 대상 환경 파일이 없으면 다음 순서로 찾아 복사합니다. 전부 없으면 배포를 중단합니다.
+FrontEnd와 NestJS 배포는 공통 [prepare-env.sh](BackEnd/nestjs/prepare-env.sh)를 호스트 서비스 중지·백업·컨테이너 교체 전에 실행합니다. 대상 환경 파일이 없으면 다음 순서로 찾아 권한 600으로 복사합니다. 기존 작업 폴더 파일은 덮어쓰지 않습니다. 전부 없으면 배포를 중단합니다.
 
 1. `/home/ec2-user/.env.${APP_ENV}`
 2. `/home/ec2-user/FURIOSA_BOOTCAMP_miniproject/BackEnd/NestJS/.env.${APP_ENV}`
 3. `/home/ec2-user/FURIOSA_BOOTCAMP_miniproject/BackEnd/.env.${APP_ENV}`
 4. `$HOME/.env.${APP_ENV}`
+
+Compose가 실제 주입할 DB_HOST·DB_NAME·DB_USER·DB_PASSWORD, 공백을 제외한 32자 이상 JWT_SECRET, DB_PORT 범위, DB_SSL 값을 검사합니다. 파일을 shell로 실행하거나 설정값을 출력하지 않습니다. Compose 해석 오류의 상세 내용도 비밀값 노출을 피하기 위해 출력하지 않으므로, 실패하면 파일 문법과 필수 항목을 별도로 확인합니다. DB 접속·OAuth 공급자 설정까지 검증하는 것은 아닙니다.
 
 홈 경로에 보관한 파일은 권한을 제한합니다. FastAPI 배포에는 위와 같은 외부 환경 파일 자동 복사 로직이 없으므로 설정이 필요하면 배포 전에 별도로 준비합니다. 다른 워크플로우의 checkout으로 작업 폴더 파일이 정리될 수 있으므로 워크스페이스만 영구 보관 장소로 사용하지 않습니다.
 
@@ -123,7 +125,7 @@ sudo certbot renew --dry-run
 
 갱신 자동 실행과 배포 훅은 저장소가 설치하지 않습니다. 호스트에서 별도로 설정합니다. HTTPS 모드로 실행 중인 컨테이너는 갱신 후 `docker exec travel-frontend nginx -s reload`로 인증서를 다시 읽게 할 수 있습니다. 처음 HTTP에서 HTTPS로 전환하거나 인증서 경로가 달라지면 `docker compose restart frontend`로 템플릿 선택을 다시 수행합니다. 커스텀 마운트 경로를 쓰면 Certbot webroot도 해당 호스트 경로에 맞춥니다.
 
-EC2의 이전 IP 인증서는 [IP 인증서 폐기 도구](certificates/README.md)로 점검·폐기 요청할 수 있습니다. 기본은 읽기 전용이며 `--apply`로 적용합니다. 현재 할당 IP는 유지하고, Stop/EIP 해제 전에는 `--retire-current-ip`을 명시합니다. 적용 시 해당 인증서의 자동 갱신을 끄고 로컬 차단 표시를 남깁니다. 신규 발급·갱신의 IP 검사, 자동 실행 스케줄과 Nginx 재시작은 별도로 연결해야 합니다.
+EC2의 이전 IP 인증서는 [IP 인증서 폐기 도구](certificates/README.md)로 점검·폐기 요청할 수 있습니다. 기본은 읽기 전용이며 `--apply`로 적용합니다. 현재 할당 IP는 유지하고, Stop/EIP 해제 전에는 `--retire-current-ip`을 명시합니다. 적용 시 해당 인증서의 자동 갱신을 끄고 로컬 차단 표시를 남깁니다. 주기 점검은 [IP·도메인 인증서 감시 설치 안내](certificates/MONITOR.md)를 따릅니다. 설치 후 systemd timer가 약 5분마다 관측하며, 반복 확인 뒤 갱신 차단·Nginx 재시작·CA 폐기 요청을 수행합니다. 신규 발급·정상 갱신·DDNS 갱신은 별도 구성입니다.
 
 ## 헬스체크·백업·복구
 

@@ -227,6 +227,28 @@ class MetadataTests(unittest.TestCase):
 
 class RealOpenSSLTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which("openssl"), "OpenSSL unavailable")
+    def test_real_dns_san_and_unsupported_names(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            lineage = root / "live" / "fixture"
+            lineage.mkdir(parents=True)
+            (root / "renewal").mkdir()
+            (root / "renewal" / "fixture.conf").write_text(
+                "[renewalparams]\nserver = " + manager.ACME_SERVER + "\naccount = " + "a" * 32 + "\n")
+            for san, expected in (("DNS:roadfriendtrip.freeddns.org", "roadfriendtrip.freeddns.org"),
+                                  ("DNS:*.example.test", None),
+                                  ("DNS:one.example.test,DNS:two.example.test", None)):
+                with self.subTest(san=san):
+                    result = subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048",
+                        "-nodes", "-days", "1", "-config", os.devnull, "-subj", "/CN=offline-test",
+                        "-addext", "subjectAltName=" + san, "-keyout", str(root / "key.pem"),
+                        "-out", str(lineage / "cert.pem")], capture_output=True, text=True, timeout=30)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    cert = manager.inspect_certificate(root, "fixture")
+                    self.assertIsNone(cert.address)
+                    self.assertEqual(cert.domain, expected)
+
+    @unittest.skipUnless(shutil.which("openssl"), "OpenSSL unavailable")
     def test_real_ipv4_san_and_expiration_parsing(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp).resolve()

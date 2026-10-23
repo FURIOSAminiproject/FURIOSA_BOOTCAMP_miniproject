@@ -9,13 +9,12 @@
 
 ## 확인된 개선 항목
 
-### C01 · P1 · frontend 단독 배포가 backend 환경 파일을 준비하지 않는다
+### C01 · 해결 · frontend와 NestJS의 공통 배포 환경 검사 (2026-10-22)
 
-- 근거: [FrontEnd/deploy.sh](FrontEnd/deploy.sh) 52행은 `docker compose up -d --build frontend`를 실행한다. [Compose](../docker-compose.yml)의 frontend는 backend/fastapi에 의존하고, backend env_file은 `required: false`다. 환경 파일 외부 복사는 [NestJS deploy.sh](BackEnd/nestjs/deploy.sh) 21~46행에만 있다.
-- 발생 조건: 새 checkout 뒤 `BackEnd/NestJS/.env.production`이 없고 영구 파일은 EC2 홈에만 있는 상태에서 frontend 파이프라인만 실행한다. 같은 조건은 기존 env 파일이 checkout 정리로 제거된 경우에도 가능하다.
-- 영향: Compose가 의존 backend를 시작·재생성할 때 DB 설정이 누락될 수 있다. 정적 화면의 응답만으로 frontend 배포가 성공 처리되면 API 장애를 놓칠 수 있다.
-- 검증: 환경 파일이 없는 임시 폴더의 실제 `docker compose config`에서 DB_HOST·DB_NAME·DB_USER·DB_PASSWORD 4개 누락과 frontend의 두 의존성을 확인했다. 컨테이너를 실제 시작하지는 않았다.
-- 개선 방향: 의존 서비스 설정을 배포 전에 함께 준비하거나, backend가 이미 준비되어 있다는 전제를 검사한 뒤 frontend만 교체하도록 배포 계약을 명확히 한다.
+- 기존 문제: frontend 단독 배포가 의존 backend를 재생성할 수 있지만 NestJS 환경 파일을 복원하지 않았다.
+- 수정: 두 배포 스크립트가 prepare-env.sh를 호스트 Nginx 중지·백업·컨테이너 교체 전에 호출한다. 외부 파일 복원(권한 600), Compose의 실제 backend 환경에 대한 DB·JWT·포트·DB_SSL 검사를 수행한다. frontend 워크플로우도 공유 helper 변경을 감지한다.
+- 검증: 격리된 모의 명령으로 누락·잘못된 값·Compose 실패 시 변경 작업 전 중단, 정상 설정 시 배포 진행을 확인했다. 실제 Compose CLI의 local/development/production 환경 해석도 확인했다. 운영 DB 접속·배포는 실행하지 않았다.
+- 남은 범위: 기존 대상 환경 파일은 덮어쓰지 않는다. 파일 수정 후 기존 컨테이너의 환경 반영에는 재생성이 필요하다. FastAPI 환경 파일 복원과 배포 간 전역 잠금은 이 수정에 포함하지 않는다.
 
 ### C02 · P1 · 호스트 Nginx를 중지한 뒤 빌드 실패 시 복구하지 않는다
 
@@ -120,3 +119,12 @@ Git Bash 문법·모의 실행과 localhost curl 검사는 샌드박스의 Windo
 현재 브랜치의 빌드·배포·환경 선택·인증서 폐기 기능을 유지했다. 상대 브랜치의 프론트 버전 구성을 보존하여 활성 소스·Compose 컨텍스트·CI 작업 디렉토리·캐시·아티팩트를 FrontEnd/v1로 연결했다. 기존 TLS 진입점도 같은 컨텍스트로 이동했고 HTTP/HTTPS Nginx에 /auth 전달을 추가했다. v2/v2 로그인 UI는 별도 보존하며 자동 배포 대상으로 전환하지 않았다.
 
 백엔드 인증 통합으로 JWT_SECRET이 기동 필수다. DB 자동 스키마 변경·배포 중 OAuth SQL 실행은 추가하지 않았다. 위 C01~C07은 이번 경로·모듈 통합으로 해결된 것이 아니다. Bash 9개 문법 검사와 인증서 폐기·진입점 회귀 27개가 통과했다. 실제 EC2 배포·CA 폐기·Docker 이미지 빌드는 수행하지 않았다.
+
+## 2026-10-22 인증서 감시 후속 검토
+
+- 단일 DNS SAN 필드가 빠져 감시가 중단되는 문제를 수정하고 기존 수동 IPv4 도구의 동작을 유지했다.
+- DNS 응답이 비었더라도 해당 zone의 SOA가 없으면 불완전 CNAME/referral일 수 있으므로 폐기 근거로 쓰지 않는다. 두 resolver의 일치·A/AAAA·TTL·유예 기간·연속 관측·적용 직전 재검사를 검증한다.
+- IP가 바뀌어도 같은 도메인이 새 IP를 가리키면 도메인 인증서를 유지한다. CA 실패·timeout은 차단 상태에서 재시도하며 성공으로 기록하지 않는다. 원본 개인키·인증서 파일은 삭제하지 않는다.
+- 검증은 모의 AWS/DNS/Docker/CA, 실제 로컬 OpenSSL 파싱, 설치 스크립트의 시스템 명령 스텁을 사용한다. EC2 systemd 설치·실제 Nginx TLS·실제 CA 폐기는 미검증이다. 설치 방법과 단일 EC2 전용 보관소 정책은 [MONITOR.md](certificates/MONITOR.md)를 따른다.
+
+- 최종 결과: 인증서 테스트 74개, 배포 환경 테스트 13개 통과. 후자는 실제 Compose 설정 해석 1개를 포함한다. 변경 Bash 4개 구문, Python 3.9 문법 호환, systemd 구조, 워크플로우 YAML·경로 조건, 관련 문서 링크를 확인했다.

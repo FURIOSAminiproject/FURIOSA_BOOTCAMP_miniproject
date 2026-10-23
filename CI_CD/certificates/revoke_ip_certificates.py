@@ -115,6 +115,8 @@ class Certificate:
     account: str
     renewal: Path
     renewal_text: str
+    # 수동 IP 도구는 address만 사용하고, 주기 감시는 단일 DNS SAN도 사용한다.
+    domain: Optional[str] = None
 
 
 def run(command, timeout=15):
@@ -138,11 +140,21 @@ def inspect_certificate(root: Path, name: str) -> Certificate:
     entries = result.stdout.partition("\n")[2].strip().split(",")
     # 하나라도 도메인·다른 IP가 섞이면 이 EC2의 주소만으로 인증서 전체를 판단할 수 없다.
     address = None
+    domain = None
     if len(entries) == 1 and entries[0].strip().startswith("IP Address:"):
         try:
             address = public_ipv4(entries[0].strip()[len("IP Address:"):])
         except ValueError:
             pass  # 공인 IPv4 하나인 경우만 대상으로 삼고 나머지는 SKIP한다.
+    elif len(entries) == 1 and entries[0].strip().startswith("DNS:"):
+        candidate = entries[0].strip()[4:].lower().rstrip(".")
+        if (len(candidate) <= 253 and "." in candidate and
+                all(re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", part)
+                    for part in candidate.split("."))):
+            try:
+                ipaddress.ip_address(candidate)
+            except ValueError:
+                domain = candidate  # 와일드카드·복수 SAN·IP를 DNS SAN으로 쓴 경우는 제외한다.
     result = run(["openssl", "x509", "-in", str(leaf), "-noout", "-enddate"])
     if result.returncode or not result.stdout.startswith("notAfter="):
         raise SafetyError("Cannot inspect certificate expiration: " + name)
@@ -161,7 +173,7 @@ def inspect_certificate(root: Path, name: str) -> Certificate:
     # 발급 계정으로 요청하므로 신규 계정 생성·이메일 입력·인증서 개인키 복사가 필요 없다.
     if not re.fullmatch(r"[a-fA-F0-9]{32,64}", account):
         raise SafetyError("Missing or invalid original Certbot account: " + name)
-    return Certificate(name, lineage, leaf, digest, address, expires, account, renewal, renewal_text)
+    return Certificate(name, lineage, leaf, digest, address, expires, account, renewal, renewal_text, domain)
 
 
 def marker_matches(path: Path, digest: str) -> bool:

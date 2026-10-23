@@ -40,7 +40,7 @@
 ## 환경과 TLS
 
 - 배포 스크립트의 APP_ENV 기본값은 production이다. AWS·Windows 또는 인증서 유무를 보고 DB 환경을 자동 선택하지 않는다. 작업할 환경을 명시한다.
-- NestJS의 Compose 환경 파일은 `BackEnd/NestJS/.env.${APP_ENV}`이다. NestJS 배포 스크립트만 외부 후보 경로에서 해당 파일을 복사한다.
+- NestJS의 Compose 환경 파일은 `BackEnd/NestJS/.env.${APP_ENV}`이다. FrontEnd와 NestJS 배포가 공통 prepare-env.sh로 외부 후보 경로에서 해당 파일을 복원하고 필수 값을 검사한다. 기존 대상 파일은 덮어쓰지 않는다.
 - frontend 배포는 backend/fastapi 의존 서비스도 시작·재생성할 수 있다. backend 환경 파일 준비와 기존 서비스에 미칠 영향을 확인한다.
 - FastAPI는 `BackEnd/FastAPI/.env`를 사용하며 현재 외부 경로 자동 복사 기능은 없다.
 - Compose의 명시적 environment는 env_file보다 우선한다. backend의 HOST·PORT·APP_ENV·NODE_ENV를 변경할 때 양쪽을 확인한다.
@@ -49,6 +49,8 @@
 - 환경 파일·키·비밀번호를 문서, 커밋, 터미널 출력에 포함하지 않는다. Compose 검증 결과도 필요한 구조·필드만 추려 출력한다.
 
 ## 스크립트 수정 규칙
+
+- 주기 IP·도메인 감시는 [certificates/MONITOR.md](certificates/MONITOR.md)를 읽는다. FRONTEND_URL과 IMDSv2를 기준으로 삼고, 독립 DNS 응답·반복 확인·TTL 대기·적용 직전 재검사를 유지한다. 기본 실행은 관측 파일도 쓰지 않는다. 실제 CA 요청 대신 오프라인 테스트를 사용한다.
 
 - IP 인증서 폐기 작업은 [certificates/README.md](certificates/README.md)와 revoke_ip_certificates.py를 읽는다. 기본 읽기 전용, IMDSv2 조회 실패 시 중단, 명시된 단일 IPv4 lineage만 적용, 갱신 비활성화·실패 상태 유지·성공 기록 구분을 보존한다. 검증 중 실제 CA 폐기 요청을 보내지 않는다.
 

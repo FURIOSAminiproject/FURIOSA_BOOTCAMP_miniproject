@@ -6,7 +6,7 @@
 
 | 워크플로우 | push 감시 경로 | 클라우드 빌드 | 배포 서비스 |
 |---|---|---|---|
-| [deploy.yml](deploy.yml) | FrontEnd/**, CI_CD/FrontEnd/**, 자기 YAML | Node 22, npm ci, Vite 빌드 | frontend |
+| [deploy.yml](deploy.yml) | FrontEnd/**, CI_CD/FrontEnd/**, CI_CD/BackEnd/nestjs/prepare-env.sh, 자기 YAML | Node 22, npm ci, Vite 빌드 | frontend |
 | [deploy_backend.yml](deploy_backend.yml) | BackEnd/NestJS/**, CI_CD/BackEnd/nestjs/**, 자기 YAML | Node 22, npm ci, 테스트·TS 빌드 | backend |
 | [deploy_fastapi.yml](deploy_fastapi.yml) | BackEnd/FastAPI/**, CI_CD/BackEnd/fastapi/**, 자기 YAML | Python 3.12, 의존성·문법·임포트 확인 | fastapi |
 
@@ -41,3 +41,7 @@ checkout@v4는 기본적으로 ignored 파일도 정리한다. 작업 폴더 안
 ## 검증 범위
 
 YAML 파싱이나 로컬 경로 필터 모델은 GitHub 서비스의 실제 workflow 실행을 대신하지 않는다. 코드 검토만을 위해 수동 배포를 시작하지 않는다. 이번 검토에서 수행한 검사와 미수행 항목은 [검토 기록](REVIEW.md)에 구분해 적었다.
+
+## 공통 환경 검사 변경 (2026-10-22)
+
+[deploy.yml](deploy.yml)은 `CI_CD/BackEnd/nestjs/prepare-env.sh` 변경도 감지합니다. FrontEnd와 NestJS 배포는 호스트 Nginx 중지·백업·컨테이너 교체 전에 이 helper로 NestJS 환경 파일을 복원하고 필수 DB·JWT·포트·DB_SSL을 검사합니다. FastAPI 환경 파일 복원은 별도입니다. [환경 파일 안내](../../CI_CD/README.md#환경-파일)를 따릅니다.
