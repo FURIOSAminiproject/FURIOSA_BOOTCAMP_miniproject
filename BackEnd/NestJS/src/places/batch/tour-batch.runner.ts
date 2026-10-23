@@ -50,4 +50,57 @@ export class TourBatchRunner implements TourBatchTask {
       return { status, reason, report };
     } finally { this.running = false; }
   }
+
+  async runManual(options?: Partial<IngestionOptions>): Promise<TourBatchResult> {
+    if (this.running) {
+      const reason = 'LOCAL_RUN_IN_PROGRESS';
+      this.logger.warn(JSON.stringify({ event: 'tour_manual_skipped', reason }));
+      return { status: 'skipped', reason };
+    }
+    this.running = true;
+    let report: IngestionReport | undefined;
+    try {
+      const numberOr = (val: unknown, fallback: number) => {
+        if (typeof val === 'number' && Number.isFinite(val)) return val;
+        if (typeof val === 'string' && /^\d+$/.test(val)) return Number(val);
+        return fallback;
+      };
+      const boolOr = (val: unknown, fallback: boolean) => {
+        if (typeof val === 'boolean') return val;
+        if (val === 'true') return true;
+        if (val === 'false') return false;
+        return fallback;
+      };
+      const mode = (options?.mode ?? 'initial') as IngestionOptions['mode'];
+      const targetOptions: IngestionOptions = {
+        mode,
+        pageSize: Math.min(100, Math.max(1, numberOr(options?.pageSize, 100))),
+        startPage: Math.max(1, numberOr(options?.startPage, 1)),
+        maxPages: Math.min(1000, Math.max(1, numberOr(options?.maxPages, 10))),
+        listOnly: boolOr(options?.listOnly, true),
+        region: options?.region ? String(options.region).trim() : undefined,
+        district: options?.district ? String(options.district).trim() : undefined,
+        contentType: options?.contentType ? Number(options.contentType) : undefined,
+        contentId: options?.contentId ? String(options.contentId).trim() : undefined,
+        modifiedSince: options?.modifiedSince ? String(options.modifiedSince).trim() : undefined,
+        eventStart: options?.eventStart ? String(options.eventStart).trim() : undefined,
+        eventEnd: options?.eventEnd ? String(options.eventEnd).trim() : undefined,
+      };
+      this.logger.log(JSON.stringify({ event: 'tour_manual_started', options: targetOptions }));
+      report = await this.createRun().run(targetOptions);
+      if (report.status !== 'completed') {
+        throw new TourBatchStateError('INCOMPLETE_COLLECTION');
+      }
+      this.logger.log(JSON.stringify({ event: 'tour_manual_completed', report }));
+      return { status: 'completed', report };
+    } catch (error) {
+      if (error instanceof IngestionRunError) report = error.report;
+      const locked = error instanceof IngestionRunError && report?.error === new TourStoreError('INGESTION_ALREADY_RUNNING').message;
+      const reason = locked ? 'INGESTION_ALREADY_RUNNING'
+        : error instanceof TourBatchStateError || error instanceof TourApiError ? error.code : 'COLLECTION_FAILED';
+      const status = locked ? 'skipped' : 'failed';
+      this.logger[locked ? 'warn' : 'error'](JSON.stringify({ event: `tour_manual_${status}`, reason, report }));
+      return { status, reason, report };
+    } finally { this.running = false; }
+  }
 }
