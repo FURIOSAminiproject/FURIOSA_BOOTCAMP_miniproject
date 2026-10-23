@@ -8,6 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { TourBatchModule } from './places/batch/tour-batch.module';
+import { RoutingCacheModule } from './routing-cache/routing-cache.module';
 @Controller('health')
 class HealthController {
   @Get()
@@ -22,7 +23,7 @@ class HealthController {
 }
 @Module({
   // 환경 파일은 start.cjs 또는 Compose가 선택한다. 인증 모듈도 같은 환경을 사용한다.
-  imports: [ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true }), DatabaseModule, AuthModule, TourBatchModule.register()],
+  imports: [ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true }), DatabaseModule, AuthModule, TourBatchModule.register(), RoutingCacheModule],
   controllers: [AppController, HealthController, TravelController, DatabaseController],
   providers: [AppService, TravelService],
 })

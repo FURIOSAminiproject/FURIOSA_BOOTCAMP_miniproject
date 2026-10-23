@@ -18,6 +18,8 @@ TourAPI 장소 수집은 [수집 CLI와 서비스](docs/TOUR_INGESTION.md)로 �
 
 ## 디렉토리
 
+ITS·ORS 조회는 [DB 캐시 모듈](src/routing-cache/README.md)로 추가했습니다. `POST /api/routes`와 `GET /api/traffic`는 유효한 DB 캐시를 우선 사용하고, 없거나 만료되면 외부 API 호출 후 저장합니다. 보관시간은 ORS 24시간/ITS 5분이며 매분 만료 행을 자동 삭제합니다. 시작 시 캐시 테이블 누락을 로그로 알리고, 저장 건수·실패 단계·삭제 건수를 기록합니다. 운영 전에 [캐시 DDL v2](../../DataBase/routing_cache_schema_v2.sql)와 서버 인증키가 필요하며 자동 스키마 생성/불필요한 주기 재수집은 하지 않습니다. 정체를 반영한 전체 경로 시간은 아직 제공하지 않습니다.
+
 ```text
 BackEnd/NestJS/
 ├── src/
@@ -25,6 +27,7 @@ BackEnd/NestJS/
 │   ├── users/          # User 엔티티
 │   ├── database/       # 접속 옵션, 모듈, 헬스체크, 진단 CLI
 │   ├── places/         # TourAPI 클라이언트, 변환, DB 저장, 수집 서비스·CLI 모듈
+│   ├── routing-cache/  # ORS·ITS API, DB 캐시, 만료 정리·기동 진단
 │   ├── travel/         # 컨트롤러, 입력 검증, 일정 엔진, 문학 리뷰, 타입
 │   ├── app.module.ts   # 서비스 등록과 /api/health
 │   └── main.ts         # 네트워크 바인딩, 선택적 TLS, /api 접두사

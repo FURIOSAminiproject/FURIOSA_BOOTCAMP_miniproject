@@ -12,7 +12,7 @@
 | places | 장소 정보 | 32 | TourAPI 장소 정보와 최신 수집 정보 |
 | place_reviews | 장소 후기 | 7 | 로그인 사용자 입력과 작성·수정 시각 |
 
-place_category_map과 place_sources는 제외했습니다. places.category_id로 소분류 하나를 직접 연결하고 대·중분류는 상위 분류로 조회합니다. 외부 콘텐츠 ID·원본 JSON·수집 시각은 places에 유지합니다. 좋아요·수집 관리·ORS·ITS 전용 테이블은 최신 DDL에 포함하지 않습니다. ORS·ITS 연동은 이번 배포 범위에 포함하지 않습니다.
+place_category_map과 place_sources는 제외했습니다. places.category_id로 소분류 하나를 직접 연결하고 대·중분류는 상위 분류로 조회합니다. 외부 콘텐츠 ID·원본 JSON·수집 시각은 places에 유지합니다. 좋아요·수집 관리·ORS·ITS 전용 테이블은 장소 DDL에 포함하지 않습니다. ITS·ORS는 아래 전용 DDL과 캐시 모듈을 사용합니다.
 
 TourAPI 수집 로직은 [NestJS 수집 서비스·CLI](../BackEnd/NestJS/docs/TOUR_INGESTION.md)로 구현했습니다. 개발 DB에 분류 315개와 관광지 2개의 목록·상세를 실제 저장하고 재수집 시 UUID·상세 유지와 중복 방지를 확인했습니다. 출처 URL·수집 방식을 places에 추가했으며 회원·후기 데이터는 수집 대상이 아닙니다.
 
@@ -30,6 +30,8 @@ TourAPI 수집 로직은 [NestJS 수집 서비스·CLI](../BackEnd/NestJS/docs/T
 임시 PostgreSQL 엔진에서 DDL·제약조건 등 27개 검증을 통과했습니다. 이후 2026-10-22 11:38:48 KST에 개발 DB travel_test.public에 세 테이블을 생성하고 COMMIT했습니다. 총 42개 컬럼·FK 4개·컬럼 주석 42개를 확인했습니다. [실행 기록](place_schema_v2_applied_2026-10-22.md)을 참고하며, 같은 개발 DB에서 신규 생성 SQL을 다시 실행하지 않습니다. 최초 생성 이후 13:40:16 KST에 출처 컬럼 추가 SQL도 적용해 현재 총 44개 컬럼·주석 44개입니다. 개발 DB의 TourAPI 수집 검증은 위 수집 안내에 별도 기록했습니다. 분류 단계·JSON 내부 항목·리뷰 권한은 별도 서버 검증 대상입니다.
 
 ## 설정의 기준
+
+ITS·ORS 캐시 신규 생성은 [DDL v2](routing_cache_schema_v2.sql)와 [한글 컬럼·관계 설명](routing_cache_design_v2.md)을 참고합니다. ORS 경로/ITS 조회/ITS 구간 3개 테이블이며 이번 작업에서 실제 DB에 적용하지 않았습니다. [백엔드 캐시 모듈](../BackEnd/NestJS/src/routing-cache/README.md)은 요청 시 조회/저장·만료 후 재호출과 매분 자동 삭제를 구현했습니다. 새 서버 코드 배포·대상 DB DDL·인증키 설정이 필요합니다. TourAPI 배치용 장소 테이블과는 별개입니다.
 
 현재 실행 대상은 `BackEnd/NestJS/`이며 DB 접속 옵션은 [database.config.ts](../BackEnd/NestJS/src/database/database.config.ts)에서 정의합니다. DB 서버는 Docker Compose에 포함되지 않습니다. 실제 서버 버전·주소·계정·권한은 운영 환경에서 확인하며 특정 EC2 IP나 계정명이 코드에 고정되어 있지 않습니다.
 

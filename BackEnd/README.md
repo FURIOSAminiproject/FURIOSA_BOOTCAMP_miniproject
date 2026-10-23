@@ -29,6 +29,8 @@ TourAPI 분류·장소 수집은 NestJS의 [서버 수집 명령](NestJS/docs/TO
 
 ## 실행
 
+NestJS의 [ITS·ORS DB 캐시](NestJS/src/routing-cache/README.md)는 요청한 경로/영역의 응답을 각각 24시간/5분 저장합니다. 만료 뒤 다음 요청에서 API를 다시 호출하며, 매분 만료된 DB 행을 자동 정리합니다. 필수 테이블 진단과 저장·실패·삭제 로그가 있고 기존 TourAPI 새벽 1시 배치와는 별개입니다. 운영 대상 DB에 [전용 DDL](../DataBase/routing_cache_schema_v2.sql)을 먼저 적용해야 합니다.
+
 아래 경로 이동 명령은 각각 저장소 루트에서 시작합니다. NestJS는 환경 파일 또는 시스템 환경변수로 DB 접속 정보를 준비해야 합니다.
 
 ```bash
