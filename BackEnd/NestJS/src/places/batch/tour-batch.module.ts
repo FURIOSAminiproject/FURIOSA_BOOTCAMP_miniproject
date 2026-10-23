@@ -11,13 +11,14 @@ import { tourBatchConfig } from './tour-batch.config';
 import { FileTourBatchState } from './tour-batch.state';
 import { TourBatchRunner } from './tour-batch.runner';
 import { TourBatchScheduler } from './tour-batch.scheduler';
+import { TourBatchController } from './tour-batch.controller';
 
 @Module({})
 export class TourBatchModule {
   static register(env: NodeJS.ProcessEnv = process.env): DynamicModule {
     const config = tourBatchConfig(env);
     const apiEnv = { ...env };
-    return { module:TourBatchModule, imports:[ScheduleModule.forRoot(),TourPersistenceModule], providers:[
+    return { module:TourBatchModule, imports:[ScheduleModule.forRoot(),TourPersistenceModule], controllers:[TourBatchController], providers:[
       { provide:TourBatchRunner, useFactory:(gate:IngestionGate,categories:CategoryWriter,places:PlaceWriter) =>
         new TourBatchRunner(config, new FileTourBatchState(config.statePath),
           // Validate credentials at collection time; scheduling itself needs no enable flag or API call.

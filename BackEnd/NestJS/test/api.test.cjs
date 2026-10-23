@@ -29,6 +29,11 @@ test('travel APIs preserve fallback behavior and reject invalid inputs', async()
     const review=await reviewResponse.json();assert.equal(review.placeId,place.id);assert.ok(review.poemVerses.length>0);
     for(const body of [null,{}, {...request,adultCount:0},{...request,endDate:'2026-10-24'},{...request,startDate:'2026-02-30'},{...request,endDate:'2026-11-30'}])assert.equal((await post('/travel/plans',body)).status,400);
     assert.equal((await post('/travel/poetic-reviews',{...place,category:'TRANSPORT'})).status,400);
+    const batchPost = await post('/places/batch/run', {});
+    assert.equal(batchPost.status, 200);
+    const batchPostResult = await batchPost.json();
+    assert.equal(batchPostResult.status, 'failed');
+    assert.equal(batchPostResult.reason, 'MISSING_KEY');
     assert.equal((await fetch(base+'/api/unknown')).status,404);
   }finally{await app.close();}
 });
