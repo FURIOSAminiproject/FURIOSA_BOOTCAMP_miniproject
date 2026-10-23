@@ -15,41 +15,71 @@ KEY_FILE=""
 echo "===== [FrontEnd Container] Nginx 가동 준비 ====="
 
 # 1. 같은 lineage 안의 인증서/키를 함께 선택한다.
+# 도메인 인증서(문자 포함)가 있으면 숫자 IP 인증서보다 우선 선택한다.
 # 폐기 요청(실패·진행 중 포함)으로 차단한 동일 leaf는 다시 선택하지 않는다.
-if [ -d "$CERT_DIR" ]; then
-    for LINEAGE in "$CERT_DIR"/*; do
-        [ -d "$LINEAGE" ] || continue
-        [ -f "$LINEAGE/fullchain.pem" ] && [ -f "$LINEAGE/privkey.pem" ] || continue
-        MARKER="$LINEAGE/.travel-ip-disabled.sha256"
-        # 이 표시는 CA 폐기 성공뿐 아니라 요청 중·실패 상태도 포함한다.
-        # 원격 요청이 실패했다고 이전 인증서를 자동으로 다시 제공하면 안 된다.
-        if [ -e "$MARKER" ] || [ -L "$MARKER" ]; then
-            # 손상된 상태 파일도 보수적으로 차단한다.
-            if [ -L "$MARKER" ] || [ ! -r "$MARKER" ] || [ ! -f "$LINEAGE/cert.pem" ]; then
-                echo ">> [인증서 제외] 폐기 상태를 확인할 수 없습니다: $LINEAGE"
-                continue
-            fi
-            REVOKED_HASH=$(cat "$MARKER")
-            case "$REVOKED_HASH" in
-                ''|*[!0-9a-f]*) echo ">> [인증서 제외] 잘못된 폐기 상태: $LINEAGE"; continue ;;
-            esac
-            if [ "${#REVOKED_HASH}" -ne 64 ]; then
-                echo ">> [인증서 제외] 잘못된 폐기 해시: $LINEAGE"
-                continue
-            fi
-            LEAF_HASH=$(sha256sum "$LINEAGE/cert.pem")
-            LEAF_HASH=${LEAF_HASH%% *}
-            # lineage 이름만 차단하면 같은 이름으로 재발급한 새 인증서까지 막게 된다.
-            # 폐기 요청 때 저장한 leaf 파일 해시와 동일한 인증서만 제외한다.
-            if [ "$LEAF_HASH" = "$REVOKED_HASH" ]; then
-                echo ">> [인증서 제외] 폐기 요청한 인증서: $LINEAGE"
-                continue
-            fi
+check_lineage() {
+    DIR="$1"
+    [ -d "$DIR" ] || return 1
+    [ -f "$DIR/fullchain.pem" ] && [ -f "$DIR/privkey.pem" ] || return 1
+    MARKER="$DIR/.travel-ip-disabled.sha256"
+    if [ -e "$MARKER" ] || [ -L "$MARKER" ]; then
+        if [ -L "$MARKER" ] || [ ! -r "$MARKER" ] || [ ! -f "$DIR/cert.pem" ]; then
+            echo ">> [인증서 제외] 폐기 상태를 확인할 수 없습니다: $DIR"
+            return 1
         fi
-        CERT_FILE="$LINEAGE/fullchain.pem"
-        KEY_FILE="$LINEAGE/privkey.pem"
-        break
+        REVOKED_HASH=$(cat "$MARKER")
+        case "$REVOKED_HASH" in
+            ''|*[!0-9a-f]*) echo ">> [인증서 제외] 잘못된 폐기 상태: $DIR"; return 1 ;;
+        esac
+        if [ "${#REVOKED_HASH}" -ne 64 ]; then
+            echo ">> [인증서 제외] 잘못된 폐기 해시: $DIR"
+            return 1
+        fi
+        LEAF_HASH=$(sha256sum "$DIR/cert.pem" 2>/dev/null | awk '{print $1}')
+        if [ "$LEAF_HASH" = "$REVOKED_HASH" ]; then
+            echo ">> [인증서 제외] 폐기 요청한 인증서: $DIR"
+            return 1
+        fi
+    fi
+    return 0
+}
+
+if [ -d "$CERT_DIR" ]; then
+    # 1순위: 도메인 인증서 (IP 주소가 아닌 영문 도메인 lineage 우선)
+    for LINEAGE in "$CERT_DIR"/*; do
+        check_lineage "$LINEAGE" || continue
+        NAME=$(basename "$LINEAGE")
+        if ! echo "$NAME" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+            CERT_FILE="$LINEAGE/fullchain.pem"
+            KEY_FILE="$LINEAGE/privkey.pem"
+            echo ">> [인증서 선택] 유효한 도메인 인증서 감지: $NAME"
+
+            # 도메인 인증서가 확인되면 남아있는 이전 IP 인증서 파일들을 영구 삭제하여 충돌 방지
+            for IP_LINEAGE in "$CERT_DIR"/*; do
+                [ -d "$IP_LINEAGE" ] || continue
+                IP_NAME=$(basename "$IP_LINEAGE")
+                if echo "$IP_NAME" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+                    echo ">> [IP 인증서 삭제] 도메인 인증서($NAME)가 활성화되어 이전 IP 인증서($IP_NAME)를 삭제합니다."
+                    rm -rf "$IP_LINEAGE" 2>/dev/null || true
+                    rm -rf "/etc/letsencrypt/archive/$IP_NAME" 2>/dev/null || true
+                    rm -f "/etc/letsencrypt/renewal/${IP_NAME}.conf" 2>/dev/null || true
+                fi
+            done
+            break
+        fi
     done
+
+    # 2순위: 도메인 인증서가 없을 때 IP 인증서 fallback
+    if [ -z "$CERT_FILE" ]; then
+        for LINEAGE in "$CERT_DIR"/*; do
+            check_lineage "$LINEAGE" || continue
+            CERT_FILE="$LINEAGE/fullchain.pem"
+            KEY_FILE="$LINEAGE/privkey.pem"
+            NAME=$(basename "$LINEAGE")
+            echo ">> [인증서 선택] IP 인증서 감지: $NAME"
+            break
+        done
+    fi
 fi
 
 # 2. SSL 인증서 유무에 따른 Nginx 활성 설정 분기

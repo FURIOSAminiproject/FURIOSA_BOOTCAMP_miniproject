@@ -75,8 +75,8 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      # 호스트 EC2에 위치한 Let's Encrypt SSL 인증서 볼륨 마운트 (읽기 전용)
-      - ${SSL_CERT_PATH:-/etc/letsencrypt}:/etc/letsencrypt:ro
+      # 호스트 EC2에 위치한 Let's Encrypt SSL 인증서 볼륨 마운트
+      - ${SSL_CERT_PATH:-/etc/letsencrypt}:/etc/letsencrypt
       # 호스트 EC2의 Certbot HTTP-01 갱신 챌린지 경로
       - ${CERTBOT_WWW_PATH:-/var/www/certbot}:/var/www/certbot:ro
     depends_on:
