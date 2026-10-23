@@ -80,9 +80,11 @@ jobs:
     runs-on: [self-hosted, linux]   # EC2에 등록된 Self-hosted Linux 러너 라벨 지정
 
     steps:
-      # 2-1. 배포 스크립트(CI_CD/) 실행을 위해 저장소 파일 체크아웃
+      # 2-1. 배포 스크립트(CI_CD/) 실행을 위해 저장소 파일 체크아웃 (기존 .env 등 untracked 파일 보존)
       - name: Checkout deployment scripts
         uses: actions/checkout@v4
+        with:
+          clean: false
 
       # 2-2. build 잡에서 생성하여 업로드했던 빌드 결과물 아티팩트 다운로드
       - name: Download React build
