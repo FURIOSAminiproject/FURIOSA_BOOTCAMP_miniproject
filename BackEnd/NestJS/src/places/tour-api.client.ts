@@ -16,6 +16,7 @@ import type {
 } from './tour-ingestion.ports';
 import { TourApiError } from './tour-errors';
 import { sourceUrl } from './tour-provenance';
+import { assertCompletePage } from './tour-pagination';
 export { TourApiError } from './tour-errors';
 export { sourceUrl } from './tour-provenance';
 export type { TourEndpoint, TourItem, TourPage } from './tour-types';
@@ -222,6 +223,13 @@ export class TourApiClient
             : [item];
       if (!items.every(record) || (items.length > 0 && totalCount === 0))
         throw new TourApiError('INVALID_ITEMS', endpoint);
+      if (params.numOfRows !== undefined) {
+        assertCompletePage(
+          { items, totalCount, pageNo },
+          Number(params.numOfRows),
+          endpoint,
+        );
+      }
       return { items, totalCount, pageNo, sourceUrl: sourceUrl(url.href) };
     }
     throw new TourApiError('RETRY_EXHAUSTED', endpoint);

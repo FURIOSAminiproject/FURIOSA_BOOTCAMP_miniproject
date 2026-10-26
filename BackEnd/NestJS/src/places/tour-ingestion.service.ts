@@ -6,7 +6,11 @@ import { TourApiError, TourStoreError, MappingError } from './tour-errors';
 import { CONTENT_TYPES, text } from './tour-mapping';
 import type { IngestionDependencies } from './tour-ingestion.ports';
 import type { TourItem } from './tour-types';
-import type { IngestionOptions } from './tour-ingestion.options';
+import {
+  assertIngestionOptions,
+  type IngestionOptions,
+} from './tour-ingestion.options';
+import { assertCompletePage } from './tour-pagination';
 
 export interface IngestionReport {
   /** 수집 시작 UTC ISO 시각. */
@@ -99,6 +103,7 @@ export class TourIngestionService {
       issues: [],
     };
     try {
+      assertIngestionOptions(options);
       await gate.withLock(
         /**
          * 잠금이 확보된 동안 기준정보 준비와 페이지별 수집을 실행한다.
@@ -155,11 +160,8 @@ export class TourIngestionService {
                 pageNo,
                 numOfRows: options.pageSize,
               });
-              if (
-                !page.items.length &&
-                (pageNo - 1) * options.pageSize < page.totalCount
-              )
-                throw new TourApiError('INCOMPLETE_PAGE', endpoint);
+              // 일부 행만 받은 페이지를 완료로 처리하면 다음 배치에서 장소가 누락될 수 있다.
+              assertCompletePage(page, options.pageSize, endpoint, pageNo);
               for (const item of page.items) {
                 // 3. 목록 한 건을 기본 저장한 뒤, 요청한 경우에만 상세를 추가한다.
                 report.fetched++;

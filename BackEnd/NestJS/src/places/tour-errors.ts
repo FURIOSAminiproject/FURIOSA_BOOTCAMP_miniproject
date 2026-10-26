@@ -41,3 +41,19 @@ export class TourStoreError extends Error {
     super(`Tour ingestion database error (${code})`);
   }
 }
+
+/** 수동 수집 입력 오류. 잘못된 입력 원문을 로그로 복사하지 않는다. */
+export class TourOptionsError extends Error {
+  readonly code = 'INVALID_INGESTION_OPTIONS';
+
+  /**
+   * 수집을 시작하기 전에 잘못된 입력을 나타내는 오류를 만든다.
+   * 입력: 인자 없음.
+   * @returns new로 생성한 TourOptionsError. 아직 예외를 던지는 것은 아니다.
+   * @example
+   * throw new TourOptionsError(); // reason: INVALID_INGESTION_OPTIONS
+   */
+  constructor() {
+    super('Invalid ingestion options');
+  }
+}

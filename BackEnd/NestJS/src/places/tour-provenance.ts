@@ -19,6 +19,8 @@ export function sourceUrl(value: string): string {
   url.username = '';
   url.password = '';
   url.hash = '';
+  // URLSearchParams는 삭제하면 순회 위치가 바뀐다. 키를 복사해야 연속된 인증 필드도 빠짐없이 지운다.
+  // oxlint-disable-next-line unicorn/no-useless-spread
   for (const key of [...url.searchParams.keys()]) {
     if (
       /^(servicekey|api[_-]?key|authorization|access[_-]?token|token)$/i.test(

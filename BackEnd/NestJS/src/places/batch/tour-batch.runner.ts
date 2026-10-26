@@ -7,7 +7,7 @@ import {
   type IngestionReport,
 } from '../tour-ingestion.service';
 import type { IngestionOptions } from '../tour-ingestion.options';
-import { TourApiError, TourStoreError } from '../tour-errors';
+import { TourApiError, TourStoreError, TourOptionsError } from '../tour-errors';
 import {
   seoulDate,
   shiftDate,
@@ -281,7 +281,9 @@ export class TourBatchRunner implements TourBatchCommands {
       report?.error === new TourStoreError('INGESTION_ALREADY_RUNNING').message;
     const reason = locked
       ? 'INGESTION_ALREADY_RUNNING'
-      : error instanceof TourBatchStateError || error instanceof TourApiError
+      : error instanceof TourBatchStateError ||
+          error instanceof TourApiError ||
+          error instanceof TourOptionsError
         ? error.code
         : 'COLLECTION_FAILED';
     const status = locked ? 'skipped' : 'failed';

@@ -88,25 +88,57 @@ export function parseIngestionOptions(args: string[]): IngestionOptions {
       throw new Error(`Invalid --${key}`);
     return n;
   };
-  const mode = values.get('mode') ?? 'initial';
+  const options: IngestionOptions = {
+    mode: (values.get('mode') ?? 'initial') as IngestionOptions['mode'],
+    region: values.get('region'),
+    district: values.get('district'),
+    contentType: values.has('content-type')
+      ? number('content-type', 12, 39)
+      : undefined,
+    contentId: values.get('content-id'),
+    modifiedSince: values.get('modified-since'),
+    eventStart: values.get('event-start'),
+    eventEnd: values.get('event-end'),
+    pageSize: number('page-size', 20, 100),
+    startPage: number('start-page', 1, 1000000),
+    maxPages: number('max-pages', 1, 10000),
+    listOnly,
+  };
+  assertIngestionOptions(options);
+  return options;
+}
+
+/**
+ * CLI·HTTP·직접 호출에서 공유하는 수집 조건을 검사한다.
+ *
+ * 입력: options: 기본값과 자료형 보정을 적용한 수집 조건.
+ * @returns 정상이면 void. 모드·날짜·조건 조합·정수 범위가 잘못되면 Error.
+ * @example
+ * assertIngestionOptions({mode:'initial',pageSize:100,startPage:1,maxPages:10,listOnly:true});
+ *
+ * API나 DB를 호출하지 않는다. HTTP 전용 기본값·상한 보정은 호출한 쪽에서 처리한다.
+ */
+export function assertIngestionOptions(options: IngestionOptions): void {
+  const {
+    mode,
+    region,
+    district,
+    contentType,
+    contentId,
+    modifiedSince,
+    eventStart,
+    eventEnd,
+  } = options;
   if (!['initial', 'sync', 'festivals', 'detail', 'reference'].includes(mode))
     throw new Error('Invalid --mode');
-  const region = values.get('region'),
-    district = values.get('district'),
-    contentId = values.get('content-id');
-  if (region && !/^\d{2}$/.test(region)) throw new Error('Invalid --region');
-  if (district && (!region || !/^\d{3}$/.test(district)))
+  if (region !== undefined && !/^\d{2}$/.test(region))
+    throw new Error('Invalid --region');
+  if (district !== undefined && (!region || !/^\d{3}$/.test(district)))
     throw new Error('--district requires --region and a 3-digit code');
-  const contentType = values.has('content-type')
-    ? number('content-type', 12, 39)
-    : undefined;
-  if (contentType && !CONTENT_TYPES.includes(contentType))
+  if (contentType !== undefined && !CONTENT_TYPES.includes(contentType))
     throw new Error('Unsupported --content-type');
-  if (contentId && !/^\d{1,30}$/.test(contentId))
+  if (contentId !== undefined && !/^\d{1,30}$/.test(contentId))
     throw new Error('Invalid --content-id');
-  const modifiedSince = values.get('modified-since'),
-    eventStart = values.get('event-start'),
-    eventEnd = values.get('event-end');
   for (const s of [modifiedSince, eventStart, eventEnd])
     if (s !== undefined && !dateValue(s))
       throw new Error('Dates must be valid YYYYMMDD');
@@ -127,18 +159,15 @@ export function parseIngestionOptions(args: string[]): IngestionOptions {
     throw new Error('--modified-since is only supported in sync mode');
   if ((eventStart || eventEnd) && mode !== 'festivals')
     throw new Error('Event dates are only supported in festivals mode');
-  return {
-    mode: mode as IngestionOptions['mode'],
-    region,
-    district,
-    contentType,
-    contentId,
-    modifiedSince,
-    eventStart,
-    eventEnd,
-    pageSize: number('page-size', 20, 100),
-    startPage: number('start-page', 1, 1000000),
-    maxPages: number('max-pages', 1, 10000),
-    listOnly,
-  };
+  for (const [name, value, max] of [
+    ['page-size', options.pageSize, 100],
+    ['start-page', options.startPage, 1000000],
+    ['max-pages', options.maxPages, 10000],
+  ] as const) {
+    if (!Number.isSafeInteger(value) || value < 1 || value > max) {
+      throw new Error(`Invalid --${name}`);
+    }
+  }
+  if (typeof options.listOnly !== 'boolean')
+    throw new Error('Invalid --list-only');
 }

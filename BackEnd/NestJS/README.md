@@ -217,3 +217,5 @@ docker run -d --name travel-backend --env-file .env.production --add-host host.d
 장소·경로 코드를 처음 읽는 팀원은 [입력·출력·예시와 파일 읽는 순서](docs/PLACE_ROUTING_CODE_GUIDE.md)를 참고한다. 관련 함수·콜백에는 한글 설명을 달고 프로젝트 Prettier 규칙으로 들여쓰기를 맞췄다.
 
 코드 주석에는 작성자 이름을 반복해서 넣지 않습니다. 작성자와 변경 이력은 Git 기록을 기준으로 확인하며, 팀의 기능 담당자 명단이 필요하면 README에서 별도로 관리합니다.
+
+장소·경로의 추가 경계값 검사에서 발견한 입력·페이지 누락·요금·캐시 오류를 수정했다. [2026-10-26 심화 검증 보고서](docs/PLACE_ROUTING_TEST_REPORT_2026-10-26.md)에 재현 사례, 수정, 전체 130개 통과 결과와 운영 확인 범위를 기록했다.

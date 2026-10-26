@@ -110,3 +110,7 @@ API 인증키·호출 URL·외부 오류 원문은 로그에 출력하지 않는
 ## 코드를 처음 읽을 때
 
 [코드 읽는 순서](../../../docs/PLACE_ROUTING_CODE_GUIDE.md)의 배치 부분을 참고한다. 시작 로그와 실제 수집 결과 로그, 일일 run()과 수동 runManual(), 마지막 성공 날짜의 차이를 코드 주석과 예시로 설명한다.
+
+## 수동 입력과 결과 확인 보완
+
+POST `/api/places/batch/run`은 조건이 있는 본문이면 해당 조건으로 runManual()을 실행한다. 본문이 없거나 빈 객체일 때만 일일 run()이다. region만 지정하거나 detail/reference 모드를 지정해도 조건을 무시하지 않는다. 잘못된 모드·필수 날짜/ID·숫자·불리언·본문/필터 자료형은 수집 시작 전에 거절한다. 기존 응답 형식을 유지해 HTTP 200 안의 `status=failed`, `reason=INVALID_INGESTION_OPTIONS`를 확인해야 한다. [심화 검증 보고서](../../../docs/PLACE_ROUTING_TEST_REPORT_2026-10-26.md)에 실제 HTTP 재현과 회귀 결과를 기록했다.

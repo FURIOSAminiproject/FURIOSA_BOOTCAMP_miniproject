@@ -132,13 +132,17 @@ function comparable(row: TourItem): TourItem {
     'event_start_date',
     'event_end_date',
   ]) {
-    if (data[key])
-      data[key] =
-        key === 'source_updated_at'
-          ? new Date(String(data[key])).toISOString()
-          : data[key] instanceof Date
-            ? (data[key] as Date).toISOString().slice(0, 10)
-            : String(data[key]).slice(0, 10);
+    const value = data[key];
+    if (!value) continue;
+    // DB 날짜는 Date 또는 문자열이다. 객체를 강제로 문자열로 바꿔 잘못된 비교를 하지 않는다.
+    if (typeof value !== 'string' && !(value instanceof Date)) {
+      throw new Error('Invalid stored place date');
+    }
+    const dateText = value instanceof Date ? value.toISOString() : value;
+    data[key] =
+      key === 'source_updated_at'
+        ? new Date(dateText).toISOString()
+        : dateText.slice(0, 10);
   }
   return data;
 }
@@ -182,7 +186,7 @@ export class TourPlaceMapper implements PlaceMapper {
       if (snapshot.source_urls)
         snapshot.source_urls = snapshot.source_urls.map(sourceUrl);
     }
-    const raw = { ...((old?.raw_data as Snapshots) ?? {}), ...safeFresh };
+    const raw = { ...(old?.raw_data as Snapshots), ...safeFresh };
     const next: TourItem = {
       images: [],
       fees: [],

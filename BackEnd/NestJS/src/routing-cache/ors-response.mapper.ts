@@ -38,6 +38,7 @@ export function validateRouteData(data: unknown): RouteData {
     data.geometry.coordinates.length < 2 ||
     data.geometry.coordinates.length > 200000 ||
     !Array.isArray(data.timeSpans) ||
+    data.timeSpans.length === 0 ||
     !Array.isArray(data.warnings) ||
     (data.attribution !== null && typeof data.attribution !== 'string')
   )

@@ -15,6 +15,7 @@ import {
 import { TourBatchRunner } from './tour-batch.runner';
 import type { TourBatchCommands, TourBatchResult } from './tour-batch.runner';
 import type { IngestionOptions } from '../tour-ingestion.options';
+import { record } from '../tour-types';
 
 @Controller(['places/batch', 'places'])
 export class TourBatchController {
@@ -36,7 +37,7 @@ export class TourBatchController {
   /**
    * 수동 옵션 유무에 따라 수동 수집 또는 일일 증분 수집을 실행한다.
    *
-   * 입력: body: 선택적 수집 조건. mode=initial, maxPages, listOnly 중 지정 조건이 있으면 수동 실행한다.
+   * 입력: body: 선택적 수집 조건. 속성이 하나라도 있으면 수동 실행하고, 없거나 빈 객체면 일일 증분 수집이다.
    * @returns 완료·실패·중복 실행 건너뜀 상태와 수집 집계.
    * @example
    * // POST /api/places/batch/run
@@ -49,12 +50,7 @@ export class TourBatchController {
   async runBatch(
     @Body() body?: Partial<IngestionOptions>,
   ): Promise<TourBatchResult> {
-    if (
-      body &&
-      (body.mode === 'initial' ||
-        body.maxPages !== undefined ||
-        body.listOnly !== undefined)
-    ) {
+    if (body && (Array.isArray(body) || Object.keys(body).length > 0)) {
       return await this.runner.runManual(body);
     }
     return await this.runner.run();
@@ -77,6 +73,9 @@ export class TourBatchController {
     @Body() body?: Partial<IngestionOptions>,
     @Query() query?: Partial<IngestionOptions>,
   ): Promise<TourBatchResult> {
+    // 잘못된 본문을 펼치면 [] 등이 빈 객체가 되어 전체 초기 수집으로 바뀔 수 있다.
+    if (body !== undefined && !record(body))
+      return await this.runner.runManual(body);
     return await this.runner.runManual({ mode: 'initial', ...query, ...body });
   }
 

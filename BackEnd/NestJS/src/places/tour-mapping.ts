@@ -270,9 +270,10 @@ export function basicPatch(
   if (Object.hasOwn(item, 'lDongRegnCd')) {
     const code = text(item.lDongRegnCd);
     patch.region_code = code && /^\d{2}$/.test(code) ? code : null;
-    patch.region_name = patch.region_code
-      ? (refs.regions.get(String(patch.region_code)) ?? null)
-      : null;
+    patch.region_name =
+      typeof patch.region_code === 'string'
+        ? (refs.regions.get(patch.region_code) ?? null)
+        : null;
   }
   if (Object.hasOwn(item, 'lDongSignguCd')) {
     const code = text(item.lDongSignguCd),
@@ -330,7 +331,7 @@ const introFields: Record<number, [string, string | null]> = {
  * fee("입장료", "성인 5,000원"); // amount=5000, unit="person"
  * fee("체험료", "5,000원부터", "person"); // amount=null
  *
- * 정확히 무료라고 쓰인 경우 amount=0. 가격 범위·할인·여러 가격을 단일 확정 가격으로 추정하지 않는다.
+ * 정확히 무료라고 쓰인 경우 amount=0. 유료·무료 조건 혼합, 가격 범위·할인·여러 가격은 단일 금액으로 추정하지 않는다.
  */
 function fee(
   label: string,
@@ -347,6 +348,7 @@ function fee(
     if (
       unit &&
       prices.length === 1 &&
+      !/무료/.test(content) &&
       !/부터|이상|이하|최소|최대|할인|~|∼|\d\s*[-–]/.test(content)
     ) {
       const n = Number(prices[0][1].replaceAll(',', ''));
