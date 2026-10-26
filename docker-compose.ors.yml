@@ -4,7 +4,9 @@ services:
     # 공식 v10.0.1 멀티아키텍처 이미지. CI와 운영이 같은 digest를 사용한다.
     image: openrouteservice/openrouteservice:v10.0.1@sha256:b2f66b5e33949e86a279f3de654ef99e2964eb9112d16fb52788c6bb63ff941c
     profiles: [ors]
-    restart: unless-stopped
+    # DB 공유 서버 장애 후 재부팅/OOM 반복으로 무거운 그래프 생성이 재시작되지 않게 한다.
+    # 운영자가 자원을 확보한 뒤 전용 배포 스크립트로 명시적으로 시작한다.
+    restart: "no"
     ports:
       - "127.0.0.1:${ORS_HTTP_PORT:-8082}:8082"
     environment:
@@ -14,7 +16,9 @@ services:
       XMS: ${ORS_JVM_XMS:-256m}
       XMX: ${ORS_JVM_XMX:-2g}
     mem_limit: ${ORS_MEMORY_LIMIT:-3g}
-    cpus: ${ORS_CPUS:-2}
+    # RAM 한도와 memory+swap 한도를 같게 두어 ORS가 호스트 swap을 압박하지 않게 한다.
+    memswap_limit: ${ORS_MEMORY_LIMIT:-3g}
+    cpus: ${ORS_CPUS:-0.5}
     volumes:
       - type: bind
         source: ${ORS_CONFIG_FILE:-./Docker/ors/ors-config.yml}

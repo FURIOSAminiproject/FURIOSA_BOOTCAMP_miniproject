@@ -11,8 +11,11 @@ APP_ENV="${APP_ENV:-production}"
 for executable in python3 docker flock; do
     command -v "$executable" >/dev/null || { echo "Missing runner prerequisite: $executable" >&2; exit 1; }
 done
-docker info --format '{{.ServerVersion}}' >/dev/null
+DOCKER_MEMORY_BYTES="$(docker info --format '{{.MemTotal}}')"
 docker compose version >/dev/null
+# t4g.small 같은 작은 공유 서버에서는 다운로드/이미지 pull/컨테이너 기동 전에 중단한다.
+# 실패해도 기존 컨테이너를 임의로 중지하지 않으므로, 이미 과부하 중인 ORS는 먼저 운영자가 중지한다.
+python3 "$PROJECT_ROOT/CI_CD/BackEnd/ors/preflight.py" --docker-memory-bytes "$DOCKER_MEMORY_BYTES"
 # 3. 기존 JSON의 data_root를 우선한다. JSON이 없을 때만 ORS_DATA_ROOT/HOME을 사용한다.
 #    --field는 다운로드/설정 생성 없이 경로만 반환하므로 잠금 전에 안전하게 조회할 수 있다.
 DATA_ROOT="$(python3 "$PROJECT_ROOT/CI_CD/BackEnd/ors/bootstrap.py" --config "$DEPLOY_CONFIG" \
@@ -45,6 +48,9 @@ fi
 # 6. Compose 해석과 이미지 pull은 교체 전에 끝낸다. 전체 config는 다른 서비스의
 #    환경값을 포함할 수 있으므로 로그에 출력하지 않는다. pull 실패 시 기존 ORS를 유지한다.
 compose pull ors
+# 원본/이미지 다운로드 중 DB 등 다른 프로세스의 메모리 사용이 늘었을 수 있으므로
+# 실제 교체 직전에 다시 검사한다. 메모리 예약은 아니며 검사 통과 후의 변동도 가능하다.
+python3 "$PROJECT_ROOT/CI_CD/BackEnd/ors/preflight.py" --docker-memory-bytes "$DOCKER_MEMORY_BYTES"
 # --no-deps와 서비스명을 함께 지정해 기존 NestJS/FastAPI/frontend를 재생성하지 않는다.
 # 이 명령부터 ORS 교체가 발생하며 단일 컨테이너 방식이므로 일시 중단될 수 있다.
 compose up --detach --no-deps ors

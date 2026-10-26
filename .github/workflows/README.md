@@ -10,6 +10,7 @@ PR은 GitHub-hosted build만 실행하고 운영 self-hosted에는 전달하지 
 이미지를 직접 다시 빌드하지 않고 공식 이미지 digest를 고정하며, 운영 지도 파일과 저장소는 러너가 읽는
 외부 설정 JSON으로 지정한다. 새 서버에서는 한국 OSM 다운로드·검증과 JSON 생성을 자동 수행하고 이후 재사용한다.
 `ORS_DEPLOY_CONFIG`, `ORS_DATA_ROOT` 저장소 변수는 선택 사항이다. [ORS 운영·검증 범위](../../CI_CD/BackEnd/ors/README.md)를 따른다.
+배포 스크립트는 호스트 자원을 먼저 검사하며 t4g.small 같은 작은 공유 서버에서는 기동 전에 실패로 중단한다.
 아래 기존 세 파이프라인의 제한·동시성 설명은 ORS의 main 가드·PR 조건과 구분한다.
 
 ## 실행 구조

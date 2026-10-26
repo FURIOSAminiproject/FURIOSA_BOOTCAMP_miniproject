@@ -184,6 +184,7 @@ class OrsChecks(unittest.TestCase):
 docker() {
   printf 'docker %s\n' "$*" >> "$ORS_QA_TRACE"
   case " $* " in
+    *' info '*) printf '8589934592\n' ;;
     *' config '*) [ "$ORS_QA_SCENARIO" != config_fail ] ;;
     *' pull '*) [ "$ORS_QA_SCENARIO" != pull_fail ] ;;
     *' up '*) [ "$ORS_QA_SCENARIO" != up_fail ] ;;
@@ -193,6 +194,15 @@ docker() {
 flock() { printf 'flock\n' >> "$ORS_QA_TRACE"; [ "$ORS_QA_SCENARIO" != locked ]; }
 python3() {
   case "$1" in
+    */preflight.py)
+      printf 'preflight\n' >> "$ORS_QA_TRACE"
+      ORS_QA_PREFLIGHT_COUNT=$(( ${ORS_QA_PREFLIGHT_COUNT:-0} + 1 ))
+      [ "$ORS_QA_SCENARIO" != insufficient_resources ] || return 1
+      if [ "$ORS_QA_SCENARIO" = resources_exhausted_before_up ] && [ "$ORS_QA_PREFLIGHT_COUNT" -ge 2 ]; then
+        return 1
+      fi
+      return 0
+      ;;
     */bootstrap.py)
       printf 'bootstrap\n' >> "$ORS_QA_TRACE"
       case " $* " in
@@ -255,6 +265,24 @@ bash CI_CD/BackEnd/ors/deploy.sh
         result, trace = self.deploy('bootstrap_fail')
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('flock', trace)
+        self.assertNotIn(' up ', trace)
+        self.assertFalse((self.root/'data/last-successful.json').exists())
+
+    def test_insufficient_resources_stop_before_bootstrap_or_container_changes(self):
+        result, trace = self.deploy('insufficient_resources')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('preflight', trace)
+        self.assertNotIn('bootstrap', trace)
+        self.assertNotIn(' up ', trace)
+        self.assertNotIn(' pull ', trace)
+        self.assertNotIn('flock', trace)
+        self.assertFalse((self.root/'data').exists())
+
+    def test_resources_are_checked_again_before_replacing_container(self):
+        result, trace = self.deploy('resources_exhausted_before_up')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(trace.count('preflight'), 2)
+        self.assertIn(' pull ', trace)
         self.assertNotIn(' up ', trace)
         self.assertFalse((self.root/'data/last-successful.json').exists())
 
