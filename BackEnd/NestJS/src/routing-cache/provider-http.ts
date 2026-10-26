@@ -1,6 +1,20 @@
+/**
+ * 외부 경로 API의 인증 설정·HTTP 제한 시간·오류 분류 담당. 원본 오류 본문은 공개하지 않는다.
+ * 읽는 순서: 이 파일의 설명 → 자료형/설정 → 생성자 주입 → 실행 메서드 → 내부 보조 함수.
+ */
 import { RoutingError, object, providerError } from './routing.errors';
 import type { ProviderName } from './routing.types';
 
+/**
+ * ORS 인증 설정과 HTTP 제한 시간을 검사한다.
+ *
+ * 입력: name: ORS, env: ORS_API_KEY 또는 ORS_API_key와 선택적 ORS_API_TIMEOUT_MS.
+ * @returns {key, timeoutMs}. 기본 제한 시간은 15000ms.
+ * @example
+ * // 인증키가 설정된 환경에서 providerConfig("ORS", process.env).timeoutMs → 기본 15000
+ *
+ * 키가 없거나 줄바꿈이 있으면 인증 오류. 제한 시간은 100~60000ms 정수만 허용한다.
+ */
 export function providerConfig(
   name: ProviderName,
   env: NodeJS.ProcessEnv,
@@ -28,6 +42,18 @@ export function providerConfig(
     );
   return { key, timeoutMs };
 }
+
+/**
+ * 외부 HTTP 응답을 읽고 실패 사유를 서비스 오류로 바꾼다.
+ *
+ * 입력: name: 제공자, url: 호출 주소, options: 메서드·헤더·본문, timeoutMs: 제한 시간, transport: fetch 구현.
+ * @returns 성공 JSON을 unknown으로 반환. 호출부가 업무 데이터 구조를 검증한다.
+ * @example
+ * // ORS HTTP 429 → PROVIDER_QUOTA_EXCEEDED
+ * // 제한 시간 경과 → PROVIDER_TIMEOUT
+ *
+ * 리다이렉트는 허용하지 않는다. 인증 실패·호출 한도·연결 실패·경로 없음 등을 구분한다.
+ */
 export async function providerJson(
   name: ProviderName,
   url: URL | string,

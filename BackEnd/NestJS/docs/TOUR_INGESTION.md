@@ -43,7 +43,7 @@ npm run tour:ingest -- dev --mode festivals --region 26 --event-start 20261022 -
 npm run tour:ingest -- dev --mode reference
 ```
 
-production 모드는 빌드된 dist/places/ingest.js를 사용하므로 먼저 npm run build 또는 npm run build:prod를 실행한다. 일반 웹 서버를 재시작하거나 공개 HTTP 수집 엔드포인트를 호출하는 방식은 아니다. 관리 역할이 없는 기존 인증 API에 임의 수집 권한을 추가하지 않았으며 서버 명령에서만 실행한다. 자동 스케줄은 별도 배치 모듈이 같은 서비스를 호출한다. CLI 자체에는 반복 실행 타이머가 없다.
+production 모드는 빌드된 dist/places/ingest.js를 사용하므로 먼저 npm run build 또는 npm run build:prod를 실행한다. CLI 자체에는 반복 실행 타이머가 없다. 자동 스케줄과 기존 수동 HTTP 경로(`/api/places/batch/run`, `/api/places/batch/initial`, `/ingest` 및 `/api/places` 별칭)는 같은 수집 서비스를 사용한다. 수동 HTTP 기본값·변환은 `batch/tour-manual.options.ts`에 있으며 CLI 옵션과 다를 수 있다. GET 초기 수집도 실제 DB 수집을 실행한다. 이번 책임 분리에서 접근 제어·기존 요청/응답 계약은 변경하지 않았다. 정책 주입과 수정 위치는 [유지보수 안내](ORS_PLACE_MAINTENANCE.md)를 참고한다.
 
 기존 v2의 places가 30컬럼이면 먼저 [출처 컬럼 추가 SQL](../../../DataBase/migrations/20261022_add_place_source_metadata.sql)을 적용한다. 최신 생성 DDL은 32컬럼이며 개발 DB travel_test에는 변경 SQL 적용을 완료했다. 자동 스키마 변경은 사용하지 않는다.
 

@@ -165,17 +165,27 @@ FROM targets;
 
 ## 책임 분리
 
+[ORS·장소 수집 유지보수 안내](../../docs/ORS_PLACE_MAINTENANCE.md)에 SOLID 근거·포트 계약·변경 위치를 정리했다.
+
 | 파일 | 책임 |
 |---|---|
-| routing.validation/types/errors | API 입력·단위/계약·정제 오류 |
-| provider-http / ors.provider | 고정 주소 외부 요청·시간 제한·원천 응답 검증 |
+| routing.ports / routing.types | 소비자별 동작 계약 / 요청·응답 데이터 |
+| routing.validation / routing.errors | HTTP 입력 검증 / 정제 오류 |
+| routing.service / routing.controller | PointResolver·RouteLookup을 이용한 경로 응답 구성 / HTTP 전달 |
+| place-coordinate.repository / route-point.resolver | 활성 장소 SQL / 좌표 해석·순서·오류 규칙 |
+| provider-http / ors.provider | 인증·고정 주소 HTTP·응답 수신 |
+| ors-response.mapper | GeoJSON·구간 시간 변환과 검증; DB 캐시 검증에서도 재사용 |
 | cache-coordinator | 요청 해시·TTL 흐름·동일 요청 합치기·처리 로그 |
-| cache-database | DB 실행·트랜잭션·필수 컬럼 검사·제한 삭제 |
-| cache-repositories | ORS 컬럼 매핑·SQL 저장·캐시 읽기 |
-| cache-maintenance | 기동 진단·자동 만료 정리 |
-| routing.service/controller/module | 장소 좌표 해석·HTTP 응답·의존성 조립 |
+| cache-database | DB 드라이버 호출·오류 코드 정제 |
+| cache-repositories | ORS 조회·UPSERT SQL |
+| ors-cache-maintenance.repository / cache-maintenance | 필수 컬럼·만료 삭제 SQL / 기동 진단·스케줄 실행 |
+| routing.policy / routing-cache.module | 현재 TTL·정리 정책 / 실제 어댑터 조립 |
 
-업무 흐름은 CacheStore/DataProvider 포트에 의존하고 저장/조회 구현과 분리한다. 새 제공자는 해당 포트와 모듈 조립을 추가해 붙일 수 있다. 수집 API를 DB 트랜잭션 안에서 호출하지 않는다.
+업무 서비스는 구체 TypeORM·HTTP·캐시 클래스 대신 좁은 포트에 의존한다. 데이터 계약이 같은 구현은 조립부에서 교체할 수 있다. 클래스 생성과 구체 구현 선택은 Nest provider factory에 모으고, 업무 서비스에서 새 어댑터를 생성하지 않는다.
+
+## 2026-10-26 SOLID 리팩터링 검증
+
+기존 npm test 17개와 저장소 밖 ORS/진단 32개·배치 17개·SOLID 계약 13개, 총 79개가 통과했다. 메모리/SQL 좌표 읽기 치환, 최소 포트만 가진 경로 서비스·유지관리 대역, 타입 계약, 기존 HTTP 응답/TTL/정리/404를 확인했다. 제공자 응답은 모킹했고 SQL은 임시 PGlite에서 실행했다. 신규 계약 검증은 배포 커밋 대상에 넣지 않는다. 외부 API·원격 DB·실제 배포 검증은 아니다.
 
 ## 현재 ORS 전용 검증 기록 — 2026-10-26
 
@@ -190,3 +200,7 @@ Node 22.23.3에서 저장소 밖 캐시 검증 29개와 기존 npm test 14개(No
 SQL은 격리 PGlite, 제공자 API는 전송 대역으로 검증했다. 로컬 HTTP는 루프백 허용 환경에서 검사했다. 검증 스크립트는 사용자 결정에 따라 저장소 밖에 보관하며 배포 코드/커밋에 넣지 않는다. 클린 체크아웃의 npm test는 신규 검증 29개를 실행하지 않는다. 이번 변경에서 실제 ORS/ITS 요청, 원격 DB DDL/쓰기, AWS 배포는 수행하지 않았다. 기존 AI 응답 검증·가격/폴백·회원 ID 선언 차이 등의 별도 문제를 해결한 것으로 표시하지 않는다.
 
 예상시간을 표시하는 클라이언트는 trafficApplied=false를 확인하고 ‘실시간 교통상황이 반영되지 않은 예상시간’을 안내한다. 이번 작업에서는 프론트의 경로/일정 화면이나 추천 로직을 새로 구현하지 않는다.
+
+## 코드 읽는 순서와 주석
+
+[처음 읽는 팀원용 안내](../../docs/PLACE_ROUTING_CODE_GUIDE.md)에서 HTTP 요청부터 좌표 해석·캐시·ORS·만료 삭제까지 따라 읽을 수 있다. 모든 함수·콜백·인터페이스 메서드에 입력/출력/예시를 설명하고 자료형에는 좌표 순서, m/초 단위, UTC 시각과 캐시 상태를 적었다.

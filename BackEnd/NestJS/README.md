@@ -4,7 +4,7 @@ NestJS 12, TypeScript 6, TypeORM, PostgreSQL 드라이버와 `@google/genai`를 
 
 수정 전에는 [작업 지침](AGENTS.md)과 [백엔드 구현 검토 기록](../REVIEW.md)을 확인합니다. 검토 기록의 개선 항목은 현재 미수정입니다.
 
-장소 수집의 모듈 구성·SOLID 적용·테스트 결과·현재 장소가 2건인 이유는 [장소 모듈 README](src/places/README.md)에 정리했습니다.
+장소 수집의 모듈 구성·테스트 결과·현재 장소가 2건인 이유는 [장소 모듈 README](src/places/README.md)에 정리했습니다. ORS와 장소 수집의 책임·의존성·SOLID 적용 근거와 확장 방법은 [유지보수 안내](docs/ORS_PLACE_MAINTENANCE.md)를 따릅니다. ORS의 장소 SQL/좌표 해석/응답 변환/유지관리 SQL을 분리하고, 장소 수집 전략·상세 요청·수동 입력 정책을 주입할 수 있게 정리했습니다.
 
 ## 구현 범위
 
@@ -14,7 +14,7 @@ NestJS 12, TypeScript 6, TypeORM, PostgreSQL 드라이버와 `@google/genai`를 
 
 TypeORM은 기동 시 DB에 연결하고 진단 쿼리를 수행합니다. 회원가입·로그인·OAuth 사용자 정보는 `users`에 저장합니다. 일정·승인 저장 엔티티/API와 여행·관리자 API의 권한 검사는 없습니다. 프론트의 승인·반려 상태는 브라우저 메모리에서 관리됩니다.
 
-TourAPI 장소 수집은 [수집 CLI와 서비스](docs/TOUR_INGESTION.md)로 구현했습니다. 분류·지역 코드를 조회하고 장소 목록·설명·운영시간·요금·이미지를 `place_categories`와 `places`에 추가·갱신합니다. 기존 UUID와 상세·후기는 유지하며 공개 수집 HTTP 엔드포인트는 없습니다. [매일 01:00 한국 시간 배치](src/places/batch/README.md)는 서버 시작 시 자동 등록되며 동일한 수집 서비스를 사용합니다. 별도 활성화 설정은 필요하지 않습니다.
+TourAPI 장소 수집은 [수집 CLI와 서비스](docs/TOUR_INGESTION.md)로 구현했습니다. 분류·지역 코드를 조회하고 장소 목록·설명·운영시간·요금·이미지를 `place_categories`와 `places`에 추가·갱신합니다. 기존 UUID와 상세·후기는 유지하며 CLI 외에 `/api/places/batch/run`과 `/api/places/batch/initial` 등 기존 수동 수집 HTTP 경로도 제공합니다. [매일 01:00 한국 시간 배치](src/places/batch/README.md)는 서버 시작 시 자동 등록되며 동일한 수집 서비스를 사용합니다. 별도 활성화 설정은 필요하지 않습니다.
 
 ## 디렉토리
 
@@ -213,3 +213,7 @@ docker run -d --name travel-backend --env-file .env.production --add-host host.d
 [환경 변수 예시](.env.example)는 항목 안내용입니다. 실제 키·비밀번호를 넣어 커밋하지 않습니다. 기존 `users` 테이블이 있는 DB에는 [OAuth 컬럼 SQL](migrations/20261019_add_oauth_columns.sql)을 별도로 검토·적용해야 합니다. 이 SQL은 users 테이블을 새로 만들지 않으며, 앱·배포가 스키마를 자동 생성하거나 마이그레이션하지 않습니다.
 
 인증 기능은 기존 여행 API와 관리자 화면에 접근 제한을 자동 적용하지 않습니다. 로그인 화면은 별도 `FrontEnd/v2/v2`에 있으며 현재 Compose frontend는 `FrontEnd/v1` 여행 화면을 배포합니다.
+
+장소·경로 코드를 처음 읽는 팀원은 [입력·출력·예시와 파일 읽는 순서](docs/PLACE_ROUTING_CODE_GUIDE.md)를 참고한다. 관련 함수·콜백에는 한글 설명을 달고 프로젝트 Prettier 규칙으로 들여쓰기를 맞췄다.
+
+코드 주석에는 작성자 이름을 반복해서 넣지 않습니다. 작성자와 변경 이력은 Git 기록을 기준으로 확인하며, 팀의 기능 담당자 명단이 필요하면 README에서 별도로 관리합니다.
