@@ -162,7 +162,9 @@ export const TravelPlanDetail: React.FC<TravelPlanDetailProps> = ({
       </div>
 
       {/* 3. Interactive Leaflet Map View with Verification button */}
+      {/* 일정 ID가 바뀌면 지도와 현재 위치 상태를 새로 만든다. 이전 위치를 다른 일정에 넘기지 않는다. */}
       <TravelMapView
+        key={plan.requestId}
         days={days}
         destinationName={request.destination}
         onOpenGisModal={onOpenGisModal}

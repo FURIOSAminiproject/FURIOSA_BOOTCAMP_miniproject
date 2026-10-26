@@ -529,7 +529,8 @@ export default function App() {
 
             <TravelPlanDetail
               plan={selectedPlan}
-                    onOpenApprovalModal={() => {
+              isAdmin={authReady && currentUser?.role === 'Admin'}
+              onOpenApprovalModal={() => {
                 setPlanForApproval(selectedPlan);
                 setApprovalModalOpen(true);
               }}
