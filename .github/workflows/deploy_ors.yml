@@ -22,11 +22,14 @@ permissions:
   contents: read
 
 concurrency:
+  # PR은 ref별로 격리하고 push/수동 실행은 같은 운영 그룹을 사용한다.
+  # cancel-in-progress:false는 실행 중인 배포를 취소하지 않지만 FIFO 대기열 보장은 아니다.
   group: ors-${{ github.event_name == 'pull_request' && github.ref || 'production' }}
   cancel-in-progress: false
 
 jobs:
   build:
+    # PR을 포함한 코드 검증은 GitHub-hosted에서 수행한다. 운영 러너에는 PR 코드를 보내지 않는다.
     name: Verify ORS image and routing
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -41,17 +44,21 @@ jobs:
   deploy:
     name: Deploy ORS service
     needs: build
+    # workflow_dispatch에는 push의 branches 제한이 적용되지 않으므로 main을 다시 검사한다.
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: [self-hosted, linux]
     timeout-minutes: 60
     env:
       APP_ENV: production
-      # 설정하지 않으면 배포 계정의 ~/.config/roadfriend/ors.json 사용
+      # 비워두면 러너 계정의 HOME 아래에 데이터와 설정을 처음 한 번 자동 준비
       ORS_DEPLOY_CONFIG: ${{ vars.ORS_DEPLOY_CONFIG }}
+      ORS_DATA_ROOT: ${{ vars.ORS_DATA_ROOT }}
+      # 첫 그래프 생성의 readiness 대기 시간이다. 전체 job 제한(60분)과는 별개다.
       ORS_WAIT_SECONDS: "1800"
     steps:
       - uses: actions/checkout@v4
         with:
+          # OSM/설정은 checkout 밖에 저장한다. clean:false 자체를 데이터 영속성 보장으로 쓰지 않는다.
           clean: false
       - name: Deploy pinned ORS with the verified local OSM snapshot
         run: bash CI_CD/BackEnd/ors/deploy.sh

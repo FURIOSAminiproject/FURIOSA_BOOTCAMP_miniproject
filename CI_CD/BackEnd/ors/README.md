@@ -18,23 +18,47 @@
 현재 DB의 `source_url`은 HTTPS만 허용하므로 내부 HTTP 주소를 저장하려면 별도 변경 SQL도 검토해야 한다.
 배경 지도 타일 생성·서비스와 지도/경로 버전의 동시 전환은 아직 구현하지 않았다.
 
-## 서버에서 한 번 준비할 것
+## 새 서버의 자동 준비
 
-Linux Docker Engine, Compose 2.24.0 이상, Python 3.9 이상, `flock`을 준비한다.
-기존 서비스와 동일한 저장소/Compose 프로젝트에서 실행한다. Docker 데몬에 접근할 수 있어야 한다.
+Linux Docker Engine, Compose 2.24.0 이상, Python 3.9 이상, `flock`과 Docker 접근 권한을 갖춘
+self-hosted 러너를 사용한다. 기존 서비스와 동일한 저장소/Compose 프로젝트에서 실행한다.
+Geofabrik·이미지 registry로의 HTTPS 접근과 OSM 원본·사본·자동차/도보 경로망을 보관할 디스크 공간이 필요하다.
+기본 자원 제한의 충분성은 아래 자원 설정 항목을 따른다. Docker·러너 자체를 설치하는 스크립트는 아니다.
 
-1. 한국 또는 서비스 대상 지역의 `.osm.pbf`를 **체크아웃 밖**에 보관한다.
-   [Geofabrik 한국 데이터](https://download.geofabrik.de/asia/south-korea.html) 등 적법한 원본을 사용한다.
-   원본 파일은 매 배포마다 자동 다운로드하지 않는다.
-2. `sha256sum /absolute/path/south-korea.osm.pbf`로 파일 체크섬을 구한다.
-3. [배포 JSON 예시](../../../Docker/ors/deployment.example.json)를 체크아웃 밖의
-   `~/.config/roadfriend/ors.json`에 복사하고 다섯 값을 실제 환경에 맞춘다.
-   다른 경로는 GitHub Actions 저장소 변수 `ORS_DEPLOY_CONFIG` 또는 동일 이름의 환경변수로 지정한다.
-4. `data_root`는 러너가 쓸 수 있는 전용 영구 디렉토리로 지정한다. `dataset_path`도 체크아웃 밖의 절대 경로다.
-5. `probe_coordinates`는 해당 데이터 안에서 **자동차와 도보 모두 이동 가능한 서로 다른 두 지점**을 지정한다.
-   배열 순서는 `[경도, 위도]`다. 예시 서울 좌표가 모든 데이터 범위에서 동작한다는 뜻은 아니다.
+서버에서 `mkdir`, JSON 복사·편집, 체크섬 계산을 수동 실행할 필요가 없다. 설정이 없는 첫 배포에서는
+`deploy.sh`가 저장소의 [bootstrap.json](../../../Docker/ors/bootstrap.json)을 읽어 다음 작업을 수행한다.
 
-Python은 JSON을 데이터로 읽으며 셸 코드로 실행하지 않는다. 실제 설정 JSON과 OSM 파일을 Git에 넣지 않는다.
+1. 러너 계정의 `~/.local/share/roadfriend/ors`를 저장소로 선택하고 배포 잠금을 획득한다.
+2. [Geofabrik 한국 데이터](https://download.geofabrik.de/asia/south-korea.html)의 최신 `.osm.pbf`를 스트리밍으로 받는다.
+3. HTTPS 전송과 배포처 MD5를 검사한다. 다운로드 전후의 MD5가 달라져도 중단한다.
+   MD5는 전송 손상 검사에 사용하며 별도 서명 인증을 뜻하지 않는다.
+4. 다운로드한 파일의 SHA-256을 계산하고 `sources/<SHA-256>.osm.pbf`에 저장한다.
+5. 실제 경로·SHA-256·검증 좌표·포트 및 출처/다운로드 시각을 담은
+   `~/.config/roadfriend/ors.json`을 생성한 후 기존 준비·배포 절차로 진행한다.
+
+다운로드는 연결/읽기당 최대 30초, 본문 루프 최대 900초, 최대 2GiB로 제한한다.
+전송 중단·크기/체크섬 불일치 시 임시 파일을 정리하고 설정을 생성하지 않으며 ORS를 교체하지 않는다.
+다음 배포에서 다시 시도한다. 완료된 설정 파일은 원자적으로 생성하며 기존 파일을 덮어쓰지 않는다.
+
+기존 JSON이 있으면 해당 `data_root`와 OSM을 재사용하며 다운로드하지 않는다. 잘못된 기존 JSON이나
+손상된 데이터는 오류로 중단한다. `latest`는 처음 준비하는 시점에만 조회하며 이후 배포마다 갱신하지 않는다.
+서로 다른 시점에 처음 설치한 서버는 데이터 버전이 다를 수 있다. 같은 버전이 필요하면 동일 OSM·SHA-256의
+설정을 명시적으로 공급해야 한다. 자동 갱신·여러 서버의 지도 버전 동시 전환은 구현하지 않았다.
+
+기본값을 바꿀 때는 GitHub Actions 저장소 Variables 또는 수동 실행 환경변수를 사용한다.
+
+| 변수 | 기본값 / 동작 |
+|---|---|
+| `ORS_DEPLOY_CONFIG` | `$HOME/.config/roadfriend/ors.json`; 없으면 자동 생성 |
+| `ORS_DATA_ROOT` | `$HOME/.local/share/roadfriend/ors`; 첫 생성에만 사용, 기존 JSON의 `data_root` 우선 |
+
+두 경로는 체크아웃 밖의 절대 경로여야 하며 러너가 쓸 수 있어야 한다. 다운로드 지역·검증 좌표·포트의
+기준은 버전 관리하는 `Docker/ors/bootstrap.json`이다. 좌표 배열은 `[경도, 위도]`다.
+한국 이외의 지역으로 바꾸면 자동차·도보 모두 이동 가능한 검증 좌표도 함께 바꾼다.
+
+별도 OSM 파일을 쓰려면 [배포 JSON 예시](../../../Docker/ors/deployment.example.json)에 실제 경로·SHA-256·좌표를
+지정해 먼저 공급할 수도 있다. 예시 파일은 자동 초기화 과정에서 복사하지 않는다.
+Python은 JSON을 데이터로 읽으며 셸 코드로 실행하지 않는다. 생성한 설정 JSON과 OSM 파일은 Git에 넣지 않는다.
 API 키는 자체 ORS의 이 내부 구성에 필요하지 않다. API 포트는 호스트 `127.0.0.1:8082`에만 열고
 컨테이너 내부에서는 기존 `travel-network`의 서비스명 `ors:8082`로 접근한다.
 
@@ -43,8 +67,7 @@ API 키는 자체 ORS의 이 내부 구성에 필요하지 않다. API 포트는
 어느 작업 폴더에서 호출해도 스크립트가 자신의 위치로 저장소 루트를 계산한다.
 
 ```bash
-ORS_DEPLOY_CONFIG="$HOME/.config/roadfriend/ors.json" \
-  bash CI_CD/BackEnd/ors/deploy.sh
+bash CI_CD/BackEnd/ors/deploy.sh
 ```
 
 기본 JVM은 초기 256MB/최대 2GB, 컨테이너 제한은 3GB·CPU 2개다. 이는 초기 설정이며 한국 전체
@@ -60,6 +83,7 @@ JVM 힙 외에도 네이티브/메모리 매핑 공간과 다른 서비스의 �
 
 ```text
 data_root/
+  sources/<OSM SHA-256>.osm.pbf
   datasets/<OSM SHA-256>/input.osm.pbf
   releases/<release-id>/manifest.json
   releases/<release-id>/ors-config.yml
@@ -74,7 +98,7 @@ OSM과 ORS 설정을 외부 저장소에 복사·검증한 뒤 읽기 전용으�
 프로젝트의 `ors-logs` named volume을 사용한다. 단순 컨테이너 교체로 지도를 다시 다운로드하지 않는다.
 파일·이미지·설정이 같으면 이전 그래프를 재사용한다. ORS 최초 실행은 지정 데이터로 두 프로필을 구축한다.
 
-배포 순서: 설정/파일 검사 → 데이터 저장소 잠금 → 스냅샷 준비 → Compose 해석 → 이미지 pull →
+배포 순서: 실행 환경 검사 → 저장소 선택/잠금 → 최초 자동 준비 또는 설정 재사용 → 스냅샷 준비 → Compose 해석 → 이미지 pull →
 `up --detach --no-deps ors` → readiness → 네 가지 경로 요청 → 마지막 성공 릴리스 기록.
 체크섬·설정·이미지 pull 실패는 컨테이너 교체 전에 중단한다.
 
@@ -99,7 +123,7 @@ Python 3.9 이상과 Bash가 필요하며 Windows에서는 Git Bash를 사용한
 python3 -B -m unittest discover -s CI_CD/BackEnd/ors/tests -v
 ```
 
-테스트는 체크아웃 밖의 임시 파일을 사용하고 Docker·flock·경로 검사를 모킹한다.
+테스트는 체크아웃 밖의 임시 파일을 사용하고 최초 다운로드 HTTP·Docker·flock·경로 검사를 모킹한다.
 실제 ORS의 경로 품질이나 컨테이너 실행을 검증하는 테스트는 아니다.
 `build.sh`는 이 검사를 먼저 실행한 후 아래 실제 기동 검사로 진행한다.
 

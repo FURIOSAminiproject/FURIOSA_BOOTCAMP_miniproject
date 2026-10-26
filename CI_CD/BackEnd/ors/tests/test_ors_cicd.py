@@ -163,13 +163,23 @@ class OrsChecks(unittest.TestCase):
                 smoke.check(prepare.load_config(self.file), 1)
 
     def deploy(self, scenario='success'):
+        # 실제 deploy.sh 제어 흐름을 실행하되 Docker/flock/HTTP 경로 검사만 대체한다.
+        # prepare.py와 기존 JSON 검사 자체는 실제 Python 코드로 수행한다.
         trace = self.root/'calls.txt'
         env = os.environ.copy()
         if not BASH:
             self.skipTest('Bash is required for mocked deployment checks')
         env.update(ORS_DEPLOY_CONFIG=self.file.as_posix(), ORS_QA_TRACE=trace.as_posix(),
                    ORS_QA_SCENARIO=scenario, ORS_QA_PYTHON=Path(sys.executable).as_posix(),
+                   ORS_DATA_ROOT=self.config['data_root'],
                    TMPDIR=self.root.as_posix(), PYTHONDONTWRITEBYTECODE='1')
+        if scenario == 'first_install':
+            # 쉘 연결 검사는 다운로드를 실행하지 않는다. 준비된 임시 JSON을 공급하고
+            # 최초 HTTP/체크섬/파일 생성 동작은 test_bootstrap.py에서 별도로 검사한다.
+            fixture = self.root/'bootstrap-fixture.json'
+            fixture.write_bytes(self.file.read_bytes())
+            self.file.unlink()
+            env['ORS_QA_BOOTSTRAP_FIXTURE'] = fixture.as_posix()
         script = r'''
 docker() {
   printf 'docker %s\n' "$*" >> "$ORS_QA_TRACE"
@@ -183,11 +193,28 @@ docker() {
 flock() { printf 'flock\n' >> "$ORS_QA_TRACE"; [ "$ORS_QA_SCENARIO" != locked ]; }
 python3() {
   case "$1" in
+    */bootstrap.py)
+      printf 'bootstrap\n' >> "$ORS_QA_TRACE"
+      case " $* " in
+        *' --field '*) ;; # 저장소 조회는 네트워크를 사용하지 않는다.
+        *)
+          [ "$ORS_QA_SCENARIO" != bootstrap_fail ] || return 1
+          if [ -n "${ORS_QA_BOOTSTRAP_FIXTURE:-}" ]; then
+            "$ORS_QA_PYTHON" -c 'import shutil,sys; shutil.copyfile(sys.argv[1], sys.argv[2])' \
+              "$ORS_QA_BOOTSTRAP_FIXTURE" "$ORS_DEPLOY_CONFIG" || return 98
+          fi
+          # 실제 다운로드가 실행되는 것을 막는다. 다운로드 자체는 별도 HTTP 모의 테스트로 검사한다.
+          test -f "$ORS_DEPLOY_CONFIG" || return 97
+          ;;
+      esac
+      "$ORS_QA_PYTHON" "$@"
+      ;;
     */smoke.py) printf 'smoke\n' >> "$ORS_QA_TRACE"; [ "$ORS_QA_SCENARIO" != smoke_fail ] ;;
     *) "$ORS_QA_PYTHON" "$@" ;;
   esac
 }
 export -f docker flock python3
+# 자식 Bash에서 실제 명령이 호출되는 사고를 막기 위해 함수 대체가 적용됐는지 먼저 확인한다.
 test "$(type -t docker)" = function && test "$(type -t flock)" = function && test "$(type -t python3)" = function || exit 99
 bash CI_CD/BackEnd/ors/deploy.sh
 '''
@@ -217,12 +244,27 @@ bash CI_CD/BackEnd/ors/deploy.sh
                 if scenario in ('config_fail','pull_fail','locked'):
                     self.assertNotIn(' up ', trace)
 
-    def test_deploy_bad_hash_stops_before_docker(self):
+    def test_first_install_bootstraps_before_replacing_ors(self):
+        result, trace = self.deploy('first_install')
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertTrue(self.file.exists())
+        self.assertLess(trace.index('bootstrap'), trace.index(' up '))
+        self.assertTrue((self.root/'data/last-successful.json').exists())
+
+    def test_bootstrap_failure_does_not_replace_service(self):
+        result, trace = self.deploy('bootstrap_fail')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('flock', trace)
+        self.assertNotIn(' up ', trace)
+        self.assertFalse((self.root/'data/last-successful.json').exists())
+
+    def test_deploy_bad_hash_stops_before_container_changes(self):
         self.config['dataset_sha256']='0'*64
         self.write_config()
         result, trace = self.deploy()
         self.assertNotEqual(result.returncode,0)
-        self.assertNotIn('docker ',trace)
+        self.assertNotIn(' up ',trace)
+        self.assertNotIn(' pull ',trace)
 
 
 if __name__ == '__main__':

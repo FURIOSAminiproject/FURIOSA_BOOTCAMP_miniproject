@@ -134,16 +134,17 @@ OSM은 도로·보행로 등의 원본 데이터이며, ORS가 이 데이터로 
 | 내부 접근 | Docker 네트워크에서 `http://ors:8082/ors/v2`, 호스트에서는 기본 `127.0.0.1:8082`; 이 내부 구성은 API 키 불필요 |
 | 데이터 보관 | 체크아웃 밖에 OSM 스냅샷·경로망 보관, OSM 체크섬·이미지·설정별 릴리스 분리 |
 
-운영 서버에는 Linux Docker Engine, Compose 2.24 이상, Python 3.9 이상, `flock`이 필요합니다.
-대상 지역의 `.osm.pbf` 파일과 SHA-256을 준비하고, [설정 JSON 예시](Docker/ors/deployment.example.json)의
-데이터 경로·체크섬·검증 좌표·포트를 실제 값으로 바꿔 체크아웃 밖의 `~/.config/roadfriend/ors.json`에 저장합니다.
-다른 설정 파일 경로는 `ORS_DEPLOY_CONFIG`로 지정합니다. 실제 설정과 OSM 파일은 Git에 넣지 않습니다.
+운영 서버에는 Linux Docker Engine, Compose 2.24 이상, Python 3.9 이상, `flock`과 Docker 접근 권한을
+갖춘 self-hosted 러너가 필요합니다. **첫 배포 시 한국 OSM 다운로드·체크섬 검증·설정 JSON 생성을 자동 수행합니다.**
+기준은 [bootstrap.json](Docker/ors/bootstrap.json)이며 생성한 설정은 `~/.config/roadfriend/ors.json`,
+데이터는 `~/.local/share/roadfriend/ors`에 보관합니다. 기존 설정과 데이터가 있으면 다운로드 없이 재사용합니다.
+설정 경로는 `ORS_DEPLOY_CONFIG`, 최초 데이터 저장소는 `ORS_DATA_ROOT`로 바꿀 수 있습니다.
+실제 설정과 OSM 파일은 Git에 넣지 않습니다. 서로 다른 시점의 최초 설치에서 같은 데이터 버전을 보장하지는 않습니다.
 
-아래는 준비가 끝난 **Linux 서버의 저장소 루트**에서 ORS만 배포하는 명령입니다.
+아래는 러너 실행 환경을 갖춘 **Linux 서버의 저장소 루트**에서 초기 준비와 ORS 배포를 실행하는 명령입니다.
 
 ```bash
-ORS_DEPLOY_CONFIG="$HOME/.config/roadfriend/ors.json" \
-  bash CI_CD/BackEnd/ors/deploy.sh
+bash CI_CD/BackEnd/ors/deploy.sh
 ```
 
 기본 자원 제한은 컨테이너 메모리 3GB·CPU 2개, JVM 최대 힙 2GB입니다. 한국 전체 데이터의 충분한 사양을
@@ -155,7 +156,7 @@ ORS_DEPLOY_CONFIG="$HOME/.config/roadfriend/ors.json" \
 데이터 버전별 캐시 분리, 내부 HTTP 주소 저장을 위한 DB 제약 검토가 남아 있습니다.
 배경 지도 타일 생성·서비스와 지도/경로 데이터 버전의 동시 전환도 아직 구현하지 않았습니다.
 
-로컬에서는 모의 배포·데이터 검증 15개와 세 환경의 Compose 설정 검사를 통과했습니다.
+로컬에서는 최초 자동 준비·모의 배포·데이터 검증 31개와 세 환경의 Compose 설정 검사를 통과했습니다.
 당시 Docker 데몬이 실행 중이지 않아 실제 ORS 기동·GitHub Actions 실행·EC2 배포는 확인하지 못했습니다.
 설치·실패 처리·자원 조정은 [ORS 운영 안내](CI_CD/BackEnd/ors/README.md), 검증 범위는
 [CI/CD 검토 기록](CI_CD/REVIEW.md)을 확인합니다.

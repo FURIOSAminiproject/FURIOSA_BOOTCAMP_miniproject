@@ -25,7 +25,10 @@ def request(url: str, body=None, timeout: float = 10):
 
 
 def check(config: dict, wait_seconds: int) -> None:
+    """그래프 준비를 기다린 뒤 자동차/도보의 추천·최단 경로 기능을 확인한다."""
     base = f"http://127.0.0.1:{config['http_port']}/ors/v2"
+    # 첫 실행의 그래프 생성은 오래 걸릴 수 있다. 각 HTTP 호출의 짧은 타임아웃과
+    # 전체 readiness 대기 기한을 분리하고 벽시계 변경의 영향을 받지 않게 한다.
     deadline = time.monotonic() + wait_seconds
     while True:
         try:
@@ -38,6 +41,8 @@ def check(config: dict, wait_seconds: int) -> None:
         if time.monotonic() >= deadline:
             raise ValueError("ORS readiness deadline exceeded")
         time.sleep(min(2, max(0, deadline - time.monotonic())))
+    # ready 응답만으로 실제 경로 계산 성공을 보장하지 않는다. 두 이동 수단과
+    # 두 preference 조합을 호출하고 지오메트리·거리·시간·길안내가 모두 있는지 검사한다.
     for profile in ("driving-car", "foot-walking"):
         for preference in ("recommended", "shortest"):
             route = request(base + f"/directions/{profile}/geojson", {
@@ -47,6 +52,8 @@ def check(config: dict, wait_seconds: int) -> None:
             feature = route["features"][0]
             geometry = feature["geometry"]
             summary = feature["properties"]["summary"]
+            # 이 검사는 응답 형태와 최소 기능을 확인한다. 현실의 통행 가능 여부,
+            # 전국 데이터의 정확성 또는 예상 시간의 실제 교통 일치까지 검증하지 않는다.
             if geometry["type"] != "LineString" or len(geometry["coordinates"]) < 2:
                 raise ValueError("ORS did not return route geometry")
             for key in ("distance", "duration"):

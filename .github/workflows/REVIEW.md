@@ -1,5 +1,13 @@
 # GitHub Actions 코드 검토 기록
 
+## 2026-10-26 수정: ORS 첫 배포 자동 준비
+
+ORS 배포에 선택 변수 `ORS_DATA_ROOT`를 전달하고, 설정 JSON이 없을 때 호출 스크립트가
+한국 OSM 다운로드·검증·JSON 생성을 자동 수행하도록 바꿨다. main 가드·PR 격리·러너 조건은 유지한다.
+빈 두 경로 변수는 러너 HOME 기반 기본값을 사용한다. 기존 설정을 덮어쓰거나 매 배포마다 OSM을 갱신하지 않는다.
+모의 최초 배포·실패 분기 등 오프라인 검증 31개, YAML/이벤트 조건 및 Compose 해석을 검사했다.
+실제 GitHub Actions 재실행·EC2 배포는 수행하지 않았다.
+
 ## 2026-10-26 추가: ORS 파이프라인
 
 `deploy_ors.yml`의 main push/PR/수동 실행 조건을 추가했다. ORS 설정·스크립트·두 Compose 파일·자기 YAML을

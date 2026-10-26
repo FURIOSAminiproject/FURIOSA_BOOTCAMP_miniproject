@@ -3,8 +3,8 @@
 ## 선택적 자체 ORS — 2026-10-26
 
 기존 기본 스택과 별도로 [docker-compose.ors.yml](../docker-compose.ors.yml)의 `ors` 서비스를 제공한다.
-[ORS 배포 안내](../CI_CD/BackEnd/ors/README.md)에 따라 체크아웃 밖의 OSM 스냅샷과 경로망 저장소를
-준비한 뒤 전용 스크립트로 실행한다. 기존 Compose만 실행하면 이 서비스는 추가되지 않는다.
+[ORS 배포 안내](../CI_CD/BackEnd/ors/README.md)의 전용 스크립트가 처음에는 한국 OSM 다운로드와 설정 생성을
+자동 수행하고 이후에는 체크아웃 밖의 OSM·경로망을 재사용한다. 기존 Compose만 실행하면 이 서비스는 추가되지 않는다.
 공식 v10.0.1 이미지 digest를 고정하고 자동차·도보를 활성화했다. API는 루프백 포트에만 공개하며
 기존 `travel-network`에서 `ors:8082`로 접근한다. 기본 JVM 최대 2GB/컨테이너 제한 3GB는 초기값이다.
 실제 한국 데이터 구축에 필요한 자원을 측정해야 한다. 기존 NestJS 연결·지도 타일 서버는 별도 범위다.
