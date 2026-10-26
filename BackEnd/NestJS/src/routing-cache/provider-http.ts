@@ -19,9 +19,7 @@ export function providerConfig(
       'PROVIDER_AUTH_ERROR',
       `${name} 서버 인증키 설정이 필요합니다.`,
     );
-  const timeoutMs = Number(
-    env[`${name}_API_TIMEOUT_MS`] ?? (name === 'ORS' ? 15000 : 10000),
-  );
+  const timeoutMs = Number(env[`${name}_API_TIMEOUT_MS`] ?? 15000);
   if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 60000)
     throw new RoutingError(
       503,
@@ -77,7 +75,7 @@ export async function providerJson(
         'PROVIDER_AUTH_ERROR',
         `${name} 인증 설정을 확인해 주세요.`,
       );
-    if (name === 'ORS' && (code === 2009 || code === 2010))
+    if (code === 2009 || code === 2010)
       throw new RoutingError(
         422,
         code === 2009 ? 'ROUTE_NOT_FOUND' : 'POINT_NOT_ROUTABLE',

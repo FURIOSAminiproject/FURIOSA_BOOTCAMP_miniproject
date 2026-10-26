@@ -1,3 +1,5 @@
+> 2026-10-26: 이전 ITS·ORS 통합 설계 보존 문서다. 현재 서비스는 ORS만 사용하며 신규 생성은 [ORS DDL v3](ors_route_cache_schema_v3.sql), 실행 방법은 [캐시 모듈 README](../BackEnd/NestJS/src/routing-cache/README.md)를 따른다. 기존 v2 ORS 테이블은 그대로 재사용하고 ITS 테이블·데이터는 보존한다.
+
 # ITS·ORS 캐시 테이블 v2
 
 작성: 2026-10-23. [신규 생성 DDL](routing_cache_schema_v2.sql). 실제 DB에 실행하지 않은 설계다. 테이블을 최소한으로 유지하면서 주요 응답을 일반 컬럼에 저장한다.

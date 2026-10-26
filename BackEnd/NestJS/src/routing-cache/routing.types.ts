@@ -1,4 +1,4 @@
-export type ProviderName = 'ORS' | 'ITS';
+export type ProviderName = 'ORS';
 export type Coordinate = [number, number];
 export type RoutePoint =
   { placeId: string } | { latitude: number; longitude: number };
@@ -32,30 +32,6 @@ export interface RouteData {
   timeSpans: TimeSpan[];
   attribution: string | null;
   warnings: { code: number; message: string }[];
-}
-export interface TrafficRequest {
-  contractVersion: 2;
-  minX: number;
-  maxX: number;
-  minY: number;
-  maxY: number;
-  type: 'all';
-  drcType: 'all';
-  getType: 'json';
-}
-export interface TrafficLink {
-  linkId: string;
-  startNodeId: string | null;
-  endNodeId: string | null;
-  roadName: string | null;
-  roadDirection: string | null;
-  linkNo: string | null;
-  speed: number | null;
-  travelTimeSeconds: number | null;
-  observedAt: string | null;
-}
-export interface TrafficData {
-  items: TrafficLink[];
 }
 export interface CacheEntry<T> {
   cacheId: string;

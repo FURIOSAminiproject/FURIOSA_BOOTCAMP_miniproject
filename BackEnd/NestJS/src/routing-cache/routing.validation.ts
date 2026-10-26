@@ -1,5 +1,5 @@
 import { invalid, object } from './routing.errors';
-import type { RoutePoint, RouteRequest, TrafficRequest } from './routing.types';
+import type { RoutePoint, RouteRequest } from './routing.types';
 
 export function coordinate(value: unknown, limit: number): value is number {
   return (
@@ -50,54 +50,4 @@ export function routeRequest(body: unknown): RouteRequest {
     },
   );
   return { mode: body.mode, preference, points };
-}
-export function trafficRequest(query: unknown): TrafficRequest {
-  if (
-    !object(query) ||
-    Object.keys(query).some(
-      (key) =>
-        !['minX', 'maxX', 'minY', 'maxY', 'type', 'drcType'].includes(key),
-    )
-  )
-    return invalid('query');
-  const number = (key: string) => {
-    const value = query[key];
-    if (
-      typeof value !== 'string' ||
-      !/^-?\d+(?:\.\d+)?$/.test(value) ||
-      !Number.isFinite(Number(value))
-    )
-      return invalid(key);
-    return Number(value);
-  };
-  const minX = number('minX'),
-    maxX = number('maxX'),
-    minY = number('minY'),
-    maxY = number('maxY');
-  if (
-    minX < 124 ||
-    maxX > 132 ||
-    minY < 33 ||
-    maxY > 39 ||
-    minX >= maxX ||
-    minY >= maxY ||
-    maxX - minX > 0.200000001 ||
-    maxY - minY > 0.200000001
-  )
-    return invalid('국내 조회 영역 (경도·위도 폭 각각 최대 0.2도)');
-  if (
-    (query.type !== undefined && query.type !== 'all') ||
-    (query.drcType !== undefined && query.drcType !== 'all')
-  )
-    return invalid('type/drcType (all)');
-  return {
-    contractVersion: 2,
-    minX,
-    maxX,
-    minY,
-    maxY,
-    type: 'all',
-    drcType: 'all',
-    getType: 'json',
-  };
 }

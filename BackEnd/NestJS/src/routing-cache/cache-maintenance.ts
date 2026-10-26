@@ -1,7 +1,7 @@
 import type { OnApplicationBootstrap } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { CacheDatabase } from './cache-database';
-import { safeCode } from './routing.errors';
+import { safeDiagnostics } from './routing.errors';
 import type { RoutingLog } from './routing.types';
 
 export class CacheMaintenance implements OnApplicationBootstrap {
@@ -40,7 +40,7 @@ export class CacheMaintenance implements OnApplicationBootstrap {
       this.logger.error(
         JSON.stringify({
           event: 'routing_cache_schema_check_failed',
-          code: safeCode(error),
+          ...safeDiagnostics(error),
         }),
       );
     }
@@ -67,7 +67,7 @@ export class CacheMaintenance implements OnApplicationBootstrap {
       this.logger.error(
         JSON.stringify({
           event: 'routing_cache_cleanup_failed',
-          code: safeCode(error),
+          ...safeDiagnostics(error),
         }),
       );
     } finally {

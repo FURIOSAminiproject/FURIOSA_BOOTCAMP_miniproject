@@ -1,15 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { CacheDatabase } from './cache-database';
 import { validateRouteData } from './ors.provider';
-import { validateTrafficData } from './its.provider';
 import { RoutingError } from './routing.errors';
 import type {
   CacheEntry,
   CacheStore,
   OrsRequest,
   RouteData,
-  TrafficData,
-  TrafficRequest,
 } from './routing.types';
 
 interface Metadata {
@@ -105,95 +102,5 @@ export class OrsCacheRepository implements CacheStore<OrsRequest, RouteData> {
       ],
     );
     return entry(row, data);
-  }
-}
-export class ItsCacheRepository implements CacheStore<
-  TrafficRequest,
-  TrafficData
-> {
-  constructor(private readonly db: CacheDatabase) {}
-  async find(hash: string, now: Date): Promise<CacheEntry<TrafficData> | null> {
-    const [row] = await this.db.query<
-      Metadata & { item_count: number; items: unknown }
-    >(
-      `SELECT c.cache_id,c.fetched_at,c.expires_at,c.item_count,
-      COALESCE(jsonb_agg(jsonb_build_object('linkId',l.link_id,'startNodeId',l.start_node_id,'endNodeId',l.end_node_id,
-        'roadName',l.road_name,'roadDirection',l.road_direction,'linkNo',l.link_no,'speed',l.speed,
-        'travelTimeSeconds',l.travel_time_seconds,'observedAt',l.observed_at) ORDER BY l.link_id)
-        FILTER (WHERE l.link_id IS NOT NULL),'[]'::jsonb) AS items
-      FROM its_traffic_cache c LEFT JOIN its_traffic_links l ON l.cache_id=c.cache_id
-      WHERE c.request_hash=$1 AND c.expires_at>$2 GROUP BY c.cache_id`,
-      [hash, now],
-    );
-    if (!row) return null;
-    try {
-      const data = validateTrafficData({ items: row.items });
-      if (data.items.length !== row.item_count)
-        throw new Error('Count mismatch');
-      return entry(row, data);
-    } catch {
-      throw new RoutingError(
-        503,
-        'CACHE_DATA_INVALID',
-        '저장된 ITS 캐시 데이터가 올바르지 않습니다.',
-      );
-    }
-  }
-  async save(
-    hash: string,
-    request: TrafficRequest,
-    data: TrafficData,
-    sourceUrl: string,
-    fetchedAt: Date,
-    expiresAt: Date,
-  ): Promise<CacheEntry<TrafficData>> {
-    return this.db.transaction(async (runner) => {
-      const [row]: Metadata[] = await runner.query(
-        `INSERT INTO its_traffic_cache(cache_id,request_hash,request_params,item_count,source_url,fetched_at,expires_at)
-        VALUES($1,$2,$3::jsonb,$4,$5,$6,$7) ON CONFLICT(request_hash) DO UPDATE SET request_params=EXCLUDED.request_params,
-        item_count=EXCLUDED.item_count,source_url=EXCLUDED.source_url,fetched_at=EXCLUDED.fetched_at,expires_at=EXCLUDED.expires_at
-        RETURNING cache_id,fetched_at,expires_at`,
-        [
-          randomUUID(),
-          hash,
-          JSON.stringify(request),
-          data.items.length,
-          sourceUrl,
-          fetchedAt,
-          expiresAt,
-        ],
-      );
-      await runner.query('DELETE FROM its_traffic_links WHERE cache_id=$1', [
-        row.cache_id,
-      ]);
-      for (let offset = 0; offset < data.items.length; offset += 1000) {
-        const values = data.items
-          .slice(offset, offset + 1000)
-          .map((item) => ({
-            link_id: item.linkId,
-            start_node_id: item.startNodeId,
-            end_node_id: item.endNodeId,
-            road_name: item.roadName,
-            road_direction: item.roadDirection,
-            link_no: item.linkNo,
-            speed: item.speed,
-            travel_time_seconds: item.travelTimeSeconds,
-            observed_at: item.observedAt,
-          }));
-        await runner.query(
-          `INSERT INTO its_traffic_links(cache_id,link_id,start_node_id,end_node_id,road_name,road_direction,link_no,speed,travel_time_seconds,observed_at)
-          SELECT $1::uuid,r.* FROM jsonb_to_recordset($2::jsonb) AS r(link_id varchar(30),start_node_id varchar(30),end_node_id varchar(30),
-            road_name text,road_direction varchar(30),link_no varchar(30),speed double precision,travel_time_seconds double precision,observed_at timestamptz)`,
-          [row.cache_id, JSON.stringify(values)],
-        );
-      }
-      const [count]: { count: number }[] = await runner.query(
-        'SELECT count(*)::int AS count FROM its_traffic_links WHERE cache_id=$1',
-        [row.cache_id],
-      );
-      if (count.count !== data.items.length)
-        throw new Error('ITS count mismatch');
-      return entry(row, data);
-    });
   }
 }

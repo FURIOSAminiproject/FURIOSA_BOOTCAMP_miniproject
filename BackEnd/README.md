@@ -29,7 +29,7 @@ TourAPI 분류·장소 수집은 NestJS의 [서버 수집 명령](NestJS/docs/TO
 
 ## 실행
 
-NestJS의 [ITS·ORS DB 캐시](NestJS/src/routing-cache/README.md)는 요청한 경로/영역의 응답을 각각 24시간/5분 저장합니다. 만료 뒤 다음 요청에서 API를 다시 호출하며, 매분 만료된 DB 행을 자동 정리합니다. 필수 테이블 진단과 저장·실패·삭제 로그가 있고 기존 TourAPI 새벽 1시 배치와는 별개입니다. 운영 대상 DB에 [전용 DDL](../DataBase/routing_cache_schema_v2.sql)을 먼저 적용해야 합니다.
+NestJS의 [ORS DB 캐시](NestJS/src/routing-cache/README.md)는 요청한 자동차·도보 경로를 24시간 저장합니다. 만료 뒤 다음 요청에서 API를 다시 호출하며, 매분 ORS 만료 행을 자동 정리합니다. 기존 TourAPI 새벽 1시 배치와는 별개입니다. 신규 환경은 [ORS 전용 DDL v3](../DataBase/ors_route_cache_schema_v3.sql)를 사용하며 기존 v2의 ORS 테이블은 재사용합니다. 2026-10-26부터 ITS API·연동 소스·전용 타입/검증/설정 분기를 삭제했습니다. `/api/traffic`는 404이고 ITS 키·테이블은 필요하지 않습니다. 기존 ITS DB 데이터는 보존하며 조회·변경·자동 정리를 하지 않습니다. ORS 예상시간에는 실시간 정체가 반영되지 않습니다.
 
 NestJS의 npm·PM2 실행은 `NestJS/.env.<mode>` 다음 `BackEnd/.env.<mode>`를 읽고 시스템 환경변수를 우선합니다. Google 로그인은 로컬 `http://localhost`, 운영 `https://roadfriendtrip.freeddns.org`에서 사용하며 콜백 경로는 `/auth/google/callback`입니다. Google Console의 승인된 리디렉션 URI에도 정확히 등록해야 합니다. [인증 설정](NestJS/README.md#병합된-인증-api와-배포-설정)을 참고합니다.
 

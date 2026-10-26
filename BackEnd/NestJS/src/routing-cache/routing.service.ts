@@ -8,8 +8,6 @@ import type {
   RouteData,
   RoutePoint,
   RouteRequest,
-  TrafficData,
-  TrafficRequest,
 } from './routing.types';
 
 export class RoutePointResolver {
@@ -65,7 +63,6 @@ export class RoutingService {
   constructor(
     private readonly resolver: RoutePointResolver,
     private readonly ors: CacheCoordinator<OrsRequest, RouteData>,
-    private readonly its: CacheCoordinator<TrafficRequest, TrafficData>,
   ) {}
   async route(request: RouteRequest) {
     const points = await this.resolver.resolve(request.points);
@@ -89,20 +86,6 @@ export class RoutingService {
       fetchedAt: result.fetchedAt,
       expiresAt: result.expiresAt,
       calculatedAt: result.fetchedAt,
-    };
-  }
-  async traffic(request: TrafficRequest) {
-    const result = await this.its.get(request);
-    return {
-      items: result.data.items,
-      count: result.data.items.length,
-      speedUnit: null,
-      trafficApplied: false,
-      routeMatchStatus: 'NOT_MATCHED',
-      cacheId: result.cacheId,
-      cached: result.cached,
-      fetchedAt: result.fetchedAt,
-      expiresAt: result.expiresAt,
     };
   }
 }

@@ -12,7 +12,7 @@
 | places | 장소 정보 | 32 | TourAPI 장소 정보와 최신 수집 정보 |
 | place_reviews | 장소 후기 | 7 | 로그인 사용자 입력과 작성·수정 시각 |
 
-place_category_map과 place_sources는 제외했습니다. places.category_id로 소분류 하나를 직접 연결하고 대·중분류는 상위 분류로 조회합니다. 외부 콘텐츠 ID·원본 JSON·수집 시각은 places에 유지합니다. 좋아요·수집 관리·ORS·ITS 전용 테이블은 장소 DDL에 포함하지 않습니다. ITS·ORS는 아래 전용 DDL과 캐시 모듈을 사용합니다.
+place_category_map과 place_sources는 제외했습니다. places.category_id로 소분류 하나를 직접 연결하고 대·중분류는 상위 분류로 조회합니다. 외부 콘텐츠 ID·원본 JSON·수집 시각은 places에 유지합니다. 좋아요·수집 관리·경로 캐시 테이블은 장소 DDL에 포함하지 않습니다. ORS는 아래 전용 DDL과 캐시 모듈을 사용하며 ITS는 현재 실행 대상에서 제외했습니다.
 
 TourAPI 수집 로직은 [NestJS 수집 서비스·CLI](../BackEnd/NestJS/docs/TOUR_INGESTION.md)로 구현했습니다. 개발 DB에 분류 315개와 관광지 2개의 목록·상세를 실제 저장하고 재수집 시 UUID·상세 유지와 중복 방지를 확인했습니다. 출처 URL·수집 방식을 places에 추가했으며 회원·후기 데이터는 수집 대상이 아닙니다.
 
@@ -31,7 +31,9 @@ TourAPI 수집 로직은 [NestJS 수집 서비스·CLI](../BackEnd/NestJS/docs/T
 
 ## 설정의 기준
 
-ITS·ORS 캐시 신규 생성은 [DDL v2](routing_cache_schema_v2.sql)와 [한글 컬럼·관계 설명](routing_cache_design_v2.md)을 참고합니다. ORS 경로/ITS 조회/ITS 구간 3개 테이블이며 이번 작업에서 실제 DB에 적용하지 않았습니다. [백엔드 캐시 모듈](../BackEnd/NestJS/src/routing-cache/README.md)은 요청 시 조회/저장·만료 후 재호출과 매분 자동 삭제를 구현했습니다. 새 서버 코드 배포·대상 DB DDL·인증키 설정이 필요합니다. TourAPI 배치용 장소 테이블과는 별개입니다.
+현재 경로 캐시는 **ORS 전용**입니다. 신규 환경은 [DDL v3](ors_route_cache_schema_v3.sql)로 `ors_route_cache` 18컬럼만 생성합니다. v2에서 생성한 ORS 테이블과 구조가 같으므로 기존 환경은 DDL 재실행·데이터 이관이 필요 없습니다. [백엔드 캐시 모듈](../BackEnd/NestJS/src/routing-cache/README.md)은 ORS 요청 시 조회/저장·24시간 만료 후 재호출과 매분 최대 1,000행 자동 삭제를 수행합니다. 서비스 계정에는 해당 스키마 USAGE 및 ORS 테이블 SELECT/INSERT/UPDATE/DELETE 권한이 필요합니다.
+
+2026-10-26부터 ITS 테이블·인증키는 기동/조회/만료 정리의 필수 조건이 아닙니다. 기존 `its_traffic_cache`·`its_traffic_links`는 삭제하거나 변경하지 않으며 자동 정리도 중단합니다. [DDL v2](routing_cache_schema_v2.sql)와 [기존 한글 컬럼·관계 설명](routing_cache_design_v2.md)은 이전 ITS·ORS 설계 기록으로 보존합니다. 현재 서버 설치에는 v2의 ITS 테이블을 만들 필요가 없습니다. 신규 DDL은 실제 원격 DB에서 실행하지 않았습니다.
 
 현재 실행 대상은 `BackEnd/NestJS/`이며 DB 접속 옵션은 [database.config.ts](../BackEnd/NestJS/src/database/database.config.ts)에서 정의합니다. DB 서버는 Docker Compose에 포함되지 않습니다. 실제 서버 버전·주소·계정·권한은 운영 환경에서 확인하며 특정 EC2 IP나 계정명이 코드에 고정되어 있지 않습니다.
 

@@ -18,7 +18,11 @@ TourAPI 장소 수집은 [수집 CLI와 서비스](docs/TOUR_INGESTION.md)로 �
 
 ## 디렉토리
 
-ITS·ORS 조회는 [DB 캐시 모듈](src/routing-cache/README.md)로 추가했습니다. `POST /api/routes`와 `GET /api/traffic`는 유효한 DB 캐시를 우선 사용하고, 없거나 만료되면 외부 API 호출 후 저장합니다. 보관시간은 ORS 24시간/ITS 5분이며 매분 만료 행을 자동 삭제합니다. 시작 시 캐시 테이블 누락을 로그로 알리고, 저장 건수·실패 단계·삭제 건수를 기록합니다. 운영 전에 [캐시 DDL v2](../../DataBase/routing_cache_schema_v2.sql)와 서버 인증키가 필요하며 자동 스키마 생성/불필요한 주기 재수집은 하지 않습니다. 정체를 반영한 전체 경로 시간은 아직 제공하지 않습니다.
+경로 조회는 [ORS DB 캐시 모듈](src/routing-cache/README.md)을 사용합니다. `POST /api/routes`는 유효한 DB 캐시를 우선 사용하고, 없거나 만료되면 ORS 호출 후 저장합니다. 보관시간은 24시간이며 매분 만료 행을 최대 1,000개 삭제합니다. 기동 검사·정리 대상은 `ors_route_cache` 하나입니다. 신규 환경은 [ORS 전용 DDL v3](../../DataBase/ors_route_cache_schema_v3.sql)를 사용하고 기존 v2의 ORS 테이블은 그대로 재사용합니다.
+
+2026-10-26 결정으로 ITS 제공자·저장소·전용 타입·입력 검증·설정 분기와 API를 삭제했습니다. `GET /api/traffic`는 404이며 ITS 인증키·테이블 없이 ORS를 사용할 수 있습니다. 기존 ITS DB 데이터는 보존하지만 조회·갱신·자동 정리를 수행하지 않습니다. `trafficApplied=false`를 유지하며 클라이언트가 예상시간을 표시할 때는 “실시간 교통상황이 반영되지 않은 예상시간”을 안내해야 합니다. 이번 변경은 경로·일정 화면을 새로 구현한 것은 아닙니다.
+
+캐시 DB 실패 로그의 `dbCode`·`dbOperation`·`dbReason`으로 권한 부족(42501), 테이블/컬럼 누락, 타입 오류, 연결 실패를 구분합니다. 원본 DB 오류·접속 정보는 기록하지 않으며 HTTP 응답은 기존 형식을 유지합니다. [DB 오류 구분](src/routing-cache/README.md#db-오류-구분)에 내부/외부 헬스 확인과 서비스 계정의 읽기 전용 권한 확인 SQL을 정리했습니다.
 
 ```text
 BackEnd/NestJS/
@@ -27,7 +31,7 @@ BackEnd/NestJS/
 │   ├── users/          # User 엔티티
 │   ├── database/       # 접속 옵션, 모듈, 헬스체크, 진단 CLI
 │   ├── places/         # TourAPI 클라이언트, 변환, DB 저장, 수집 서비스·CLI 모듈
-│   ├── routing-cache/  # ORS·ITS API, DB 캐시, 만료 정리·기동 진단
+│   ├── routing-cache/  # ORS API, DB 캐시, 만료 정리·기동 진단
 │   ├── travel/         # 컨트롤러, 입력 검증, 일정 엔진, 문학 리뷰, 타입
 │   ├── app.module.ts   # 서비스 등록과 /api/health
 │   └── main.ts         # 네트워크 바인딩, 선택적 TLS, /api 접두사

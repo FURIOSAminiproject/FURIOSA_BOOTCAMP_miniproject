@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { RoutingError, safeCode } from './routing.errors';
+import { RoutingError, safeDiagnostics } from './routing.errors';
 import type {
   CacheResult,
   CacheStore,
@@ -93,7 +93,7 @@ export class CacheCoordinator<Q, T> {
           cacheId: saved.cacheId,
           fetchedAt: saved.fetchedAt,
           expiresAt: saved.expiresAt,
-          itemCount: objectCount(data),
+          itemCount: 1,
         }),
       );
       return { ...saved, cached: false };
@@ -103,7 +103,7 @@ export class CacheCoordinator<Q, T> {
           event: 'routing_cache_request_failed',
           provider: this.name,
           phase,
-          code: safeCode(error),
+          ...safeDiagnostics(error),
         }),
       );
       if (error instanceof RoutingError) throw error;
@@ -114,14 +114,4 @@ export class CacheCoordinator<Q, T> {
       );
     }
   }
-}
-function objectCount(value: unknown): number {
-  if (
-    value &&
-    typeof value === 'object' &&
-    'items' in value &&
-    Array.isArray(value.items)
-  )
-    return value.items.length;
-  return 1;
 }

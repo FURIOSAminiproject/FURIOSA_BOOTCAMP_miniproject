@@ -1,14 +1,6 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  Inject,
-  Post,
-  Query,
-} from '@nestjs/common';
+import { Body, Controller, HttpCode, Inject, Post } from '@nestjs/common';
 import { RoutingService } from './routing.service';
-import { routeRequest, trafficRequest } from './routing.validation';
+import { routeRequest } from './routing.validation';
 
 @Controller()
 export class RoutingController {
@@ -19,9 +11,5 @@ export class RoutingController {
   @HttpCode(200)
   route(@Body() body: unknown) {
     return this.service.route(routeRequest(body));
-  }
-  @Get('traffic')
-  traffic(@Query() query: unknown) {
-    return this.service.traffic(trafficRequest(query));
   }
 }
