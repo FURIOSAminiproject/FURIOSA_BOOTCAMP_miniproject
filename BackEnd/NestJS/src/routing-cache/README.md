@@ -2,6 +2,10 @@
 
 갱신: 2026-10-26. 배포 대상은 `BackEnd/NestJS`다. [ORS 전용 DDL v3](../../../../DataBase/ors_route_cache_schema_v3.sql)의 `ors_route_cache` 하나를 사용한다. 기존 v2의 ORS 테이블과 호환되므로 이미 생성된 환경은 DDL을 재실행하지 않는다. 스키마 자동 생성·변경은 하지 않는다. 기존 TourAPI 새벽 1시 수집과 독립 기능이다.
 
+## 지도와 경로 데이터
+
+경로 계산은 외부 HeiGIT ORS API만 사용하며 자체 ORS 서버는 운영하지 않는다. 프론트의 Leaflet/OpenStreetMap 배경 타일과 ORS의 원본 데이터 갱신 시점이 다를 수 있고, 미니프로젝트에서는 이 차이를 감안한다. `fetchedAt`/`calculatedAt`은 응답 수집 시각이며 원본 OSM 갱신 시각을 뜻하지 않는다. 자체 ORS 배포 구성은 제거했으며 기존 EC2 컨테이너는 [중지 절차](../../../../Docker/README.md#기존-자체-ors-중지)를 따른다.
+
 ## 동작
 
 ```text

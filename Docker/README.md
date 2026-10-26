@@ -1,14 +1,19 @@
 # Docker 및 Docker Compose 실행 안내
 
-## 선택적 자체 ORS — 2026-10-26
+## 외부 ORS API 사용 — 2026-10-26
 
-기존 기본 스택과 별도로 [docker-compose.ors.yml](../docker-compose.ors.yml)의 `ors` 서비스를 제공한다.
-[ORS 배포 안내](../CI_CD/BackEnd/ors/README.md)의 전용 스크립트가 처음에는 한국 OSM 다운로드와 설정 생성을
-자동 수행하고 이후에는 체크아웃 밖의 OSM·경로망을 재사용한다. 기존 Compose만 실행하면 이 서비스는 추가되지 않는다.
-공식 v10.0.1 이미지 digest를 고정하고 자동차·도보를 활성화했다. API는 루프백 포트에만 공개하며
-기존 `travel-network`에서 `ors:8082`로 접근한다. 기본 JVM 최대 2GiB/컨테이너 제한 3GiB·CPU 0.5개는 초기값이다.
-자동 재시작과 swap은 끄고 배포 전에 메모리 여유를 검사한다. DB 공유 t4g.small(2GiB)에서는 기동을 차단한다.
-실제 한국 데이터 구축에 필요한 자원을 측정해야 한다. 기존 NestJS 연결·지도 타일 서버는 별도 범위다.
+경로 계산은 NestJS가 외부 HeiGIT ORS API에 요청합니다. 자체 ORS Compose 확장과 관련 파일을 제거했으며, 기본 스택은 frontend·backend·fastapi입니다. `ORS_API_KEY`는 서버 환경에만 설정합니다. [API·DB 캐시 안내](../BackEnd/NestJS/src/routing-cache/README.md)를 따릅니다.
+
+### 기존 자체 ORS 중지
+
+코드에서 서비스를 제거해도 기존 EC2 컨테이너는 자동으로 중지되지 않습니다. 아래는 이전 배포에서 확인한 컨테이너 이름을 대상으로 **EC2에서 한 번 실행하는 명령**입니다. 이름이 다르면 `docker ps -a --filter label=com.docker.compose.service=ors`로 실제 이름을 확인합니다.
+
+```bash
+docker update --restart=no furiosa_bootcamp_miniproject-ors-1
+docker stop --time 10 furiosa_bootcamp_miniproject-ors-1
+```
+
+이 명령은 ORS만 중지하고 재부팅 후 자동 시작을 끕니다. 데이터·볼륨과 다른 서비스는 삭제하지 않습니다. GitHub Actions에서 이전 ORS 배포가 실행 중이면 해당 실행도 취소해야 합니다. 현재 체크아웃에 과거 Compose 파일이 남아 있다면 새 변경을 반영하고 다시 실행하지 않습니다.
 
 이 저장소는 FrontEnd Nginx, NestJS, FastAPI를 하나의 Compose 네트워크로 실행합니다. PostgreSQL은 포함하지 않으므로 별도로 준비합니다.
 

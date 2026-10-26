@@ -23,7 +23,7 @@ FastAPI는 별도 샘플 서비스입니다. 추천 API는 고정된 2개 장소
 | 웹 | React 19, TypeScript 7, Vite 8, Tailwind CSS 4, Leaflet, Motion | `FrontEnd/v1/` |
 | 일정 API | NestJS 12, TypeScript 6, TypeORM, PostgreSQL 드라이버, Google GenAI SDK | `BackEnd/NestJS/` |
 | 샘플 추천 API | FastAPI, Pydantic, Uvicorn, Python 3.12 컨테이너 | `BackEnd/FastAPI/` |
-| 자체 경로 엔진 (선택 실행) | openrouteservice 10.0.1, OSM 데이터, 자동차·도보 프로필 | `Docker/ors/`, `docker-compose.ors.yml` |
+| 지도·경로 | Leaflet, OpenStreetMap 타일, 외부 HeiGIT ORS API·DB 캐시 | `FrontEnd/v1/`, `BackEnd/NestJS/src/routing-cache/` |
 | 배포 | GitHub Actions, Docker Compose, Nginx | `.github/workflows/`, `CI_CD/`, `docker-compose.yml` |
 | EC2 IP 인증서 폐기 도구 | Python 3.9 이상, OpenSSL, EC2 IMDSv2, Certbot Docker | `CI_CD/certificates/` |
 
@@ -110,7 +110,7 @@ docker compose ps
 ```
 
 Compose 기본 환경은 `production`입니다. 단일 컨테이너 교체 방식이므로 배포 중 일시 중단이 발생할 수 있습니다.
-위 기본 실행 명령은 frontend·backend·fastapi를 시작합니다. 자체 ORS는 별도 Compose 확장 파일과 `ors` 프로필로 실행하며, 아래 전용 배포 절차를 사용합니다.
+위 명령은 frontend·backend·fastapi를 시작합니다. 경로 조회는 NestJS에서 외부 ORS API를 호출하므로 별도 경로 엔진 컨테이너가 필요하지 않습니다.
 
 ```powershell
 cd BackEnd/NestJS
@@ -119,50 +119,21 @@ npm test
 
 프론트엔드는 `npm run lint`로 타입을 검사하고 `npm run build`로 번들을 생성합니다.
 
-## 자체 ORS와 CI/CD
+## 지도와 외부 ORS API
 
-자체 ORS를 기존 NestJS와 같은 Docker Engine의 별도 컨테이너로 실행하는 구성과 전용 CI/CD를 추가했습니다.
-OSM은 도로·보행로 등의 원본 데이터이며, ORS가 이 데이터로 경로망을 구축하고 경로·거리·예상 소요시간·길안내를 계산합니다.
-공식 ORS 이미지는 digest로 고정하며, 자동차(`driving-car`)와 도보(`foot-walking`) 프로필을 활성화합니다.
+지도는 Leaflet으로 표시하고 OpenStreetMap의 배경 타일을 사용합니다. 경로는 NestJS가 외부 HeiGIT ORS API에 요청하며, 자체 ORS 서버는 운영하지 않습니다.
 
-| 항목 | 현재 구성 |
-|---|---|
-| 실행 파일 | [Compose 확장](docker-compose.ors.yml), [ORS 설정](Docker/ors/ors-config.yml) |
-| CI/CD | [deploy_ors.yml](.github/workflows/deploy_ors.yml) → `CI_CD/BackEnd/ors/{build,deploy}.sh` |
-| PR 검사 | GitHub-hosted 러너에서 작은 OSM 테스트 데이터로 실제 ORS를 기동하고 자동차·도보 각각의 추천/최단 경로 검사 |
-| 운영 배포 | 관련 경로의 `main` push 또는 `main` 수동 실행 시 CI 통과 후 `[self-hosted, linux]` 러너에서 ORS만 교체 |
-| 내부 접근 | Docker 네트워크에서 `http://ors:8082/ors/v2`, 호스트에서는 기본 `127.0.0.1:8082`; 이 내부 구성은 API 키 불필요 |
-| 데이터 보관 | 체크아웃 밖에 OSM 스냅샷·경로망 보관, OSM 체크섬·이미지·설정별 릴리스 분리 |
-
-운영 서버에는 Linux Docker Engine, Compose 2.24 이상, Python 3.9 이상, `flock`과 Docker 접근 권한을
-갖춘 self-hosted 러너가 필요합니다. **첫 배포 시 한국 OSM 다운로드·체크섬 검증·설정 JSON 생성을 자동 수행합니다.**
-기준은 [bootstrap.json](Docker/ors/bootstrap.json)이며 생성한 설정은 `~/.config/roadfriend/ors.json`,
-데이터는 `~/.local/share/roadfriend/ors`에 보관합니다. 기존 설정과 데이터가 있으면 다운로드 없이 재사용합니다.
-설정 경로는 `ORS_DEPLOY_CONFIG`, 최초 데이터 저장소는 `ORS_DATA_ROOT`로 바꿀 수 있습니다.
-실제 설정과 OSM 파일은 Git에 넣지 않습니다. 서로 다른 시점의 최초 설치에서 같은 데이터 버전을 보장하지는 않습니다.
-
-아래는 러너 실행 환경을 갖춘 **Linux 서버의 저장소 루트**에서 초기 준비와 ORS 배포를 실행하는 명령입니다.
-
-```bash
-bash CI_CD/BackEnd/ors/deploy.sh
+```text
+브라우저 → OpenStreetMap 배경 타일
+브라우저 → POST /api/routes → NestJS → 유효한 PostgreSQL 캐시
+                                     └→ 캐시 미스 시 외부 HeiGIT ORS API
 ```
 
-기본 자원 제한은 컨테이너 메모리 3GiB·CPU 0.5개, JVM 최대 힙 2GiB입니다. 자동 재시작과 swap은 끕니다.
-DB와 함께 사용하는 t4g.small(2GiB)에서는 실행하지 않으며, 배포 전에 총/가용 RAM과 JVM·CPU 예산을 검사해
-부족하면 다운로드·기동 전에 중단합니다. 세부 기준과 긴급 중지는 [ORS 운영 안내](CI_CD/BackEnd/ors/README.md)를 따릅니다.
-이 검사는 한국 전체 데이터의 충분한 사양을
-보장하는 값은 아니며, 서버 용량과 대상 지역으로 측정해야 합니다. 초기 경로망 생성에는 시간이 걸릴 수 있습니다.
-교체 후 준비 상태와 네 가지 경로 요청을 검사하고 마지막 성공 릴리스를 기록합니다. 이전 데이터는 자동 삭제하지 않으며,
-자동 롤백이나 무중단 배포는 구현하지 않았습니다.
+자동차(`driving-car`)·도보(`foot-walking`)와 추천/최단 경로, 거리·예상시간·경로 좌표를 기존 API로 제공합니다. 성공한 경로는 DB에 24시간 캐시하고, 만료 후 다음 요청에서 다시 조회합니다. ORS 키는 서버의 `ORS_API_KEY`로 설정하며 브라우저에는 전달하지 않습니다. 예상시간에는 실시간 교통 정체가 반영되지 않습니다.
 
-**현재 NestJS `OrsProvider`는 외부 HeiGIT ORS를 계속 호출합니다.** 자체 ORS로의 연결 전환,
-데이터 버전별 캐시 분리, 내부 HTTP 주소 저장을 위한 DB 제약 검토가 남아 있습니다.
-배경 지도 타일 생성·서비스와 지도/경로 데이터 버전의 동시 전환도 아직 구현하지 않았습니다.
+미니프로젝트에서는 배경 지도와 외부 ORS의 데이터 갱신 시점 차이를 감안합니다. `fetchedAt`은 API 응답 수집 시각이며 원본 OSM의 갱신 시각이 아닙니다. 지도와 경로 데이터 버전을 강제로 일치시키지 않습니다.
 
-로컬에서는 자원 부족 차단·최초 자동 준비·모의 배포·데이터 검증 41개와 세 환경의 Compose 설정 검사를 통과했습니다.
-당시 Docker 데몬이 실행 중이지 않아 실제 ORS 기동·GitHub Actions 실행·EC2 배포는 확인하지 못했습니다.
-설치·실패 처리·자원 조정은 [ORS 운영 안내](CI_CD/BackEnd/ors/README.md), 검증 범위는
-[CI/CD 검토 기록](CI_CD/REVIEW.md)을 확인합니다.
+자체 ORS용 Compose 확장·설정·배포 스크립트·GitHub Actions는 제거했습니다. 기존 EC2에 이미 생성된 컨테이너는 코드 삭제만으로 중지되지 않으므로 [전환 시 중지 절차](Docker/README.md#기존-자체-ors-중지)를 한 번 실행합니다. 외부 API 설정·요청 예시는 [ORS 경로와 캐시 안내](BackEnd/NestJS/src/routing-cache/README.md)를 따릅니다.
 
 ## EC2 IP 인증서 관리
 
@@ -199,7 +170,7 @@ python3 -B -m unittest discover -s CI_CD/certificates/tests -v
 
 ## 상세 문서
 
-- [자체 ORS 컨테이너와 전용 CI/CD](CI_CD/BackEnd/ors/README.md): 고정 이미지·OSM 체크섬·영구 경로망·자동차/도보 검사. 기존 NestJS 호출 전환과 배경 지도 타일은 별도 범위입니다.
+- [외부 ORS 경로와 DB 캐시](BackEnd/NestJS/src/routing-cache/README.md): 자동차·도보 경로 조회, 서버 API 키 설정, 24시간 캐시.
 - [FrontEnd](FrontEnd/README.md)
 - [BackEnd 구성](BackEnd/README.md), [NestJS](BackEnd/NestJS/README.md), [FastAPI](BackEnd/FastAPI/README.md)
 - [DB 연결 및 진단](DataBase/README.md)

@@ -1,8 +1,6 @@
 # BackEnd CI/CD 구성
 
-추가로 [ORS 전용 CI/CD](ors/README.md)를 제공한다. 공식 ORS 이미지를 기존 NestJS와 별도 컨테이너로
-실행하며, [deploy_ors.yml](../../.github/workflows/deploy_ors.yml)이 `ors/build.sh`와 `ors/deploy.sh`를 호출한다.
-OSM 파일·경로망은 체크아웃 밖에 보관하고 ORS만 교체한다. NestJS의 제공자 주소를 자동 전환하지 않는다.
+경로 조회는 NestJS가 외부 HeiGIT ORS API를 호출합니다. 자체 ORS 배포 파이프라인은 제거했으며 ORS 호출 코드와 DB 캐시는 기존 NestJS 파이프라인으로 배포합니다. [설정 안내](../../BackEnd/NestJS/src/routing-cache/README.md)를 참고합니다.
 
 현재 워크플로우는 다음 두 하위 파이프라인을 호출합니다.
 

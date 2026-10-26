@@ -1,8 +1,6 @@
 # NestJS CI/CD
 
-자체 ORS 컨테이너는 [별도 파이프라인](../ors/README.md)에서 배포한다. 이 NestJS 배포 스크립트는
-기존 동작을 유지하며 ORS를 생성·교체하지 않는다. 현재 `OrsProvider`의 외부 HeiGIT 주소도 그대로이므로
-ORS 파이프라인 추가만으로 `/api/routes`가 자체 ORS를 사용하는 것은 아니다.
+경로 조회는 NestJS의 외부 HeiGIT ORS API 호출과 DB 캐시를 사용합니다. 별도 ORS 컨테이너를 배포하지 않습니다. 서버 환경에 `ORS_API_KEY`를 설정하고 [API·캐시 안내](../../../BackEnd/NestJS/src/routing-cache/README.md)를 따릅니다.
 
 실행 기준은 [워크플로우](../../../.github/workflows/deploy_backend.yml), [build.sh](build.sh), [deploy.sh](deploy.sh), [Dockerfile](../../../BackEnd/NestJS/Dockerfile)입니다.
 

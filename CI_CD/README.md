@@ -1,15 +1,10 @@
 # CI/CD 및 인프라 운영 안내
 
-## ORS 전용 파이프라인 추가 — 2026-10-26
+## 외부 ORS API 사용 — 2026-10-26
 
-[ORS CI/CD 안내](BackEnd/ors/README.md)와 [deploy_ors.yml](../.github/workflows/deploy_ors.yml)을 추가했다.
-기존 기본 서비스 3개와 별도로 [Compose 확장](../docker-compose.ors.yml)의 `ors` 프로필을 사용한다.
-main push는 검증 후 ORS만 배포하고 PR은 GitHub-hosted 검증만 수행한다. 수동 배포도 main으로 제한한다.
-첫 배포에서는 한국 OSM 다운로드·검증·설정 JSON 생성을 자동 수행하고 이후에는 재사용한다.
-자원 검사에 실패하면 다운로드·기동 전에 차단한다. DB 공유 t4g.small(2GiB)은 배포 대상에서 제외한다.
-설정 JSON·OSM 원본·경로망은 체크아웃 밖에 보관하며, 고정 이미지 digest와 파일 SHA-256을 검증한다.
-기존 NestJS의 외부 ORS 호출 전환·배경 지도 타일 구축은 이 파이프라인에 포함하지 않는다.
-아래 기존 서비스별 배포 설명은 계속 적용된다.
+경로 조회는 기존 NestJS의 외부 HeiGIT ORS API 연동과 DB 캐시를 사용합니다. 자체 ORS용 파이프라인·배포 스크립트·Compose 확장을 제거했습니다. ORS는 NestJS의 일반 빌드·테스트·배포에 포함되며 별도 OSM 다운로드나 Java 경로 엔진 기동은 없습니다.
+
+서버 환경에 `ORS_API_KEY`를 준비합니다. 키는 서버에서만 사용하며 실제 검사는 캐시 미스 때 수행합니다. [API 설정과 캐시 동작](../BackEnd/NestJS/src/routing-cache/README.md), [기존 자체 컨테이너 중지](../Docker/README.md#기존-자체-ors-중지)를 참고합니다.
 
 현재 자동 배포는 GitHub Actions에서 검증한 뒤 EC2 Self-hosted 러너에서 Docker Compose 이미지를 다시 빌드하고 컨테이너를 교체하는 방식입니다. 단일 컨테이너 교체에 따른 일시 중단이 가능하며 자동 롤백은 없습니다.
 

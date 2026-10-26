@@ -1,5 +1,0 @@
-{
-  "dataset_url": "https://download.geofabrik.de/asia/south-korea-latest.osm.pbf",
-  "probe_coordinates": [[126.9779, 37.5663], [126.9784, 37.5704]],
-  "http_port": 8082
-}

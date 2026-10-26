@@ -1,17 +1,10 @@
 # GitHub Actions 워크플로우 안내
 
-이 폴더에는 기본 서비스 3개와 선택적 ORS의 자동 배포 워크플로우가 있다. 변경 작업은 [AGENTS.md](AGENTS.md), 확인된 문제와 검증 범위는 [REVIEW.md](REVIEW.md)를 먼저 확인한다.
+이 폴더에는 frontend·backend·fastapi의 자동 배포 워크플로우 3개가 있다. 변경 작업은 [AGENTS.md](AGENTS.md), 확인된 문제와 검증 범위는 [REVIEW.md](REVIEW.md)를 먼저 확인한다.
 
-## ORS 파이프라인 — 2026-10-26
+## 외부 ORS API 사용 — 2026-10-26
 
-[deploy_ors.yml](deploy_ors.yml)은 ORS 설정·배포 스크립트·자기 YAML·두 Compose 파일을 감시한다.
-main push/수동 실행은 작은 OSM 스냅샷의 실제 자동차·도보 경로 검사 후 ORS만 배포한다.
-PR은 GitHub-hosted build만 실행하고 운영 self-hosted에는 전달하지 않는다. main 외 수동 ref도 배포하지 않는다.
-이미지를 직접 다시 빌드하지 않고 공식 이미지 digest를 고정하며, 운영 지도 파일과 저장소는 러너가 읽는
-외부 설정 JSON으로 지정한다. 새 서버에서는 한국 OSM 다운로드·검증과 JSON 생성을 자동 수행하고 이후 재사용한다.
-`ORS_DEPLOY_CONFIG`, `ORS_DATA_ROOT` 저장소 변수는 선택 사항이다. [ORS 운영·검증 범위](../../CI_CD/BackEnd/ors/README.md)를 따른다.
-배포 스크립트는 호스트 자원을 먼저 검사하며 t4g.small 같은 작은 공유 서버에서는 기동 전에 실패로 중단한다.
-아래 기존 세 파이프라인의 제한·동시성 설명은 ORS의 main 가드·PR 조건과 구분한다.
+자체 ORS 배포 워크플로우를 제거했습니다. 외부 HeiGIT ORS API 호출 코드는 NestJS에 포함되므로 기존 `deploy_backend.yml`에서 빌드·테스트·배포합니다. 별도 ORS 컨테이너나 OSM 데이터 다운로드는 수행하지 않습니다. 이전 배포로 남은 컨테이너는 [전환 절차](../../Docker/README.md#기존-자체-ors-중지)에 따라 EC2에서 중지합니다.
 
 ## 실행 구조
 
