@@ -1,5 +1,17 @@
 # GitHub Actions 코드 검토 기록
 
+## 2026-10-26 추가: ORS 파이프라인
+
+`deploy_ors.yml`의 main push/PR/수동 실행 조건을 추가했다. ORS 설정·스크립트·두 Compose 파일·자기 YAML을
+감시하며 build는 GitHub-hosted에서 고정 이미지와 작은 OSM 자료로 경로를 검사하도록 정의했다.
+deploy는 main이면서 PR이 아닐 때만 기존 self-hosted Linux에서 ORS만 교체한다. job 제한시간과
+별도 ORS 동시성 그룹을 두고 런타임 파일은 checkout 밖에 보관한다.
+
+YAML 중복 키·jobs/needs/runner/경로와 이벤트 조건을 로컬에서 검사했다. 모의 배포/준비·응답 검증
+15개와 세 환경의 실제 Compose 해석도 통과했다. 실제 GitHub 이벤트 실행·Docker ORS 기동·EC2 배포와
+actionlint는 미수행이다. W01/W02의 개선은 새 ORS 워크플로우에 적용한 것으로, 기존 세 워크플로우의
+수동 ref 제한·공유 Compose 감시·다중 배포의 전역 잠금 문제를 해결한 것은 아니다.
+
 - 검토일: 2026-10-19 (Asia/Seoul)
 - 기준 커밋: `d0ed908`. 앞서 작성한 CI_CD 문서 3개의 미커밋 변경을 유지한 상태에서 검토했다.
 - 범위: 이 폴더의 YAML 3개와 연결된 build/deploy 스크립트, 캐시·아티팩트 경로, Compose·Dockerfile 및 `.gitignore`의 관련 동작.

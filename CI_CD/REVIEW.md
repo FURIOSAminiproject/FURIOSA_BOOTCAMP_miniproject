@@ -1,5 +1,31 @@
 # CI_CD 코드 검토 기록
 
+## 2026-10-26 추가: ORS 전용 CI/CD
+
+`deploy_ors.yml`과 `CI_CD/BackEnd/ors`를 추가했다. 고정된 공식 ORS 이미지 digest와 CI OSM 파일
+체크섬을 사용한다. PR은 GitHub-hosted 검사만, main push/수동 main은 검사 뒤 ORS만 배포한다.
+운영 설정 JSON·OSM 스냅샷·이미지/설정/자료별 경로망은 체크아웃 밖에 보관한다.
+원래 JSON이나 checkout 설정이 실행 중 바뀌지 않도록 준비한 사본을 사용한다.
+데이터 저장소 잠금, 사전 체크섬/Compose/pull 검사, 준비 제한시간, 자동차/도보 recommended/shortest
+응답 검사와 마지막 성공 릴리스 기록을 추가했다. 실패 시 자동 롤백은 하지 않으며 기존 자료를 삭제하지 않는다.
+
+저장소의 `CI_CD/BackEnd/ors/tests` 오프라인 검증 15개 통과: 스냅샷 재사용·손상·체크섬 실패, 원본/이미지/설정별 경로망 분리,
+성공 기록의 실제 준비 릴리스 고정, 잘못된 설정, readiness 제한시간, 경로 응답 검사,
+배포 성공/잠금/설정/pull/up/경로 검사 실패를 확인했다. 하위 사례를 포함하며 Docker/HTTP는 모킹했다.
+같은 검증을 `build.sh`에서도 실제 ORS 기동 검사 전에 실행하도록 연결했다.
+Git Bash의 Windows 임시 경로 접근 제한으로 모의 배포는 제한 밖에서 재실행했다. Docker/flock/검사 함수가
+모의 구현인지 먼저 확인했고 실제 컨테이너나 운영 서비스를 호출하지 않았다.
+
+실제 Compose CLI로 local/development/production의 ORS 서비스·고정 이미지·루프백 포트·마운트·네트워크를
+해석했다. Python 3.9 구문, 두 Bash 파일 구문, 중복 키를 거부하는 YAML 구조·이벤트 조건과 문서 링크를 검사했다.
+공식 registry의 이미지 digest/amd64·arm64 매니페스트와 CI 원본의 SHA-256은 공개 서버에서 직접 확인했다.
+Docker 데몬이 실행 중이지 않아 로컬 ORS 기동·실제 경로 계산은 미수행이다. 실제 기동 검사는 새 CI에 정의했지만
+GitHub Actions·EC2 배포·한국 전체 경로망 생성·성능 측정은 아직 실행하지 않았다. ShellCheck/actionlint도 미수행이다.
+
+기존 세 서비스의 배포 코드는 유지했다. C04의 Compose 변경 감지는 새 ORS 워크플로우에만 추가했으며,
+기존 세 서비스의 공유 설정 배포 문제나 C02/C03/C05~C07을 모두 해결한 것으로 표시하지 않는다.
+NestJS 외부 ORS 주소 전환·DB 캐시 출처/버전 분리·배경 지도와 버전 동기화는 이번 CI/CD 범위 밖이다.
+
 - 검토일: 2026-10-19 (Asia/Seoul)
 - 기준 커밋: `d0ed908`
 - 범위: CI_CD의 셸 스크립트 8개, Nginx 템플릿 1개 및 README 5개. 호출 관계 확인을 위해 GitHub Actions 3개, 루트 Compose, 연결된 Dockerfile·frontend 엔트리포인트·Nginx 설정·package scripts·백엔드 헬스체크도 검토했다.

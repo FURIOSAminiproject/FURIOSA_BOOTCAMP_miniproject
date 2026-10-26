@@ -1,0 +1,29 @@
+server:
+  port: 8082
+  servlet:
+    context-path: /ors
+
+logging:
+  level:
+    root: WARN
+    org.heigit: INFO
+
+ors:
+  engine:
+    # 두 프로필의 초기 경로망 생성을 순차 실행한다.
+    init_threads: 1
+    profile_default:
+      graph_path: /home/ors/graphs
+      build:
+        source_file: /data/osm/input.osm.pbf
+        elevation: false
+        instructions: true
+    profiles:
+      driving-car:
+        enabled: true
+        build:
+          elevation: false
+      foot-walking:
+        enabled: true
+        build:
+          elevation: false

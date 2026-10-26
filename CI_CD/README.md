@@ -1,5 +1,14 @@
 # CI/CD 및 인프라 운영 안내
 
+## ORS 전용 파이프라인 추가 — 2026-10-26
+
+[ORS CI/CD 안내](BackEnd/ors/README.md)와 [deploy_ors.yml](../.github/workflows/deploy_ors.yml)을 추가했다.
+기존 기본 서비스 3개와 별도로 [Compose 확장](../docker-compose.ors.yml)의 `ors` 프로필을 사용한다.
+main push는 검증 후 ORS만 배포하고 PR은 GitHub-hosted 검증만 수행한다. 수동 배포도 main으로 제한한다.
+설정 JSON·OSM 원본·경로망은 체크아웃 밖에 준비하며, 고정 이미지 digest와 파일 SHA-256을 검증한다.
+기존 NestJS의 외부 ORS 호출 전환·배경 지도 타일 구축은 이 파이프라인에 포함하지 않는다.
+아래 기존 서비스별 배포 설명은 계속 적용된다.
+
 현재 자동 배포는 GitHub Actions에서 검증한 뒤 EC2 Self-hosted 러너에서 Docker Compose 이미지를 다시 빌드하고 컨테이너를 교체하는 방식입니다. 단일 컨테이너 교체에 따른 일시 중단이 가능하며 자동 롤백은 없습니다.
 
 AI가 이 폴더를 수정할 때는 [작업 지침](AGENTS.md)을 먼저 읽고, [코드 검토 기록](REVIEW.md)에서 알려진 문제와 검증 범위를 확인합니다.

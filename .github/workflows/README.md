@@ -1,6 +1,15 @@
 # GitHub Actions 워크플로우 안내
 
-이 폴더에는 서비스별 자동 배포 워크플로우 3개가 있다. 변경 작업은 [AGENTS.md](AGENTS.md), 확인된 문제와 검증 범위는 [REVIEW.md](REVIEW.md)를 먼저 확인한다.
+이 폴더에는 기본 서비스 3개와 선택적 ORS의 자동 배포 워크플로우가 있다. 변경 작업은 [AGENTS.md](AGENTS.md), 확인된 문제와 검증 범위는 [REVIEW.md](REVIEW.md)를 먼저 확인한다.
+
+## ORS 파이프라인 — 2026-10-26
+
+[deploy_ors.yml](deploy_ors.yml)은 ORS 설정·배포 스크립트·자기 YAML·두 Compose 파일을 감시한다.
+main push/수동 실행은 작은 OSM 스냅샷의 실제 자동차·도보 경로 검사 후 ORS만 배포한다.
+PR은 GitHub-hosted build만 실행하고 운영 self-hosted에는 전달하지 않는다. main 외 수동 ref도 배포하지 않는다.
+이미지를 직접 다시 빌드하지 않고 공식 이미지 digest를 고정하며, 운영 지도 파일과 저장소는 러너가 읽는
+외부 설정 JSON으로 지정한다. [ORS 운영·검증 범위](../../CI_CD/BackEnd/ors/README.md)를 따른다.
+아래 기존 세 파이프라인의 제한·동시성 설명은 ORS의 main 가드·PR 조건과 구분한다.
 
 ## 실행 구조
 

@@ -1,0 +1,7 @@
+{
+  "data_root": "/absolute/path/outside-checkout/roadfriend-ors",
+  "dataset_path": "/absolute/path/outside-checkout/south-korea.osm.pbf",
+  "dataset_sha256": "REPLACE_WITH_THE_FILES_64_CHARACTER_SHA256",
+  "probe_coordinates": [[126.9779, 37.5663], [126.9784, 37.5704]],
+  "http_port": 8082
+}

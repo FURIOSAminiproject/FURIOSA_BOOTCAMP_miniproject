@@ -1,0 +1,57 @@
+name: Deploy ORS to EC2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Docker/ors/**"
+      - "CI_CD/BackEnd/ors/**"
+      - "docker-compose.ors.yml"
+      - "docker-compose.yml"
+      - ".github/workflows/deploy_ors.yml"
+  pull_request:
+    paths:
+      - "Docker/ors/**"
+      - "CI_CD/BackEnd/ors/**"
+      - "docker-compose.ors.yml"
+      - "docker-compose.yml"
+      - ".github/workflows/deploy_ors.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ors-${{ github.event_name == 'pull_request' && github.ref || 'production' }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Verify ORS image and routing
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify configuration and driving/walking routes
+        run: bash CI_CD/BackEnd/ors/build.sh
+
+  deploy:
+    name: Deploy ORS service
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: [self-hosted, linux]
+    timeout-minutes: 60
+    env:
+      APP_ENV: production
+      # 설정하지 않으면 배포 계정의 ~/.config/roadfriend/ors.json 사용
+      ORS_DEPLOY_CONFIG: ${{ vars.ORS_DEPLOY_CONFIG }}
+      ORS_WAIT_SECONDS: "1800"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: false
+      - name: Deploy pinned ORS with the verified local OSM snapshot
+        run: bash CI_CD/BackEnd/ors/deploy.sh

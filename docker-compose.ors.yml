@@ -1,0 +1,47 @@
+# 기존 Compose와 함께 사용한다. CI_CD/BackEnd/ors/{build,deploy}.sh가 경로를 준비한다.
+services:
+  ors:
+    # 공식 v10.0.1 멀티아키텍처 이미지. CI와 운영이 같은 digest를 사용한다.
+    image: openrouteservice/openrouteservice:v10.0.1@sha256:b2f66b5e33949e86a279f3de654ef99e2964eb9112d16fb52788c6bb63ff941c
+    profiles: [ors]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${ORS_HTTP_PORT:-8082}:8082"
+    environment:
+      ORS_CONFIG_LOCATION: /etc/ors/roadfriend.yml
+      REBUILD_GRAPHS: "false"
+      CONTAINER_LOG_LEVEL: INFO
+      XMS: ${ORS_JVM_XMS:-256m}
+      XMX: ${ORS_JVM_XMX:-2g}
+    mem_limit: ${ORS_MEMORY_LIMIT:-3g}
+    cpus: ${ORS_CPUS:-2}
+    volumes:
+      - type: bind
+        source: ${ORS_CONFIG_FILE:-./Docker/ors/ors-config.yml}
+        target: /etc/ors/roadfriend.yml
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${ORS_OSM_FILE:-./.ors-unprepared/input.osm.pbf}
+        target: /data/osm/input.osm.pbf
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${ORS_GRAPHS_DIR:-./.ors-unprepared/graphs}
+        target: /home/ors/graphs
+        bind:
+          create_host_path: false
+      - ors-logs:/home/ors/logs
+    healthcheck:
+      test: [CMD-SHELL, 'wget -q -T 5 -O - http://127.0.0.1:8082/ors/v2/health | grep -Eq ''"status"[[:space:]]*:[[:space:]]*"ready"''']
+      start_period: 30m
+      interval: 15s
+      timeout: 6s
+      retries: 4
+    networks:
+      - travel-network
+
+volumes:
+  ors-logs:

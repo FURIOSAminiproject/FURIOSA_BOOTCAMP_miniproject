@@ -1,5 +1,9 @@
 # BackEnd CI/CD 구성
 
+추가로 [ORS 전용 CI/CD](ors/README.md)를 제공한다. 공식 ORS 이미지를 기존 NestJS와 별도 컨테이너로
+실행하며, [deploy_ors.yml](../../.github/workflows/deploy_ors.yml)이 `ors/build.sh`와 `ors/deploy.sh`를 호출한다.
+OSM 파일·경로망은 체크아웃 밖에 보관하고 ORS만 교체한다. NestJS의 제공자 주소를 자동 전환하지 않는다.
+
 현재 워크플로우는 다음 두 하위 파이프라인을 호출합니다.
 
 | 구분 | NestJS | FastAPI |
