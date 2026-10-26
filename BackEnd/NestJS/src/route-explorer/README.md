@@ -1,0 +1,70 @@
+# 출발·도착지 검색, 경로 비교와 장소 추천
+
+화면은 `/routes`이며 헤더의 **경로·장소 찾기**에서 연다. 별도 ORS 서버 없이 기존 서버의 `ORS_API_KEY`를 사용한다. 프론트엔드 번들·쿼리 문자열에 키를 넣지 않는다. 기본 유형은 관광지·문화시설·행사·레포츠·숙박·쇼핑·음식점이며, TourAPI DB의 상세 분류도 선택할 수 있다.
+
+## 처리 흐름
+
+1. 출발·도착지 검색 버튼 또는 Enter → 서버 → HeiGIT Pelias 검색 → 이름·주소·좌표 중 선택.
+2. 자동차/도보, 추천 카테고리와 반경 선택 → 서버에 두 지점 전송.
+3. 기존 `RoutingService`로 `recommended`와 `shortest`를 각각 조회한다. 기존 24시간 ORS DB 캐시를 공유한다.
+4. 각 경로의 실제 좌표를 기준으로 해당 경로 주변의 활성 TourAPI 장소를 DB에서 조회하고 거리순으로 추천한다.
+5. 지도에 두 선과 출발·도착점을 표시하고, 선택한 경로의 장소 목록·초록 마커를 표시한다. 장소의 ‘지도에서 보기’로 팝업을 연다.
+
+조건을 변경하거나 조회를 취소하면 이전 결과·추천·팝업을 제거한다. 화면을 벗어난 뒤 도착한 응답은 표시하지 않는다. 두 경로가 같을 수 있으며, 추천 장소를 자동 경유지로 추가하거나 방문 순서를 최적화하지 않는다. 실시간 교통은 반영하지 않는다.
+
+## API 계약
+
+| API | 입력 | 응답 |
+|---|---|---|
+| `GET /api/map/search?q=서울역` | 검색어 2~100자. 한국으로 검색 범위 제한 | `places`: 검색 ID·이름·주소·위도·경도 |
+| `GET /api/routes/categories` | 없음 | `contentTypes`, DB `categories`(ID·이름·단계·부모 ID), `warning` |
+| `POST /api/routes/compare` | 아래 JSON | 두 경로와 경로별 추천 장소·오류·후보 한도 정보 |
+
+```json
+{
+  "mode": "driving",
+  "points": [
+    {"longitude": 126.9707, "latitude": 37.5547},
+    {"longitude": 126.9784, "latitude": 37.5667}
+  ],
+  "contentTypeIds": [12, 39],
+  "categoryIds": [],
+  "radiusMeters": 1000,
+  "limit": 10
+}
+```
+
+- `mode`: `driving` 또는 `walking`. 지점은 출발/도착 2개로, 직접 좌표 또는 기존 DB `placeId` UUID를 사용한다. 화면에서는 지도 검색 결과의 숫자 좌표만 보낸다.
+- `contentTypeIds`: 12/14/15/28/32/38/39 중 선택. `categoryIds`: DB 분류 UUID 최대 10개. 둘을 함께 선택하면 교집합이며 상세 분류는 하위 분류까지 포함한다.
+- 분류 둘 다 빈 배열이면 장소 조회 없이 경로만 비교한다. 범위를 좁히려면 콘텐츠 유형을 유지하고 해당 유형의 상세 분류를 선택한다.
+- `radiusMeters`: 기본 1,000, 허용 100~5,000m. `limit`: 경로별 기본 10개, 허용 1~20개.
+- `routes[]`: `preference`, 기존 [경로 응답](../routing-cache/README.md)의 `route`, `places`, `routeError`, `recommendationError`, `candidateLimitReached`.
+- 장소는 ID·이름·주소·좌표·유형·분류명과 `distanceToRouteMeters`를 포함한다. 경로 선까지의 **지역 평면 투영에 의한 근사 직선거리**이며, 실제 진입로·도보 접근 가능 여부·우회거리·우회시간을 계산한 결과가 아니다.
+- 권장/최단 중 한쪽이 실패하면 다른 경로를 표시하고 실패 이유를 구분한다. 양쪽 모두 실패하면 HTTP 오류다. 추천 DB 조회만 실패하면 정상 경로는 보존하고 추천 오류를 표시한다.
+- DB 상세 분류를 못 읽으면 기본 카테고리는 제공하고 `warning`으로 알린다. 장소 테이블이 없거나 권한이 없으면 추천 오류가 표시된다. 수집 장소가 없을 때 임의 장소를 만들어 추천하지 않는다.
+
+## 운영과 자원
+
+기존 `places`, `place_categories`, `ors_route_cache` 테이블을 재사용한다. 새 테이블·PostGIS·DDL 자동 실행·추가 컨테이너는 없다. 신규 DB 준비는 [장소 DDL](../../../../DataBase/place_schema_v2.sql)과 [ORS 캐시 안내](../routing-cache/README.md)를 따르며 기존 테이블이 있으면 생성 SQL을 재실행하지 않는다.
+
+장소 후보는 유형/분류·좌표 경계상자로 제한하고 경로별 최대 2,000개를 처리한다. 넘으면 `candidateLimitReached=true`로 일부 후보만 비교했음을 화면에 알린다. 전체 전국 장소를 전부 비교한 최적 추천이라는 의미가 아니다. 경로 꼭짓점만 검사하지 않고 원래 선분의 중간까지 거리 계산하며, 격자 색인으로 인접 선분만 검사한다. 매우 긴/복잡한 경로는 추천 계산만 제한하고 경로 자체는 보존한다.
+
+검색은 자동완성이 아니라 명시적 검색이다. 동일 검색을 1시간/최대 200개 메모리 캐시하고 진행 중인 같은 요청을 합친다. 동시 검색은 프로세스당 8개로 제한한다. 이 캐시는 재시작하면 사라지며 ORS 경로의 DB 캐시와 별개다. 서비스 전체의 분산 호출 한도를 보장하지 않으며, 외부 API의 한도 초과는 오류로 처리한다.
+
+실제 조회 주소는 `https://api.heigit.org/pelias/v1/search`와 기존 ORS Directions HTTPS 엔드포인트다. 키는 Authorization 헤더로만 전달한다. 서버의 허용된 외부 통신에 `api.heigit.org:443`이 필요하다. 기본 제공자 타임아웃은 기존 `ORS_API_TIMEOUT_MS`를 공유한다.
+
+## 상용 이용·출처
+
+ORS 운영진은 [Standard 플랜의 상용 이용을 허용](https://ask.openrouteservice.org/t/free-plan-in-an-app-with-a-paid-tier-license-cc-by-sa-4-0-personal-data-and-attribution-questions/8079)한다고 안내하며, 결과물의 CC BY-SA 4.0 조건과 API 이용 조건은 준수해야 한다. ‘상용 허용’을 ‘무제한 호출·무조건 무표기·모든 권리 면제’로 해석하지 않는다. [HeiGIT 이용 조건](https://account.heigit.org/info/tos), [공식 Geocoder 문서](https://giscience.github.io/openrouteservice/api-reference/endpoints/geocoder/), [API 주소 이전 안내](https://ask.openrouteservice.org/t/deprecating-api-openrouteservice-org-in-favour-of-api-heigit-org/7912)를 기준으로 한다.
+
+화면에 ORS/HeiGIT, OpenStreetMap, 한국관광공사 출처를 표시하고 결과 라이선스와 검색 데이터 출처·이용 조건을 연결했다. 지도 타일의 기존 OSM 표기도 유지한다. Nominatim 공용 서버를 사용하지 않는다. 기존 Leaflet은 추가 라이브러리 없이 그대로 사용한다.
+
+## 검증 (2026-10-26)
+
+- Node 22.23.3에서 NestJS 컴파일, Node 테스트 18개와 Jest 8개(합계 26개), 프론트 타입 검사·production 번들 빌드 통과.
+- 새 테스트 9개는 입력 경계, Pelias 서버 인증/한국 검색/캐시/동시 요청 합치기/실패, 선분 중간과 꺾인 경로의 거리, 경로별 추천 차이, 부분 실패, SQL 파라미터와 후보 한도, 로컬 HTTP 계약을 확인한다. DB·외부 제공자는 모킹한다.
+- 기존 로컬 키로 **실제 Pelias ‘서울역’ 검색 1회(8개 결과)**와 **자동차 권장·최단 Directions 각 1회(51/54개 좌표)** 성공. 키·원본 응답은 로그에 남기지 않고 DB 쓰기 없이 제공자만 직접 검사했다.
+- 브라우저에서는 격리된 NestJS 테스트 API와 실제 프론트 화면으로 검색/선택, 두 선 표시, 경로 전환, 추천 팝업, 카테고리 필터, 출발/도착 교환, 검색어 수정에 따른 이전 결과 제거와 검색 결과 없음을 확인했다. 이 화면 검증 데이터는 실제 운영 DB 조회 결과가 아니다.
+- 미검증: 운영 PostgreSQL에서 새 장소 조회 SQL 실행, 실제 TourAPI 장소 추천을 포함한 EC2 종단간 호출·배포, 실제 휴대폰 화면. Vite의 기존 설정/청크 크기 경고는 빌드를 막지 않았다.
+
+구현 위치: `GeocodingProvider`(검색), `ExplorerRepository`(장소/분류 읽기), `RouteProximity`(거리), `ExplorerService`(조립), `ExplorerController`(HTTP), `ExplorerModule`(의존성 연결). 프론트는 `services/route-explorer.ts`, `RouteExplorerPage.tsx`, `RouteExplorerMap.tsx`이며 기존 일정 지도의 동작은 유지한다.

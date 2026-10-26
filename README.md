@@ -121,6 +121,8 @@ npm test
 
 ## 지도와 외부 ORS API
 
+헤더의 **경로·장소 찾기**(`/routes`)에서 출발·도착지를 검색해 선택하고, 자동차/도보의 권장·최단 경로를 지도에서 비교할 수 있습니다. 카테고리와 반경을 선택하면 TourAPI DB의 경로 주변 장소를 각 경로별로 추천합니다. 검색은 기존 서버 키로 HeiGIT Pelias를 호출하며, 추천 거리는 경로까지의 근사 직선거리입니다. [API·운영·검증 안내](BackEnd/NestJS/src/route-explorer/README.md)를 참고합니다.
+
 지도는 Leaflet으로 표시하고 OpenStreetMap의 배경 타일을 사용합니다. 경로는 NestJS가 외부 HeiGIT ORS API에 요청하며, 자체 ORS 서버는 운영하지 않습니다.
 
 ```text

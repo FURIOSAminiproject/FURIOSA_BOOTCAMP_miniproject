@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Compass, LogOut, LogIn, Menu, X } from 'lucide-react';
 import { AuthUser } from '../services/authService';
 
-type HeaderTab = 'EXPLORE' | 'REQUEST' | 'PLAN' | 'ARCHIVE' | 'ADMIN' | 'USER' | 'STUDIO' | 'WEATHER_STUDIO';
+type HeaderTab = 'EXPLORE' | 'REQUEST' | 'PLAN' | 'ARCHIVE' | 'ADMIN' | 'USER' | 'STUDIO' | 'WEATHER_STUDIO' | 'ROUTES';
 
 interface HeaderProps {
   currentTab: HeaderTab;
@@ -57,6 +57,10 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Center / Right Navigation */}
         <nav className="hidden md:flex items-center gap-4 lg:gap-5 text-sm font-medium text-stone-700">
+          <button onClick={() => handleNav('ROUTES')}
+            className={`transition-colors py-1 ${currentTab === 'ROUTES' ? 'font-bold text-[#064e43]' : 'hover:text-stone-900'}`}>
+            경로·장소 찾기
+          </button>
           <button
             onClick={() => handleNav('REQUEST')}
             className={`transition-colors py-1 ${
@@ -125,6 +129,10 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-[#e8e4dc] bg-[#faf7f2] px-4 pt-3 pb-5 space-y-2">
+          <button onClick={() => handleNav('ROUTES')}
+            className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold ${currentTab === 'ROUTES' ? 'bg-[#064e43] text-white' : 'text-stone-700 hover:bg-stone-100'}`}>
+            경로·장소 찾기
+          </button>
           <button
             onClick={() => handleNav('EXPLORE')}
             className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold ${

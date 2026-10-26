@@ -24,6 +24,7 @@ import { AiTransformerStudio } from './components/AiTransformerStudio';
 import { WeatherTechStudio } from './components/WeatherTechStudio';
 import { UserHomePage } from './components/UserHomePage';
 import { TravelArchivePage } from './components/TravelArchivePage';
+import { RouteExplorerPage } from './components/RouteExplorerPage';
 import { AuthModal } from './components/auth/AuthModal';
 import { getCurrentUser, logoutUser, AuthUser } from './services/authService';
 import { CheckCircle2 } from 'lucide-react';
@@ -32,7 +33,7 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
   // const [currentTab, setCurrentTab] = useState<'EXPLORE' | 'REQUEST' | 'PLAN' | 'ADMIN' | 'STUDIO' | 'WEATHER_STUDIO'>('EXPLORE');
-  const [currentTab, setCurrentTab] = useState<'EXPLORE' | 'REQUEST' | 'PLAN' | 'ARCHIVE' | 'ADMIN' | 'USER' | 'STUDIO' | 'WEATHER_STUDIO'>('EXPLORE');
+  const [currentTab, setCurrentTab] = useState<'EXPLORE' | 'REQUEST' | 'PLAN' | 'ARCHIVE' | 'ADMIN' | 'USER' | 'STUDIO' | 'WEATHER_STUDIO' | 'ROUTES'>('EXPLORE');
   const pathByTab = {
     EXPLORE: '/',
     REQUEST: '/trips/new',
@@ -42,6 +43,7 @@ export default function App() {
     USER: '/user',
     STUDIO: '/studio',
     WEATHER_STUDIO: '/weather-studio',
+    ROUTES: '/routes',
   } as const;
 
   const tabByPath: Record<string, typeof currentTab> = {
@@ -53,6 +55,7 @@ export default function App() {
     '/user': 'USER',
     '/studio': 'STUDIO',
     '/weather-studio': 'WEATHER_STUDIO',
+    '/routes': 'ROUTES',
   };
 
   const handleSelectTab = (tab: typeof currentTab) => {
@@ -396,6 +399,7 @@ export default function App() {
 
       {/* Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
+        {currentTab === 'ROUTES' && <RouteExplorerPage />}
         {/* TAB 1: EXPLORE / MAIN PAGE */}
         {currentTab === 'EXPLORE' && (
           <div className="space-y-12">

@@ -14,6 +14,8 @@
 
 ## 처리 흐름
 
+출발·도착지 검색과 권장/최단 경로·주변 장소 추천은 NestJS의 [경로 탐색 모듈](NestJS/src/route-explorer/README.md)이 제공한다. 지도 검색은 외부 HeiGIT Pelias, 경로는 외부 ORS, 추천 장소는 기존 TourAPI DB를 사용하며 독립 `/routes` 화면에 연결했다.
+
 ```text
 React → /api/travel/plans → NestJS → Gemini 통합 일정 생성 / 절차적 폴백
                                  └→ 장소별 문학 리뷰 생성 / 폴백

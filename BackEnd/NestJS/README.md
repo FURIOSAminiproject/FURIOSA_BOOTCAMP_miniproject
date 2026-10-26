@@ -8,6 +8,8 @@ NestJS 12, TypeScript 6, TypeORM, PostgreSQL 드라이버와 `@google/genai`를 
 
 ## 구현 범위
 
+[경로 탐색 모듈](src/route-explorer/README.md)은 서버 키로 HeiGIT Pelias 장소 검색, 기존 ORS 캐시를 공유한 권장/최단 경로 비교, TourAPI DB의 카테고리·반경 기반 주변 장소 추천을 제공한다. 화면은 `/routes`, API는 `/api/map/search`, `/api/routes/categories`, `/api/routes/compare`다. 자체 ORS 서버·추가 DB 확장은 필요하지 않다.
+
 `src/travel/travel-engine.ts`는 Gemini 통합 프롬프트로 일정 JSON을 생성합니다. 키가 없거나 요청·파싱 과정이 실패하면 `generateProceduralKoreanPlan`을 사용합니다. 독립적인 7개 AI 에이전트의 호출·협업 파이프라인은 없습니다.
 
 `poetry.service.ts`는 음식점/카페의 시·수필을 Gemini로 생성하고 실패 시 내장 문구로 폴백합니다. 일정 생성 중 대상 장소는 Gemini 일정 경로에서 최대 6곳, 절차적 일정 경로에서 최대 5곳입니다. 각 AI 요청 타임아웃은 60초이므로 장애 시 즉시 결과가 반환되는 것은 아닙니다. 장소 실재성·가격·최단 동선·안전 점수는 외부 실시간 데이터로 검증하지 않습니다.
