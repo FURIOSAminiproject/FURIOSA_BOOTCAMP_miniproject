@@ -36,7 +36,7 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   const handleMyTrips = () => {
-    handleNav(currentUser && currentUser.role !== 'Admin' ? 'ARCHIVE' : 'PLAN');
+    handleNav('PLAN');
   };
 
   return (
@@ -51,16 +51,12 @@ export const Header: React.FC<HeaderProps> = ({
             <Compass className="w-5 h-5" />
           </div>
           <span className="font-bold text-stone-900 text-lg sm:text-xl tracking-tight">
-            길벗 AI Agents 여행사
+            길벗 여행
           </span>
         </div>
 
         {/* Center / Right Navigation */}
         <nav className="hidden md:flex items-center gap-4 lg:gap-5 text-sm font-medium text-stone-700">
-          <button onClick={() => handleNav('ROUTES')}
-            className={`transition-colors py-1 ${currentTab === 'ROUTES' ? 'font-bold text-[#064e43]' : 'hover:text-stone-900'}`}>
-            경로·장소 찾기
-          </button>
           <button
             onClick={() => handleNav('REQUEST')}
             className={`transition-colors py-1 ${
@@ -69,18 +65,18 @@ export const Header: React.FC<HeaderProps> = ({
                 : 'hover:text-stone-900'
             }`}
           >
-            여행 의뢰
+            여행 계획하기
           </button>
 
           <button
             onClick={handleMyTrips}
             className={`transition-colors py-1 ${
-              currentTab === 'ARCHIVE'
+              currentTab === 'PLAN' || currentTab === 'ARCHIVE'
                 ? 'font-bold text-[#064e43]'
                 : 'hover:text-stone-900'
             }`}
           >
-            내 여행
+            내 여행 결과
           </button>
         </nav>
 
@@ -120,6 +116,9 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="md:hidden p-2 rounded-lg text-stone-700 hover:bg-stone-200/50"
+            aria-label={mobileMenuOpen ? '메뉴 닫기' : '메뉴 열기'}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="travel-mobile-menu"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
@@ -128,11 +127,7 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-[#e8e4dc] bg-[#faf7f2] px-4 pt-3 pb-5 space-y-2">
-          <button onClick={() => handleNav('ROUTES')}
-            className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold ${currentTab === 'ROUTES' ? 'bg-[#064e43] text-white' : 'text-stone-700 hover:bg-stone-100'}`}>
-            경로·장소 찾기
-          </button>
+        <div id="travel-mobile-menu" className="md:hidden border-t border-[#e8e4dc] bg-[#faf7f2] px-4 pt-3 pb-5 space-y-2">
           <button
             onClick={() => handleNav('EXPLORE')}
             className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold ${
@@ -147,15 +142,15 @@ export const Header: React.FC<HeaderProps> = ({
               currentTab === 'REQUEST' ? 'bg-[#064e43] text-white' : 'text-stone-700 hover:bg-stone-100'
             }`}
           >
-            여행 의뢰
+            여행 계획하기
           </button>
           <button
             onClick={handleMyTrips}
             className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold ${
-              currentTab === 'ARCHIVE' ? 'bg-[#064e43] text-white' : 'text-stone-700 hover:bg-stone-100'
+              currentTab === 'PLAN' || currentTab === 'ARCHIVE' ? 'bg-[#064e43] text-white' : 'text-stone-700 hover:bg-stone-100'
             }`}
           >
-            내 여행
+            내 여행 결과
           </button>
           <div className="pt-3 border-t border-stone-200 space-y-2">
             {currentUser ? (

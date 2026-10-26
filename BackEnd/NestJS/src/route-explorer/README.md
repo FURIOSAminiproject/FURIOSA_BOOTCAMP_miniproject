@@ -1,6 +1,6 @@
 # 출발·도착지 검색, 경로 비교와 장소 추천
 
-화면은 `/routes`이며 헤더의 **경로·장소 찾기**에서 연다. 별도 ORS 서버 없이 기존 서버의 `ORS_API_KEY`를 사용한다. 프론트엔드 번들·쿼리 문자열에 키를 넣지 않는다. 기본 유형은 관광지·문화시설·행사·레포츠·숙박·쇼핑·음식점이며, TourAPI DB의 상세 분류도 선택할 수 있다.
+헤더의 **여행 계획하기**(`/trips/new`)에서 조건을 고르고 **내 여행 결과**(`/trips`)에서 비교한다. `/routes`는 두 기능을 한 화면에서 사용하는 호환 주소다. 별도 ORS 서버 없이 기존 서버의 `ORS_API_KEY`를 사용한다. 프론트엔드 번들·쿼리 문자열에 키를 넣지 않는다. 기본 유형은 관광지·문화시설·행사·레포츠·숙박·쇼핑·음식점이며, TourAPI DB의 상세 분류도 선택할 수 있다.
 
 ## 처리 흐름
 
@@ -67,4 +67,6 @@ ORS 운영진은 [Standard 플랜의 상용 이용을 허용](https://ask.openro
 - 브라우저에서는 격리된 NestJS 테스트 API와 실제 프론트 화면으로 검색/선택, 두 선 표시, 경로 전환, 추천 팝업, 카테고리 필터, 출발/도착 교환, 검색어 수정에 따른 이전 결과 제거와 검색 결과 없음을 확인했다. 이 화면 검증 데이터는 실제 운영 DB 조회 결과가 아니다.
 - 미검증: 운영 PostgreSQL에서 새 장소 조회 SQL 실행, 실제 TourAPI 장소 추천을 포함한 EC2 종단간 호출·배포, 실제 휴대폰 화면. Vite의 기존 설정/청크 크기 경고는 빌드를 막지 않았다.
 
-구현 위치: `GeocodingProvider`(검색), `ExplorerRepository`(장소/분류 읽기), `RouteProximity`(거리), `ExplorerService`(조립), `ExplorerController`(HTTP), `ExplorerModule`(의존성 연결). 프론트는 `services/route-explorer.ts`, `RouteExplorerPage.tsx`, `RouteExplorerMap.tsx`이며 기존 일정 지도의 동작은 유지한다.
+두 여행 화면의 커스터마이징에서는 이 API 계약과 백엔드 코드를 변경하지 않았다. 가짜 일정 대신 빈 초기 상태, 입력/결과 공유, 조건 변경 시 결과 폐기, 조회 취소·오류 안내를 추가했다. 실제 외부 검색 결과와 자동차/도보 권장·최단 응답을 기록한 뒤 격리된 테스트 API에서 재생해 화면을 확인했으며, 추천 장소는 명시적으로 표시한 검증용 데이터다. 운영 DB의 실제 TourAPI 추천과 배포 검증은 여전히 별도다. [화면 분석·검증 기록](../../../../FrontEnd/docs/TRIP_UI_CUSTOMIZATION.md)을 참고한다.
+
+구현 위치: `GeocodingProvider`(검색), `ExplorerRepository`(장소/분류 읽기), `RouteProximity`(거리), `ExplorerService`(조립), `ExplorerController`(HTTP), `ExplorerModule`(의존성 연결). 프론트는 `services/route-explorer.ts`(HTTP/검증), `services/trip-workspace.ts`·`TripWorkspaceContext.tsx`(공유 상태), `RouteExplorerPage.tsx`(조건), `TripResultsPage.tsx`(결과), `MapPlaceSearch.tsx`(검색), `RouteExplorerMap.tsx`(지도)다. 기존 일정 지도 소스는 유지하지만 새 주요 여행 화면에서는 사용하지 않는다.

@@ -1,196 +1,54 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ArrowRightLeft, MapPin, Route, Search } from "lucide-react";
+import {
+  ArrowRight,
+  ArrowRightLeft,
+  Check,
+  ChevronDown,
+  Compass,
+  MapPin,
+  Route,
+  SlidersHorizontal,
+} from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import {
   compareRoutes,
   getRouteCategories,
-  searchMapPlaces,
+  CONTENT_TYPE_OPTIONS,
+  type CategoryOptions,
+  type SearchPlace,
+  type ComparedRoute,
 } from "../services/route-explorer";
-import type {
-  CategoryOptions,
-  Comparison,
-  Preference,
-  SearchPlace,
-} from "../services/route-explorer";
-import type { LocationRouteMode } from "../types/location";
-import { RouteExplorerMap, ROUTE_COLORS } from "./RouteExplorerMap";
+import { tripCompareRequest, type TripDraft } from "../services/trip-workspace";
+import { useTripWorkspace } from "./TripWorkspaceContext";
+import { MapPlaceSearch } from "./MapPlaceSearch";
+import { TripFlowHeader } from "./TripFlowHeader";
+import { RouteAttribution } from "./RouteAttribution";
+import { RouteExplorerMap } from "./RouteExplorerMap";
+import { TripResultsPage } from "./TripResultsPage";
 
-const INITIAL_TYPES = [
-  { id: 12, name: "관광지" },
-  { id: 14, name: "문화시설" },
-  { id: 15, name: "축제·공연·행사" },
-  { id: 28, name: "레포츠" },
-  { id: 32, name: "숙박" },
-  { id: 38, name: "쇼핑" },
-  { id: 39, name: "음식점" },
-];
-const LABELS: Record<Preference, string> = {
-  recommended: "권장 경로",
-  shortest: "최단 경로",
-};
-const distance = (meters: number) =>
+const EMPTY_ROUTES: ComparedRoute[] = [];
+export const formatRouteDistance = (meters: number) =>
   meters < 1000 ? `${Math.round(meters)}m` : `${(meters / 1000).toFixed(1)}km`;
-const duration = (seconds: number) => {
-  const minutes = Math.max(1, Math.ceil(seconds / 60));
-  return minutes < 60
-    ? `약 ${minutes}분`
-    : `약 ${Math.floor(minutes / 60)}시간 ${minutes % 60}분`;
-};
-const message = (error: unknown) =>
-  error instanceof Error
-    ? error.message
-    : "조회하지 못했습니다. 다시 시도해 주세요.";
 
-/** 입력 문자열과 선택 좌표를 분리한다. 글자를 수정하면 이전 선택/진행 중 요청을 즉시 폐기한다. */
-function PlaceSearch({
-  label,
-  value,
-  onChange,
+/** /trips/new. 서버가 실제 사용하는 좌표·이동 방식·카테고리·반경만 입력받는다. */
+export function TripRequestPage({
+  embedded = false,
+  onComplete,
 }: {
-  label: string;
-  value: SearchPlace | null;
-  onChange: (value: SearchPlace | null) => void;
+  embedded?: boolean;
+  onComplete?: () => void;
 }) {
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchPlace[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [searched, setSearched] = useState(false);
-  const request = useRef<AbortController | null>(null);
-  useEffect(() => {
-    if (value) setQuery(value.name);
-  }, [value]);
-  useEffect(() => () => request.current?.abort(), []);
-
-  async function search(event: React.FormEvent) {
-    event.preventDefault();
-    if (query.trim().length < 2 || query.trim().length > 100) return;
-    request.current?.abort();
-    const controller = new AbortController();
-    request.current = controller;
-    setBusy(true);
-    setError(null);
-    setResults([]);
-    setSearched(false);
-    try {
-      const places = await searchMapPlaces(query, controller.signal);
-      if (request.current === controller && !controller.signal.aborted) {
-        setResults(places);
-        setSearched(true);
-      }
-    } catch (failure) {
-      if (!controller.signal.aborted && request.current === controller)
-        setError(message(failure));
-    } finally {
-      if (request.current === controller) {
-        setBusy(false);
-        request.current = null;
-      }
-    }
-  }
-
-  return (
-    <section className="space-y-2 min-w-0">
-      <form onSubmit={search} className="space-y-2">
-        <label className="block text-sm font-semibold text-stone-800">
-          {label}
-          <div className="mt-2 flex gap-2">
-            <input
-              aria-label={`${label} 검색어`}
-              value={query}
-              maxLength={100}
-              placeholder="장소명 또는 주소 (예: 서울역)"
-              className="min-w-0 flex-1 rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-sm"
-              onChange={(event) => {
-                request.current?.abort();
-                request.current = null;
-                setBusy(false);
-                setQuery(event.target.value);
-                setResults([]);
-                setError(null);
-                setSearched(false);
-                onChange(null);
-              }}
-            />
-            <button
-              type="submit"
-              disabled={busy || query.trim().length < 2}
-              className="rounded-xl bg-stone-800 text-white px-3 disabled:opacity-40 flex items-center gap-1 text-sm"
-            >
-              <Search className="w-4 h-4" />
-              {busy ? "검색 중" : "검색"}
-            </button>
-          </div>
-        </label>
-      </form>
-      {value && (
-        <p className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900 break-words">
-          <MapPin className="inline w-4 h-4 mr-1" />
-          선택: {value.name}
-          <span className="block text-xs mt-1">{value.address}</span>
-        </p>
-      )}
-      {error && (
-        <p role="alert" className="text-sm text-red-700">
-          {error}
-        </p>
-      )}
-      {results.length > 0 && (
-        <ul className="max-h-60 overflow-auto rounded-xl border border-stone-200 divide-y divide-stone-100 bg-white">
-          {results.map((place) => (
-            <li key={place.id}>
-              <button
-                type="button"
-                className="w-full text-left px-3 py-3 hover:bg-emerald-50"
-                onClick={() => {
-                  request.current?.abort();
-                  request.current = null;
-                  setBusy(false);
-                  onChange(place);
-                  setResults([]);
-                  setSearched(false);
-                }}
-              >
-                <span className="block text-sm font-semibold">
-                  {place.name}
-                </span>
-                <span className="block text-xs text-stone-500 break-words">
-                  {place.address}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      {searched && results.length === 0 && !value && (
-        <p className="text-sm text-stone-500">
-          검색 결과가 없습니다. 지역명을 포함해 다시 검색해 주세요.
-        </p>
-      )}
-    </section>
-  );
-}
-
-/** 독립 /routes 화면. 출발·도착 선택 → 두 경로 조회 → 경로별 장소 추천을 한 흐름으로 제공한다. */
-export function RouteExplorerPage() {
-  const [origin, setOrigin] = useState<SearchPlace | null>(null);
-  const [destination, setDestination] = useState<SearchPlace | null>(null);
-  const [mode, setMode] = useState<LocationRouteMode>("driving");
+  const { state, dispatch } = useTripWorkspace();
+  const { draft } = state;
+  const navigate = useNavigate();
   const [options, setOptions] = useState<CategoryOptions>({
-    contentTypes: INITIAL_TYPES,
+    contentTypes: CONTENT_TYPE_OPTIONS,
     categories: [],
     warning: null,
   });
-  const [contentTypeIds, setContentTypeIds] = useState<number[]>([12, 39]);
-  const [categoryId, setCategoryId] = useState("");
-  const [radiusMeters, setRadius] = useState(1000);
-  const [comparison, setComparison] = useState<Comparison | null>(null);
-  const [active, setActive] = useState<Preference>("recommended");
-  const [focusedPlace, setFocusedPlace] = useState<SearchPlace | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const request = useRef<AbortController | null>(null);
-  const visibleRoutes = comparison?.routes ?? [];
-  const selected = visibleRoutes.find((item) => item.preference === active);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -203,7 +61,7 @@ export function RouteExplorerPage() {
           setOptions((current) => ({
             ...current,
             warning:
-              "상세 분류를 불러오지 못했습니다. 기본 카테고리는 선택할 수 있습니다.",
+              "상세 분류를 불러오지 못했습니다. 기본 카테고리를 선택할 수 있습니다.",
           }));
       });
     return () => {
@@ -212,374 +70,420 @@ export function RouteExplorerPage() {
     };
   }, []);
 
-  /** 조건 수정/취소 시 예전 응답으로 선이나 추천 목록이 복구되지 않게 한다. */
-  function reset() {
+  // 다른 화면의 새 여행/로그아웃도 이전 요청을 취소한다. 이전 좌표의 응답을 새 초안에 붙이지 않는다.
+  useEffect(() => {
     request.current?.abort();
     request.current = null;
     setBusy(false);
-    setComparison(null);
-    setFocusedPlace(null);
+    setError(null);
+  }, [draft]);
+
+  function cancel() {
+    request.current?.abort();
+    request.current = null;
+    setBusy(false);
     setError(null);
   }
+  function edit(patch: Partial<TripDraft>) {
+    cancel();
+    dispatch({ type: "edit", patch });
+  }
+  function choose(which: "origin" | "destination", place: SearchPlace) {
+    edit(
+      which === "origin"
+        ? { origin: place, originQuery: place.name }
+        : { destination: place, destinationQuery: place.name },
+    );
+  }
 
-  async function compare() {
-    if (!origin || !destination) return;
-    reset();
+  async function submit() {
+    const input = tripCompareRequest(draft);
+    if (!input || busy) return;
+    cancel();
     const controller = new AbortController();
     request.current = controller;
     setBusy(true);
     try {
-      const result = await compareRoutes(
-        {
-          mode,
-          points: [origin, destination],
-          contentTypeIds,
-          categoryIds: categoryId ? [categoryId] : [],
-          radiusMeters,
-          limit: 10,
+      const comparison = await compareRoutes(input, controller.signal);
+      if (controller.signal.aborted || request.current !== controller) return;
+      dispatch({
+        type: "complete",
+        result: {
+          request: input,
+          comparison,
+          title:
+            draft.title.trim() ||
+            `${draft.origin!.name}에서 ${draft.destination!.name}까지`,
         },
-        controller.signal,
-      );
-      if (request.current !== controller || controller.signal.aborted) return;
-      setComparison(result);
-      setActive(
-        result.routes.find((item) => item.route)?.preference ?? "recommended",
-      );
+      });
+      if (onComplete) onComplete();
+      else if (!embedded) navigate("/trips");
     } catch (failure) {
       if (!controller.signal.aborted && request.current === controller)
-        setError(message(failure));
+        setError(
+          failure instanceof Error
+            ? failure.message
+            : "경로를 조회하지 못했습니다. 다시 시도해 주세요.",
+        );
     } finally {
       if (request.current === controller) {
-        setBusy(false);
         request.current = null;
+        setBusy(false);
       }
     }
   }
 
+  const selectedNames = options.contentTypes
+    .filter((type) => draft.contentTypeIds.includes(type.id))
+    .map((type) => type.name);
+  const pickedCategory = options.categories.find(
+    (category) => category.id === draft.categoryId,
+  );
+  const ready = Boolean(draft.origin && draft.destination);
   return (
-    <div className="space-y-6">
-      <header className="space-y-2">
-        <p className="text-sm font-semibold text-emerald-800">
-          경로 따라 여행하기
+    <div className="space-y-7">
+      {!embedded && <TripFlowHeader step="request" />}
+      <header className="space-y-3">
+        <p className="text-xs font-bold tracking-widest text-emerald-800">
+          나의 동선에서 시작하는 국내 여행
         </p>
-        <h1 className="text-2xl sm:text-3xl font-bold text-stone-900">
-          두 경로를 비교하고, 들를 곳을 찾아보세요
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-stone-900">
+          어디에서, 어디로 떠나세요?
         </h1>
-        <p className="text-sm text-stone-600">
-          출발지와 도착지를 검색해 선택하면 최단·권장 경로와 주변 관광 장소를
-          보여드립니다.
+        <p className="max-w-2xl text-sm sm:text-base leading-relaxed text-stone-600">
+          출발지와 도착지를 정하면 두 가지 경로를 비교하고,
+          <br className="hidden sm:block" /> 그 길 주변에서 취향에 맞는 여행
+          장소를 찾아드려요.
         </p>
       </header>
-      <div className="rounded-2xl border border-stone-200 bg-white p-4 sm:p-6 space-y-5">
-        <div className="grid gap-4 md:grid-cols-[1fr_auto_1fr]">
-          <PlaceSearch
-            label="출발지"
-            value={origin}
-            onChange={(value) => {
-              reset();
-              setOrigin(value);
-            }}
-          />
-          <button
-            type="button"
-            aria-label="출발지와 도착지 바꾸기"
-            disabled={!origin || !destination}
-            onClick={() => {
-              reset();
-              setOrigin(destination);
-              setDestination(origin);
-            }}
-            className="self-start md:mt-9 rounded-xl border border-stone-200 p-2 disabled:opacity-40 w-fit"
-          >
-            <ArrowRightLeft className="w-5 h-5" />
-          </button>
-          <PlaceSearch
-            label="도착지"
-            value={destination}
-            onChange={(value) => {
-              reset();
-              setDestination(value);
-            }}
-          />
-        </div>
-        <div className="flex flex-wrap gap-4 items-center">
-          <label className="text-sm font-semibold">
-            이동 방식{" "}
-            <select
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="rounded-3xl border border-[#e5e0d8] bg-white p-5 sm:p-8 space-y-8 shadow-sm">
+          <section className="space-y-5">
+            <h2 className="flex items-center gap-2.5 text-base font-bold">
+              <StepNumber number="1" />
+              출발지와 도착지
+            </h2>
+            <p className="text-xs leading-relaxed text-stone-500">
+              장소명이나 주소를 검색한 뒤 결과를 선택해 주세요. 검색 결과의
+              좌표로 경로를 계산합니다.
+            </p>
+            <div className="space-y-3">
+              <MapPlaceSearch
+                label="출발지"
+                query={draft.originQuery}
+                value={draft.origin}
+                onQueryChange={(originQuery) =>
+                  edit({ originQuery, origin: null })
+                }
+                onSelect={(place) => choose("origin", place)}
+              />
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  disabled={!ready}
+                  aria-label="출발지와 도착지 바꾸기"
+                  className="rounded-full border border-stone-200 p-2.5 text-stone-600 hover:bg-stone-50 disabled:opacity-30"
+                  onClick={() =>
+                    edit({
+                      origin: draft.destination,
+                      originQuery: draft.destinationQuery,
+                      destination: draft.origin,
+                      destinationQuery: draft.originQuery,
+                    })
+                  }
+                >
+                  <ArrowRightLeft className="h-4 w-4 rotate-90" />
+                </button>
+              </div>
+              <MapPlaceSearch
+                label="도착지"
+                query={draft.destinationQuery}
+                value={draft.destination}
+                onQueryChange={(destinationQuery) =>
+                  edit({ destinationQuery, destination: null })
+                }
+                onSelect={(place) => choose("destination", place)}
+              />
+            </div>
+          </section>
+          <section className="space-y-4 border-t border-stone-100 pt-6">
+            <h2 className="flex items-center gap-2.5 text-base font-bold">
+              <StepNumber number="2" />
+              어떻게 이동할까요?
+            </h2>
+            <div
+              className="grid grid-cols-2 gap-3"
+              role="group"
               aria-label="이동 방식"
-              value={mode}
-              onChange={(event) => {
-                reset();
-                setMode(event.target.value as LocationRouteMode);
-              }}
-              className="ml-2 rounded-lg border border-stone-300 p-2"
             >
-              <option value="driving">자동차</option>
-              <option value="walking">도보</option>
-            </select>
-          </label>
-          <label className="text-sm font-semibold">
-            경로 주변 반경{" "}
-            <select
-              aria-label="추천 반경"
-              value={radiusMeters}
-              onChange={(event) => {
-                reset();
-                setRadius(Number(event.target.value));
-              }}
-              className="ml-2 rounded-lg border border-stone-300 p-2"
-            >
-              {[500, 1000, 2000, 5000].map((value) => (
-                <option key={value} value={value}>
-                  {distance(value)}
-                </option>
+              {(
+                [
+                  {
+                    value: "driving",
+                    name: "자동차",
+                    description: "운전 가능한 도로 중심",
+                  },
+                  {
+                    value: "walking",
+                    name: "도보",
+                    description: "걸어서 이동하는 경로",
+                  },
+                ] as const
+              ).map((mode) => (
+                <button
+                  type="button"
+                  key={mode.value}
+                  aria-pressed={draft.mode === mode.value}
+                  onClick={() => edit({ mode: mode.value })}
+                  className={`rounded-2xl border-2 p-4 text-left ${draft.mode === mode.value ? "border-[#064e43] bg-emerald-50/60" : "border-stone-200 hover:bg-stone-50"}`}
+                >
+                  <span className="flex items-center justify-between font-bold text-sm">
+                    {mode.name}
+                    {draft.mode === mode.value && (
+                      <Check className="h-4 w-4 text-emerald-800" />
+                    )}
+                  </span>
+                  <span className="mt-1 block text-xs text-stone-500">
+                    {mode.description}
+                  </span>
+                </button>
               ))}
-            </select>
-          </label>
-        </div>
-        <fieldset className="space-y-3">
-          <legend className="text-sm font-semibold mb-2">
-            추천받을 장소 카테고리
-          </legend>
-          <div className="flex flex-wrap gap-2">
-            {options.contentTypes.map((type) => (
-              <label
-                key={type.id}
-                className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm cursor-pointer ${contentTypeIds.includes(type.id) ? "border-emerald-600 bg-emerald-50 text-emerald-900" : "border-stone-200"}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={contentTypeIds.includes(type.id)}
-                  onChange={() => {
-                    reset();
-                    setContentTypeIds((current) =>
-                      current.includes(type.id)
-                        ? current.filter((id) => id !== type.id)
-                        : [...current, type.id],
-                    );
-                  }}
-                />
-                {type.name}
-              </label>
-            ))}
-          </div>
-          {options.categories.length > 0 && (
-            <label className="block text-sm text-stone-600">
-              상세 분류로 더 좁히기{" "}
+            </div>
+          </section>
+          <section className="space-y-4 border-t border-stone-100 pt-6">
+            <h2 className="flex items-center gap-2.5 text-base font-bold">
+              <StepNumber number="3" />
+              어떤 곳에 들르고 싶으세요?
+            </h2>
+            <p className="text-xs text-stone-500">
+              여러 개를 선택할 수 있어요. 장소는 각 경로 주변에서 따로
+              추천합니다.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {options.contentTypes.map((type) => (
+                <label
+                  key={type.id}
+                  className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3.5 py-2.5 text-sm ${draft.contentTypeIds.includes(type.id) ? "border-emerald-600 bg-emerald-50 text-emerald-900" : "border-stone-200 text-stone-600"}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={draft.contentTypeIds.includes(type.id)}
+                    onChange={() =>
+                      edit({
+                        contentTypeIds: draft.contentTypeIds.includes(type.id)
+                          ? draft.contentTypeIds.filter((id) => id !== type.id)
+                          : [...draft.contentTypeIds, type.id],
+                      })
+                    }
+                  />
+                  {type.name}
+                </label>
+              ))}
+            </div>
+            <label className="block text-sm font-semibold">
+              경로에서 얼마나 가까운 곳을 찾을까요?
               <select
-                aria-label="장소 상세 분류"
-                value={categoryId}
-                onChange={(event) => {
-                  reset();
-                  setCategoryId(event.target.value);
-                }}
-                className="mt-2 block max-w-full rounded-lg border border-stone-300 p-2"
+                aria-label="추천 반경"
+                value={draft.radiusMeters}
+                onChange={(event) =>
+                  edit({ radiusMeters: Number(event.target.value) })
+                }
+                className="mt-2 block w-full rounded-xl border border-stone-300 bg-white p-3 text-sm font-normal"
               >
-                <option value="">선택한 카테고리 전체</option>
-                {options.categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {"　".repeat(category.level - 1)}
-                    {category.name} ({category.level}단계)
+                {[500, 1000, 2000, 5000].map((radius) => (
+                  <option key={radius} value={radius}>
+                    경로 주변 {formatRouteDistance(radius)} 이내
                   </option>
                 ))}
               </select>
             </label>
-          )}
-          {options.warning && (
-            <p role="status" className="text-xs text-amber-800">
-              {options.warning}
-            </p>
-          )}
-          {contentTypeIds.length === 0 && !categoryId && (
-            <p className="text-xs text-stone-500">
-              카테고리를 선택하지 않으면 경로만 비교합니다.
-            </p>
-          )}
-        </fieldset>
-        <div className="flex flex-wrap gap-3 items-center">
-          <button
-            type="button"
-            disabled={!origin || !destination || busy}
-            onClick={() => void compare()}
-            className="inline-flex items-center gap-2 rounded-xl bg-[#064e43] text-white px-5 py-3 font-semibold disabled:opacity-40"
-          >
-            <Route className="w-4 h-4" />
-            {busy ? "경로와 장소를 찾는 중…" : "경로 비교·장소 추천"}
-          </button>
-          {busy && (
-            <button type="button" onClick={reset} className="text-sm underline">
-              조회 취소
-            </button>
-          )}
-        </div>
-        {error && (
-          <p
-            role="alert"
-            className="rounded-xl bg-red-50 p-3 text-sm text-red-800"
-          >
-            {error}
-          </p>
-        )}
-      </div>
-
-      {comparison && (
-        <div className="grid gap-3 sm:grid-cols-2" aria-label="경로 비교 결과">
-          {comparison.routes.map((item) => (
-            <button
-              key={item.preference}
-              type="button"
-              disabled={!item.route}
-              aria-pressed={active === item.preference}
-              onClick={() => {
-                setActive(item.preference);
-                setFocusedPlace(null);
-              }}
-              className={`text-left rounded-2xl border-2 p-4 bg-white ${active === item.preference ? "border-emerald-700" : "border-stone-200"}`}
-            >
-              <span
-                className="font-bold"
-                style={{ color: ROUTE_COLORS[item.preference] }}
+            {options.categories.length > 0 && (
+              <details className="rounded-xl border border-stone-200 p-3.5">
+                <summary className="flex cursor-pointer list-none items-center justify-between text-sm text-stone-600">
+                  <span className="flex items-center gap-2">
+                    <SlidersHorizontal className="h-4 w-4" />
+                    상세 분류 선택
+                  </span>
+                  <ChevronDown className="h-4 w-4" />
+                </summary>
+                <select
+                  aria-label="장소 상세 분류"
+                  value={draft.categoryId}
+                  onChange={(event) => edit({ categoryId: event.target.value })}
+                  className="mt-3 block w-full rounded-xl border border-stone-300 p-3 text-sm"
+                >
+                  <option value="">선택한 카테고리 전체</option>
+                  {options.categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {"　".repeat(category.level - 1)}
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-2 text-xs text-stone-500">
+                  위에서 고른 카테고리와 상세 분류를 모두 만족하는 장소를
+                  찾습니다.
+                </p>
+              </details>
+            )}
+            {options.warning && (
+              <p role="status" className="text-xs text-amber-800">
+                {options.warning}
+              </p>
+            )}
+            {!draft.contentTypeIds.length && !draft.categoryId && (
+              <p className="text-xs text-stone-500">
+                카테고리를 선택하지 않으면 장소 추천 없이 경로만 비교합니다.
+              </p>
+            )}
+          </section>
+          <label className="block border-t border-stone-100 pt-6 text-sm font-semibold">
+            여행 이름 <span className="font-normal text-stone-400">(선택)</span>
+            <input
+              aria-label="여행 이름"
+              value={draft.title}
+              maxLength={80}
+              placeholder="예: 서울 도심 하루 산책"
+              onChange={(event) => edit({ title: event.target.value })}
+              className="mt-2 block w-full rounded-xl border border-stone-300 px-3.5 py-3 text-sm font-normal"
+            />
+          </label>
+          <div className="space-y-3 border-t border-stone-100 pt-6">
+            {error && (
+              <p
+                role="alert"
+                className="rounded-xl bg-red-50 p-3 text-sm text-red-800"
               >
-                {LABELS[item.preference]}
-              </span>
-              {item.route ? (
+                {error}
+              </p>
+            )}
+            <button
+              type="button"
+              disabled={!ready || busy}
+              onClick={() => void submit()}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#064e43] px-5 py-4 text-sm font-bold text-white transition hover:bg-[#085a4e] disabled:opacity-40"
+            >
+              {busy ? (
                 <>
-                  <span className="block mt-2 text-xl font-bold">
-                    {distance(item.route.distanceMeters)} ·{" "}
-                    {duration(item.route.durationSeconds)}
-                  </span>
-                  <span className="block text-xs text-stone-500 mt-1">
-                    추천 장소 {item.places.length}곳
-                    {item.route.cached ? " · 저장된 경로 사용" : ""}
-                  </span>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  경로와 장소를 조회하고 있어요
                 </>
               ) : (
-                <span role="status" className="block text-sm text-red-700 mt-2">
-                  {item.routeError}
-                </span>
+                <>
+                  내 여행 경로 찾기
+                  <ArrowRight className="h-4 w-4" />
+                </>
               )}
             </button>
-          ))}
+            {busy ? (
+              <button
+                type="button"
+                onClick={cancel}
+                className="block w-full py-1 text-sm text-stone-500 underline"
+              >
+                조회 취소
+              </button>
+            ) : (
+              !ready && (
+                <p className="text-center text-xs text-stone-500">
+                  출발지와 도착지의 검색 결과를 각각 선택해 주세요.
+                </p>
+              )
+            )}
+          </div>
         </div>
-      )}
+        <aside className="space-y-4 lg:sticky lg:top-24">
+          <div className="rounded-3xl bg-[#064e43] p-6 text-white space-y-5">
+            <div className="flex items-center gap-2 text-sm font-bold">
+              <Compass className="h-5 w-5" />
+              이번 여행의 시작
+            </div>
+            <div className="space-y-3">
+              <SummaryPoint label="출발" value={draft.origin?.name} />
+              <div className="ml-2 h-5 border-l border-dashed border-white/30" />
+              <SummaryPoint label="도착" value={draft.destination?.name} />
+            </div>
+            <div className="border-t border-white/15 pt-4 text-xs leading-relaxed text-emerald-50 space-y-2">
+              <p>
+                {draft.mode === "driving" ? "자동차" : "도보"} · 권장 경로와
+                최단 경로 비교
+              </p>
+              <p>
+                {selectedNames.length
+                  ? selectedNames.join(" · ")
+                  : draft.categoryId
+                    ? "상세 분류 장소 추천"
+                    : "경로만 비교"}
+              </p>
+              {pickedCategory && <p>상세: {pickedCategory.name}</p>}
+              <p>경로 주변 {formatRouteDistance(draft.radiusMeters)}</p>
+            </div>
+          </div>
+          {(draft.origin || draft.destination) && (
+            <div className="space-y-2">
+              <RouteExplorerMap
+                compact
+                origin={draft.origin}
+                destination={draft.destination}
+                routes={EMPTY_ROUTES}
+                active="recommended"
+                focusedPlace={null}
+              />
+              <p className="text-xs text-stone-500">
+                선택한 위치입니다. 실제 이동 경로는 조회 후 표시됩니다.
+              </p>
+            </div>
+          )}
+          <div className="rounded-2xl border border-stone-200 bg-white p-5 space-y-3">
+            <h2 className="text-sm font-bold">조회하면 이렇게 보여요</h2>
+            <p className="flex gap-2 text-xs leading-relaxed text-stone-600">
+              <Route className="h-4 w-4 shrink-0 text-emerald-700" />두 경로의
+              지도·거리·예상시간
+            </p>
+            <p className="flex gap-2 text-xs leading-relaxed text-stone-600">
+              <MapPin className="h-4 w-4 shrink-0 text-emerald-700" />
+              선택한 경로 주변의 관광 장소
+            </p>
+            <p className="text-xs leading-relaxed text-stone-400">
+              경로와 추천은 조회 결과를 기준으로 표시해요. 예약이나 견적 확정은
+              제공하지 않습니다.
+            </p>
+          </div>
+        </aside>
+      </div>
+      <RouteAttribution />
+    </div>
+  );
+}
 
-      <div className="space-y-2">
-        <RouteExplorerMap
-          origin={origin}
-          destination={destination}
-          routes={visibleRoutes}
-          active={active}
-          focusedPlace={focusedPlace}
-        />
-        <p className="text-xs text-stone-600">
-          파란 실선: 권장 경로 · 주황 점선: 최단 경로 · 초록 점: 선택한 경로의
-          추천 장소. 두 경로가 같을 수도 있습니다.
-        </p>
-        <p className="text-xs text-stone-500">
-          예상시간에 실시간 정체는 반영되지 않습니다. 지도와 경로의 데이터 갱신
-          시점이 다를 수 있습니다.
+function StepNumber({ number }: { number: string }) {
+  return (
+    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-50 font-mono text-xs text-emerald-800">
+      {number}
+    </span>
+  );
+}
+function SummaryPoint({ label, value }: { label: string; value?: string }) {
+  return (
+    <div className="flex items-start gap-2.5">
+      <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full border-2 border-emerald-200" />
+      <div>
+        <p className="text-[11px] text-emerald-100/70">{label}</p>
+        <p className="mt-0.5 text-sm font-semibold break-words">
+          {value || "검색 결과에서 선택해 주세요"}
         </p>
       </div>
+    </div>
+  );
+}
 
-      {selected?.route && (
-        <section className="space-y-3" aria-label="선택 경로의 추천 장소">
-          <h2 className="text-xl font-bold">{LABELS[active]} 주변 추천 장소</h2>
-          <p className="text-sm text-stone-600">
-            경로 선에서 약 {distance(comparison!.radiusMeters)} 이내인 TourAPI
-            수집 장소 중 가까운 순서입니다. 표시는 직선거리 근사이며 실제 우회
-            이동거리·시간은 아닙니다.
-          </p>
-          {selected.recommendationError && (
-            <p role="alert" className="text-sm text-red-700">
-              {selected.recommendationError}
-            </p>
-          )}
-          {selected.candidateLimitReached && (
-            <p role="status" className="text-sm text-amber-800">
-              조회 후보가 많아 일부 장소만 비교했습니다. 반경이나 상세 분류를
-              좁혀 주세요.
-            </p>
-          )}
-          {!selected.recommendationError && selected.places.length === 0 && (
-            <p className="rounded-xl bg-stone-100 p-4 text-sm">
-              선택 조건에 맞는 수집 장소가 없습니다. 카테고리·반경을 바꾸거나
-              TourAPI 장소 수집 상태를 확인해 주세요.
-            </p>
-          )}
-          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {selected.places.map((place) => (
-              <li
-                key={place.id}
-                className="rounded-xl border border-stone-200 bg-white p-4 space-y-2"
-              >
-                <p className="text-xs text-emerald-800">
-                  {place.categoryName ??
-                    options.contentTypes.find(
-                      (type) => type.id === place.contentTypeId,
-                    )?.name ??
-                    "관광 장소"}
-                </p>
-                <h3 className="font-bold">{place.name}</h3>
-                <p className="text-xs text-stone-500">{place.address}</p>
-                <p className="text-sm">
-                  경로에서 약 {distance(place.distanceToRouteMeters)}
-                </p>
-                <button
-                  type="button"
-                  className="text-sm text-emerald-800 underline"
-                  onClick={() => setFocusedPlace(place)}
-                >
-                  지도에서 보기
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-      <footer className="text-xs text-stone-500 space-y-1">
-        <p>
-          검색·경로:{" "}
-          <a
-            className="underline"
-            href="https://openrouteservice.org/"
-            target="_blank"
-            rel="noreferrer"
-          >
-            © openrouteservice.org by HeiGIT
-          </a>{" "}
-          · 지도 데이터:{" "}
-          <a
-            className="underline"
-            href="https://www.openstreetmap.org/copyright"
-            target="_blank"
-            rel="noreferrer"
-          >
-            © OpenStreetMap contributors
-          </a>{" "}
-          · 장소: 한국관광공사 TourAPI
-        </p>
-        <p>
-          경로 결과:{" "}
-          <a
-            className="underline"
-            href="https://creativecommons.org/licenses/by-sa/4.0/"
-            target="_blank"
-            rel="noreferrer"
-          >
-            CC BY-SA 4.0
-          </a>{" "}
-          · 검색 데이터: OpenStreetMap, OpenAddresses, GeoNames, Who’s On First
-          —{" "}
-          <a
-            className="underline"
-            href="https://account.heigit.org/info/tos"
-            target="_blank"
-            rel="noreferrer"
-          >
-            이용 조건·출처
-          </a>
-        </p>
-      </footer>
+/** 기존 /routes는 호환용 한 화면 탐색기로 유지하며 두 여행 화면과 같은 상태/API를 쓴다. */
+export function RouteExplorerPage() {
+  const { state } = useTripWorkspace();
+  return (
+    <div className="space-y-10">
+      <TripRequestPage embedded />
+      {state.result && <TripResultsPage embedded />}
     </div>
   );
 }

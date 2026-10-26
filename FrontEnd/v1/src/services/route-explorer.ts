@@ -12,6 +12,13 @@ export interface SearchPlace {
   latitude: number;
   longitude: number;
 }
+
+/** 서버 기본 분류와 같은 TourAPI 콘텐츠 유형. 분류 API 실패 시에도 조건을 선택할 수 있다. */
+export const CONTENT_TYPE_OPTIONS = [
+  { id: 12, name: '관광지' }, { id: 14, name: '문화시설' },
+  { id: 15, name: '축제·공연·행사' }, { id: 28, name: '레포츠' },
+  { id: 32, name: '숙박' }, { id: 38, name: '쇼핑' }, { id: 39, name: '음식점' },
+];
 export interface PlaceCategory {
   id: string;
   name: string;

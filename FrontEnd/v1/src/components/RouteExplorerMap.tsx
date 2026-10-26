@@ -19,12 +19,14 @@ export function RouteExplorerMap({
   routes,
   active,
   focusedPlace,
+  compact = false,
 }: {
   origin: SearchPlace | null;
   destination: SearchPlace | null;
   routes: ComparedRoute[];
   active: Preference;
   focusedPlace: SearchPlace | null;
+  compact?: boolean;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
@@ -123,7 +125,7 @@ export function RouteExplorerMap({
     <div
       ref={container}
       aria-label="출발·도착지와 권장·최단 경로 및 추천 장소 지도"
-      className="h-[420px] sm:h-[520px] w-full rounded-2xl border border-stone-200 z-0"
+      className={`${compact ? 'h-[220px]' : 'h-[420px] sm:h-[520px]'} w-full rounded-2xl border border-stone-200 z-0`}
     />
   );
 }

@@ -6,6 +6,9 @@
 
 | 관심사 | 기준 파일 |
 |---|---|
+| 현재 여행 입력·검색·요약 | components/RouteExplorerPage.tsx, MapPlaceSearch.tsx |
+| 현재 여행 결과·경로·장소 | components/TripResultsPage.tsx, RouteExplorerMap.tsx |
+| 두 화면 공유 상태·HTTP | components/TripWorkspaceContext.tsx, services/trip-workspace.ts, route-explorer.ts |
 | 탭·일정 목록·선택·승인/반려/재작성·통계 | src/App.tsx |
 | 신청 입력·프리셋 | components/TravelRequestForm.tsx, data/presetData.ts |
 | 진행 로그·실제 일정 POST | services/aiTravelAgent.ts, components/AgentOrchestrationView.tsx |
@@ -21,7 +24,8 @@
 
 ## 실제 기능과 상태 소유권
 
-- React 메모리에 일정·선택·통계·승인 상태를 보관한다. 새로고침 시 프리셋으로 돌아간다. 일정·승인 서버 저장과 v1 관리자 화면의 인증·권한 검사는 연결되어 있지 않으며 isAdmin 초기값은 true인 시연 구조다.
+- 현재 `/trips/new`·`/trips`는 검색·경로 비교·TourAPI DB 장소 추천이다. 공유 입력·결과는 React 메모리에 두며 새로고침 시 빈 상태로 돌아간다. 조건 변경·새 여행·로그아웃은 이전 결과를 지우고 진행 중 요청도 취소한다. `/trips/archive`는 현재 결과의 호환 주소이며 여러 여행을 저장하지 않는다. [화면 변경 문서](docs/TRIP_UI_CUSTOMIZATION.md)를 먼저 확인한다.
+- 이전 AI 일정·통계·승인 컴포넌트도 소스에 남아 있다. App의 초기 프리셋·통계 주입은 제거했으며, 기존 생성·승인 화면은 새 두 여행 화면에서 사용하지 않는다. 인증 세션 및 관리자 페이지 진입 제어와 서버의 여행·관리자 API 권한 검사를 구분한다. 일정/승인 DB 저장은 미구현이다.
 - 8개 역할의 고정 진행 로그와 지연 후 NestJS `/api/travel/plans`를 호출한다. SSE/WebSocket·독립 7개 에이전트의 실시간 협업 로그가 아니다. 문구를 구현 근거로 사용하지 않는다.
 - 단일 리뷰는 `/api/travel/poetic-reviews`다. FastAPI는 현재 화면의 일정·리뷰 생성에서 호출하지 않는다.
 - 공유는 현재 페이지 URL 복사, 카카오 전송은 시뮬레이션이다. 일정별 영구 URL·실제 메시지 발송으로 설명하지 않는다.
@@ -56,6 +60,6 @@ npm run lint
 npm run build
 ```
 
-lint는 tsc --noEmit이다. Vite build만으로 타입 검사를 대신하지 않는다. 현재 전용 UI 테스트 스크립트는 없다. 상태·API 변경에는 계획 전환, 생성·재작성 성공/실패, 승인/반려, 예산 초과, 지도 필터, 리뷰 재생성 및 공유·출력의 관련 경로를 확인한다. 단순 문서 수정에 새 테스트 체계를 추가하지 않는다. 정적 검사·훅 모킹·실제 브라우저 검증 수준을 구분하고, 코드 변경 시 README와 관련 REVIEW 항목을 함께 갱신한다.
+lint는 tsc --noEmit이다. Vite build만으로 타입 검사를 대신하지 않는다. `npm run test:trip`은 Node 22.18 이상인 22.x에서 실행하는 공유 상태 테스트 7개이며 브라우저 E2E를 대신하지 않는다. 현재 여행 흐름 변경은 검색·선택·두 화면 이동·경로 전환·조건 변경·취소·오류·새로고침을 확인한다. 이전 컴포넌트 변경에는 생성·재작성·승인/반려·예산·지도 필터·리뷰·공유/출력 중 관련 경로를 확인한다. 단순 문서 수정에 새 테스트 체계를 추가하지 않는다. 정적 검사·모킹·실제 브라우저·운영 API 검증 수준을 구분하고 README와 관련 REVIEW 항목을 함께 갱신한다.
 
 실행·빌드 작업 디렉토리는 `FrontEnd/v1/`이다. 위 표의 Vite·package·Docker/Nginx 파일도 v1 기준이다. `v2/v2`는 별도의 로그인 화면이며 현재 Compose 배포 대상과 구분한다. 서버에는 인증 기능이 있으나 v1 화면·여행 API에 권한 검사가 연결된 것은 아니다.
