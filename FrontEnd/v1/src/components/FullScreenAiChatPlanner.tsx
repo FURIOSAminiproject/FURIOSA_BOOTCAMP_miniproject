@@ -106,6 +106,8 @@ export function FullScreenAiChatPlanner({
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [lastSavedTime, setLastSavedTime] = useState<string>("");
+  const [step2SelectedDuration, setStep2SelectedDuration] = useState<string>("1박 2일");
+  const [step2SelectedTime, setStep2SelectedTime] = useState<string>("09:30");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // 로컬 상태로 보관하는 수집 데이터
@@ -735,7 +737,7 @@ export function FullScreenAiChatPlanner({
         startDate,
         endDate,
         departureTime: depTime,
-        radiusMeters: 15000,
+        radiusMeters: 5000,
         selectedCategoryIds: chatDraft.selectedCategoryIds || [],
         categorySelections: chatDraft.categorySelections || {},
       };
@@ -782,7 +784,7 @@ export function FullScreenAiChatPlanner({
               targetTime: addMinutes(depTime, 45),
               contentTypeIds: mappedCategoryIds.length > 0 ? [] : [12, 14, 38, 39],
               categoryIds: mappedCategoryIds,
-              radiusMeters: 15000,
+              radiusMeters: 5000,
               limit: 5,
             },
             {
@@ -790,7 +792,7 @@ export function FullScreenAiChatPlanner({
               targetTime: "12:30",
               contentTypeIds: mappedCategoryIds.length > 0 ? [] : [39],
               categoryIds: mappedCategoryIds,
-              radiusMeters: 15000,
+              radiusMeters: 5000,
               limit: 5,
             },
             {
@@ -798,7 +800,7 @@ export function FullScreenAiChatPlanner({
               targetTime: addMinutes("12:30", 120),
               contentTypeIds: mappedCategoryIds.length > 0 ? [] : [12, 14, 28],
               categoryIds: mappedCategoryIds,
-              radiusMeters: 15000,
+              radiusMeters: 5000,
               limit: 5,
             },
             {
@@ -806,7 +808,7 @@ export function FullScreenAiChatPlanner({
               targetTime: "18:30",
               contentTypeIds: mappedCategoryIds.length > 0 ? [] : [39],
               categoryIds: mappedCategoryIds,
-              radiusMeters: 15000,
+              radiusMeters: 5000,
               limit: 5,
             },
           ]
@@ -817,7 +819,7 @@ export function FullScreenAiChatPlanner({
               targetTime: addMinutes(depTime, 45),
               contentTypeIds: mappedCategoryIds.length > 0 ? [] : [12, 14, 38, 39],
               categoryIds: mappedCategoryIds,
-              radiusMeters: 15000,
+              radiusMeters: 5000,
               limit: 5,
             },
             {
@@ -825,7 +827,7 @@ export function FullScreenAiChatPlanner({
               targetTime: "12:30",
               contentTypeIds: mappedCategoryIds.length > 0 ? [] : [39],
               categoryIds: mappedCategoryIds,
-              radiusMeters: 15000,
+              radiusMeters: 5000,
               limit: 5,
             },
             {
@@ -833,7 +835,7 @@ export function FullScreenAiChatPlanner({
               targetTime: "15:30",
               contentTypeIds: mappedCategoryIds.length > 0 ? [] : [12, 14, 28],
               categoryIds: mappedCategoryIds,
-              radiusMeters: 15000,
+              radiusMeters: 5000,
               limit: 5,
             },
             {
@@ -841,7 +843,7 @@ export function FullScreenAiChatPlanner({
               targetTime: "18:30",
               contentTypeIds: mappedCategoryIds.length > 0 ? [] : [39, 32],
               categoryIds: mappedCategoryIds,
-              radiusMeters: 15000,
+              radiusMeters: 5000,
               limit: 5,
             },
             // 2일차: 목적지 주변 관광 및 복귀
@@ -850,7 +852,7 @@ export function FullScreenAiChatPlanner({
               targetTime: "10:30",
               contentTypeIds: mappedCategoryIds.length > 0 ? [] : [39],
               categoryIds: mappedCategoryIds,
-              radiusMeters: 15000,
+              radiusMeters: 5000,
               limit: 5,
             },
             {
@@ -858,7 +860,7 @@ export function FullScreenAiChatPlanner({
               targetTime: "13:30",
               contentTypeIds: mappedCategoryIds.length > 0 ? [] : [12, 14, 28],
               categoryIds: mappedCategoryIds,
-              radiusMeters: 15000,
+              radiusMeters: 5000,
               limit: 5,
             },
             {
@@ -866,7 +868,7 @@ export function FullScreenAiChatPlanner({
               targetTime: "17:00",
               contentTypeIds: mappedCategoryIds.length > 0 ? [] : [39, 38],
               categoryIds: mappedCategoryIds,
-              radiusMeters: 15000,
+              radiusMeters: 5000,
               limit: 5,
             },
           ];
@@ -877,7 +879,7 @@ export function FullScreenAiChatPlanner({
           targetTime: "19:00",
           contentTypeIds: mappedCategoryIds.length > 0 ? [] : [12, 38],
           categoryIds: mappedCategoryIds,
-          radiusMeters: 15000,
+          radiusMeters: 5000,
           limit: 5,
         });
       }
@@ -885,7 +887,7 @@ export function FullScreenAiChatPlanner({
       let timeline = null;
       try {
         timeline = await getRouteTimeline({
-          mode: chatDraft.mode,
+          mode: chatDraft.mode === "walking" ? "walking" : "driving",
           points: [
             { longitude: originPlace.longitude, latitude: originPlace.latitude },
             { longitude: destPlace.longitude, latitude: destPlace.latitude },
@@ -1029,7 +1031,320 @@ export function FullScreenAiChatPlanner({
                       : "bg-white text-stone-800 border border-stone-200/90 rounded-bl-xs"
                   }`}
                 >
-                  {msg.text}
+                  <div>{msg.text}</div>
+
+                  {/* 챗봇 대화 버블 안의 인터랙티브 선택 버튼들 */}
+                  {msg.role === "model" && msg.step && !msg.isSummaryCard && (
+                    <div className="mt-3.5 pt-3 border-t border-stone-200/80">
+                      {msg.step === 1 && currentStep === 1 && (
+                        <div className="space-y-2">
+                          <p className="text-xs font-semibold text-emerald-800 flex items-center gap-1.5">
+                            <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                            추천 인기 경로 바로 선택하기:
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {[
+                              {
+                                fromTo: "서울 ➔ 강원 춘천",
+                                desc: "호반의 도시, 닭갈비 & 호수 뷰 카페",
+                                value: "서울에서 강원도 춘천으로 가고 싶어요",
+                              },
+                              {
+                                fromTo: "서울 ➔ 강원 강릉",
+                                desc: "동해안 바다 & 안목해변 커피거리",
+                                value: "서울에서 강원도 강릉으로 가고 싶어요",
+                              },
+                              {
+                                fromTo: "서울 ➔ 부산",
+                                desc: "해운대 바다 & 미식 식도락 여행",
+                                value: "서울에서 부산으로 가고 싶어요",
+                              },
+                              {
+                                fromTo: "수원 ➔ 경주",
+                                desc: "천년고도 역사 유적 & 황리단길 카페",
+                                value: "수원에서 경주로 가고 싶어요",
+                              },
+                              {
+                                fromTo: "인천 ➔ 전주",
+                                desc: "전주 한옥마을 & 전통 한식 맛집",
+                                value: "인천에서 전주로 가고 싶어요",
+                              },
+                              {
+                                fromTo: "대전 ➔ 여수",
+                                desc: "낭만 여수 밤바다 & 해안 드라이브",
+                                value: "대전에서 여수로 가고 싶어요",
+                              },
+                            ].map((item, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                disabled={isLoading}
+                                onClick={() => void handleUserResponse(item.value)}
+                                className="flex items-start gap-2.5 p-2.5 rounded-xl border border-stone-200 bg-emerald-50/50 hover:bg-emerald-100 hover:border-emerald-600 text-left transition shadow-2xs group cursor-pointer disabled:opacity-50"
+                              >
+                                <div className="p-1 rounded-lg bg-emerald-800 text-white shrink-0 group-hover:scale-110 transition">
+                                  <MapPin className="h-3.5 w-3.5" />
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="font-bold text-xs text-stone-900 group-hover:text-emerald-950">
+                                    {item.fromTo}
+                                  </div>
+                                  <div className="text-[11px] text-stone-500 truncate">
+                                    {item.desc}
+                                  </div>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                          <div className="text-[11px] text-stone-400 pt-1">
+                            💡 직접 가고 싶은 곳이 있다면 아래 입력창에 편하게 입력해 주세요.
+                          </div>
+                        </div>
+                      )}
+
+                      {msg.step === 2 && currentStep === 2 && (
+                        <div className="space-y-3">
+                          <div>
+                            <p className="text-xs font-semibold text-emerald-800 mb-2 flex items-center gap-1.5">
+                              <Clock className="h-3.5 w-3.5 text-amber-500" />
+                              인기 일정 원클릭 선택:
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {[
+                                {
+                                  title: "1박 2일 · 오전 09:30 출발",
+                                  badge: "가장 인기",
+                                  desc: "여유로운 1박 2일 힐링 코스",
+                                  value: "1박 2일 일정이고, 오전 9시 30분에 출발할게요",
+                                },
+                                {
+                                  title: "당일치기 · 오전 09:00 출발",
+                                  badge: "알찬 하루",
+                                  desc: "하루를 꽉 채우는 근교 당일치기",
+                                  value: "당일치기 일정이고, 오전 9시 정각에 출발할게요",
+                                },
+                                {
+                                  title: "2박 3일 · 오전 08:30 출발",
+                                  badge: "여유로운 여행",
+                                  desc: "2박 3일 넉넉한 힐링 투어",
+                                  value: "2박 3일 일정이고, 오전 8시 30분에 일찍 출발할게요",
+                                },
+                                {
+                                  title: "1박 2일 · 오전 10:00 출발",
+                                  badge: "브런치 출발",
+                                  desc: "여유롭게 아침 먹고 출발",
+                                  value: "1박 2일 일정이고, 오전 10시쯤 여유롭게 출발할게요",
+                                },
+                              ].map((item, idx) => (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  disabled={isLoading}
+                                  onClick={() => void handleUserResponse(item.value)}
+                                  className="flex flex-col p-2.5 rounded-xl border border-stone-200 bg-white hover:bg-emerald-50 hover:border-emerald-600 text-left transition shadow-2xs group cursor-pointer disabled:opacity-50"
+                                >
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="font-bold text-xs text-stone-900 group-hover:text-emerald-950">
+                                      {item.title}
+                                    </span>
+                                    <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full shrink-0">
+                                      {item.badge}
+                                    </span>
+                                  </div>
+                                  <span className="text-[11px] text-stone-500">{item.desc}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* 직접 조합 선택 박스 */}
+                          <div className="p-3.5 rounded-xl bg-stone-50/90 border border-stone-200 space-y-3">
+                            <div className="flex items-center justify-between text-xs font-bold text-stone-700">
+                              <span>또는 기간과 시각을 직접 조합:</span>
+                              <span className="text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md font-mono text-[11px]">
+                                {step2SelectedDuration} · {step2SelectedTime} 출발
+                              </span>
+                            </div>
+
+                            <div>
+                              <span className="text-[11px] font-semibold text-stone-500 block mb-1.5">
+                                여행 기간:
+                              </span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {["당일치기", "1박 2일", "2박 3일", "3박 4일"].map((dur) => (
+                                  <button
+                                    key={dur}
+                                    type="button"
+                                    onClick={() => setStep2SelectedDuration(dur)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                                      step2SelectedDuration === dur
+                                        ? "bg-emerald-800 text-white shadow-2xs"
+                                        : "bg-white border border-stone-200 text-stone-700 hover:border-emerald-500 hover:bg-emerald-50/50"
+                                    }`}
+                                  >
+                                    {dur}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div>
+                              <span className="text-[11px] font-semibold text-stone-500 block mb-1.5">
+                                출발 시각:
+                              </span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {["08:00", "08:30", "09:00", "09:30", "10:00", "11:00", "13:00"].map((t) => (
+                                  <button
+                                    key={t}
+                                    type="button"
+                                    onClick={() => setStep2SelectedTime(t)}
+                                    className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold font-mono transition cursor-pointer ${
+                                      step2SelectedTime === t
+                                        ? "bg-emerald-800 text-white shadow-2xs"
+                                        : "bg-white border border-stone-200 text-stone-700 hover:border-emerald-500 hover:bg-emerald-50/50"
+                                    }`}
+                                  >
+                                    {t}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              disabled={isLoading}
+                              onClick={() =>
+                                void handleUserResponse(
+                                  `${step2SelectedDuration} 일정이고, 오전 ${step2SelectedTime}에 출발할게요`
+                                )
+                              }
+                              className="w-full py-2.5 px-4 rounded-xl bg-[#064e43] hover:bg-[#085a4e] text-white text-xs sm:text-sm font-bold transition flex items-center justify-center gap-2 shadow-xs cursor-pointer disabled:opacity-50"
+                            >
+                              <Check className="h-4 w-4" />
+                              <span>{step2SelectedDuration} · {step2SelectedTime} 출발 확정하기</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {msg.step === 3 && currentStep === 3 && (
+                        <div className="space-y-2">
+                          <p className="text-xs font-semibold text-emerald-800 flex items-center gap-1.5">
+                            <Car className="h-3.5 w-3.5 text-amber-500" />
+                            이동 수단 선택:
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            {[
+                              {
+                                title: "🚗 자동차 운전 (추천)",
+                                badge: "가장 추천",
+                                desc: "권장 경로 & 최단 경로를 비교하고 길목 휴게소와 맛집을 탐색합니다.",
+                                value: "자동차로 직접 운전해서 갈게요. 권장 경로와 최단 경로를 비교해 주세요",
+                              },
+                              {
+                                title: "🚶 도보 산책 & 걷기",
+                                badge: "산책 여행",
+                                desc: "보행자 전용 경로와 도보로 들르기 좋은 주변 쉼터를 탐색합니다.",
+                                value: "도보 산책 위주로 편안하게 걷고 싶어요",
+                              },
+                            ].map((item, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                disabled={isLoading}
+                                onClick={() => void handleUserResponse(item.value)}
+                                className="flex flex-col p-3 rounded-xl border border-stone-200 bg-white hover:bg-emerald-50 hover:border-emerald-600 text-left transition shadow-2xs group cursor-pointer disabled:opacity-50"
+                              >
+                                <div className="flex items-center justify-between mb-1.5">
+                                  <span className="font-bold text-xs sm:text-sm text-stone-900 group-hover:text-emerald-950">
+                                    {item.title}
+                                  </span>
+                                  <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full shrink-0">
+                                    {item.badge}
+                                  </span>
+                                </div>
+                                <span className="text-[11px] text-stone-500 leading-relaxed">
+                                  {item.desc}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {msg.step === 4 && currentStep === 4 && (
+                        <div className="space-y-2">
+                          <p className="text-xs font-semibold text-emerald-800 flex items-center gap-1.5">
+                            <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                            희망하시는 여행 취향 테마를 바로 선택해 보세요:
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {[
+                              {
+                                title: "✨ 맛집 + 카페 + 명소 골고루 (추천)",
+                                badge: "밸런스 코스",
+                                desc: "식사, 전망 카페, 대표 명소를 균형 있게 구성",
+                                value: "맛집, 전망 좋은 카페, 대표 명소까지 골고루 균형 있게 추천해줘",
+                              },
+                              {
+                                title: "☕ 뷰 좋은 감성 카페 & 디저트",
+                                badge: "카페 투어",
+                                desc: "바다나 호수, 산 전망이 탁 트인 분위기 좋은 카페",
+                                value: "바다나 산 전망이 탁 트인 분위기 좋은 카페 위주로 추천해줘",
+                              },
+                              {
+                                title: "🍽️ 길목 로컬 맛집 & 휴게소 별미",
+                                badge: "식도락 여행",
+                                desc: "지역 대표 맛집과 고속도로 맛있는 휴게소",
+                                value: "이동 경로 주변의 길목 맛집과 고속도로 휴게소 맛있는 곳 위주로 추천해줘",
+                              },
+                              {
+                                title: "🏞️ 필수 관광명소 & 문화재",
+                                badge: "랜드마크",
+                                desc: "이동 경로 상의 대표 역사 명소와 볼거리",
+                                value: "이동하는 길목의 대표적인 역사 유적지와 관광 명소 위주로 들르고 싶어",
+                              },
+                              {
+                                title: "💆 힐링 쉼터 & 자연휴양림",
+                                badge: "힐링 쉼",
+                                desc: "조용하고 쾌적하게 쉴 수 있는 숲길과 자연공원",
+                                value: "사람 많지 않고 조용히 쉴 수 있는 힐링 자연 쉼터 위주로 추천해줘",
+                              },
+                              {
+                                title: "🛍️ 전통시장 & 로컬 쇼핑",
+                                badge: "로컬 마켓",
+                                desc: "지역 특산품과 정겨운 시장 먹거리",
+                                value: "전통시장과 지역 특산물 구경할 수 있는 곳 위주로 추천해줘",
+                              },
+                            ].map((item, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                disabled={isLoading}
+                                onClick={() => void handleUserResponse(item.value)}
+                                className="flex flex-col p-2.5 rounded-xl border border-stone-200 bg-white hover:bg-emerald-50 hover:border-emerald-600 text-left transition shadow-2xs group cursor-pointer disabled:opacity-50"
+                              >
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="font-bold text-xs text-stone-900 group-hover:text-emerald-950">
+                                    {item.title}
+                                  </span>
+                                  <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full shrink-0">
+                                    {item.badge}
+                                  </span>
+                                </div>
+                                <span className="text-[11px] text-stone-500 truncate">
+                                  {item.desc}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                          <div className="text-[11px] text-stone-400 pt-1">
+                            💡 직접 가고 싶은 곳이나 취향이 있다면 아래 입력창에 말씀해 주셔도 됩니다.
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* 5단계 요약 카드 & 최종 생성 버튼 */}

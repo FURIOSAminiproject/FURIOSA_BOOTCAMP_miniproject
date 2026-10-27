@@ -138,6 +138,10 @@ async function requestJson(
     if (!response.ok) {
       const data: unknown = await response.json().catch(() => null);
       const code = record(data) ? data.code : null;
+      const serverMsg =
+        record(data) && typeof data.message === "string" && data.message.trim()
+          ? data.message.trim()
+          : null;
       const message =
         code === "PROVIDER_AUTH_ERROR"
           ? "서버의 ORS API 키 설정을 확인해 주세요."
@@ -147,9 +151,11 @@ async function requestJson(
               ? "서버의 ORS 캐시 테이블 준비가 필요합니다."
               : code === "ROUTE_NOT_FOUND" || code === "POINT_NOT_ROUTABLE"
                 ? "선택한 출발지와 도착지를 잇는 경로를 찾지 못했습니다."
-                : response.status === 400
-                  ? "검색어와 출발·도착지 입력을 확인해 주세요."
-                  : "지도 정보를 조회하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+                : serverMsg
+                  ? serverMsg
+                  : response.status === 400
+                    ? "검색어와 출발·도착지 입력을 확인해 주세요."
+                    : "지도 정보를 조회하지 못했습니다. 잠시 후 다시 시도해 주세요.";
       throw new Error(message);
     }
     return await response.json();

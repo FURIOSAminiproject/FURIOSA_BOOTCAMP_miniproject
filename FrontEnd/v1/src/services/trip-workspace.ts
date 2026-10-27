@@ -156,9 +156,19 @@ export function tripWorkspaceReducer(
 /** 여행 이름은 표시 전용이다. API에는 검색에서 선택한 숫자 좌표와 조회 조건만 보낸다. */
 export function tripCompareRequest(draft: TripDraft): CompareRequest | null {
   if (!draft.origin || !draft.destination) return null;
+
+  const rawRadius = Number(draft.radiusMeters);
+  const radiusMeters = Math.min(
+    Math.max(Number.isFinite(rawRadius) && rawRadius > 0 ? Math.round(rawRadius) : 3000, 100),
+    5000,
+  );
+
   return {
-    mode: draft.mode,
-    points: [{ ...draft.origin }, { ...draft.destination }],
+    mode: draft.mode === "walking" ? "walking" : "driving",
+    points: [
+      { latitude: draft.origin.latitude, longitude: draft.origin.longitude },
+      { latitude: draft.destination.latitude, longitude: draft.destination.longitude },
+    ],
     // 카테고리를 명시하지 않은 경우 관광지, 문화시설, 쇼핑, 음식점을 기본 추천으로 탐색
     contentTypeIds: draft.selectedCategoryIds.length === 0 ? [12, 14, 38, 39] : [],
     categoryIds: [
@@ -170,7 +180,7 @@ export function tripCompareRequest(draft: TripDraft): CompareRequest | null {
         ),
       ),
     ],
-    radiusMeters: Math.max(draft.radiusMeters, 3000),
+    radiusMeters,
     limit: 12,
   };
 }

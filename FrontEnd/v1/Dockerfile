@@ -12,8 +12,9 @@ WORKDIR /app
 COPY package*.json tsconfig*.json vite.config.ts index.html ./
 RUN npm ci --no-audit && npm cache clean --force
 
-# 소스코드 복사
+# 소스코드 및 정적 에셋 복사
 COPY src ./src
+COPY public ./public
 
 # .env 파일이 없을 경우 빌드 오류 방지를 위한 기본 환경 설정
 RUN if [ ! -f .env.${APP_ENV} ]; then \
