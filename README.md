@@ -95,11 +95,15 @@ npm run start:local
 | GET | `/api/map/search` | 한국 장소·주소 검색 |
 | GET | `/api/routes/categories` | 장소 추천 유형과 DB 상세 분류 |
 | POST | `/api/routes/compare` | 권장·최단 경로와 경로별 주변 장소 추천 |
+| POST | `/api/routes/timeline` | 타임라인 기반 경로 스팟 추천 (출발시각·목표시각별 도로 통과지점 맛집/장소 추천) |
+| POST/GET | `/api/places/nearby` | 특정 좌표 거점 반경(R m) 내 장소 추천 |
 | POST | `/api/routes` | 기존 단일 경로 조회·DB 캐시 |
 | POST | `/api/travel/plans` | 여행 일정 및 일부 장소의 문학 리뷰 생성 |
 | POST | `/api/travel/poetic-reviews` | 단일 음식점/카페 문학 리뷰 생성 |
 | GET | `/fastapi/health` | Nginx 경유 FastAPI 상태 확인 |
 | POST | `/fastapi/api/v1/recommend` | Nginx 경유 샘플 추천 |
+
+타임라인 경로 추천 및 거점 반경 추천에 대한 상세 명세와 구현 알고리즘은 [신규 구현 보고서](IMPLEMENTATION_SUMMARY.md) 및 [타임라인 API 명세서](BackEnd/NestJS/docs/TIMELINE_ROUTE_API.md)를 참고합니다.
 
 NestJS `/api/health`는 DB 쿼리를 수행하지 않습니다. DB 장애 진단은 `/api/health/db`를 사용합니다.
 

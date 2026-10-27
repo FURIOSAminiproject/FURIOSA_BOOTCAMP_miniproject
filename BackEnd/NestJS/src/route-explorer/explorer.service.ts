@@ -2,17 +2,30 @@ import type { RoutePlanner } from '../routing-cache/routing.ports';
 import { RoutingError } from '../routing-cache/routing.errors';
 import type { ExplorerRepository } from './explorer.repository';
 import { RouteProximity } from './route-proximity';
+import {
+  findCoordinateAtElapsedSeconds,
+  formatSecondsToTime,
+  parseTimeToSeconds,
+} from './timeline-calculator';
 import type {
   ExplorerRequest,
   ExplorerResponse,
   ExplorerRoute,
+  NearbyPlacesRequest,
+  NearbyPlacesResponse,
+  TimelineRequest,
+  TimelineResponse,
+  TimelineStopResult,
 } from './explorer.types';
 
-/** ORS 두 경로와 TourAPI DB 추천을 조립한다. 추천 장소를 원래 경로의 경유지로 바꾸지 않는다. */
+/** ORS 두 경로와 TourAPI DB 추천, 타임라인 길목 추천 및 거점 반경 추천을 조립한다. */
 export class ExplorerService {
   constructor(
     private readonly planner: RoutePlanner,
-    private readonly places: Pick<ExplorerRepository, 'candidates'>,
+    private readonly places: Pick<
+      ExplorerRepository,
+      'candidates' | 'placesAroundSpot'
+    >,
   ) {}
 
   async compare(request: ExplorerRequest): Promise<ExplorerResponse> {
@@ -96,7 +109,111 @@ export class ExplorerService {
       recommendationBasis: 'distance_to_route',
     };
   }
+
+  /**
+   * 출발 시간과 식사/휴식 시각을 기반으로 경로 통과 지점의 좌표를 찾고 주변 장소를 추천한다.
+   */
+  async timeline(request: TimelineRequest): Promise<TimelineResponse> {
+    const route = await this.planner.route({
+      mode: request.mode,
+      points: request.points,
+      preference: request.preference ?? 'recommended',
+    });
+
+    const departureSeconds = parseTimeToSeconds(request.departureTime);
+    const arrivalSeconds = departureSeconds + route.durationSeconds;
+    const estimatedArrivalTime = formatSecondsToTime(arrivalSeconds);
+
+    const stops: TimelineStopResult[] = await Promise.all(
+      request.stops.map(async (stop) => {
+        const targetSeconds = parseTimeToSeconds(stop.targetTime);
+        let elapsedSeconds = targetSeconds - departureSeconds;
+        // 자정을 넘기는 일정 처리 (예: 출발 23:00, 목표 01:00)
+        if (elapsedSeconds < 0) {
+          elapsedSeconds += 86400;
+        }
+
+        const isAtDestination = elapsedSeconds >= route.durationSeconds;
+        const waypointCoord = findCoordinateAtElapsedSeconds(
+          route.geometry.coordinates,
+          route.timeSpans,
+          route.durationSeconds,
+          elapsedSeconds,
+        );
+
+        const result: TimelineStopResult = {
+          label: stop.label,
+          targetTime: stop.targetTime,
+          elapsedSeconds,
+          isAtDestination,
+          waypoint: {
+            longitude: waypointCoord[0],
+            latitude: waypointCoord[1],
+          },
+          places: [],
+          candidateLimitReached: false,
+          error: null,
+        };
+
+        try {
+          const found = await this.places.placesAroundSpot(
+            { latitude: waypointCoord[1], longitude: waypointCoord[0] },
+            {
+              categoryIds: stop.categoryIds,
+              contentTypeIds: stop.contentTypeIds,
+              radiusMeters: stop.radiusMeters,
+              limit: stop.limit,
+            },
+          );
+          result.places = found.places;
+          result.candidateLimitReached = found.limited;
+        } catch (err) {
+          result.error = safeMessage(
+            err,
+            '경유 스팟 주변 장소를 조회하지 못했습니다.',
+          );
+        }
+
+        return result;
+      }),
+    );
+
+    return {
+      departureTime: request.departureTime,
+      estimatedArrivalTime,
+      totalDistanceMeters: route.distanceMeters,
+      totalDurationSeconds: route.durationSeconds,
+      routeGeometry: route.geometry,
+      stops,
+    };
+  }
+
+  /**
+   * 특정 위경도 좌표(거점) 반경 내 장소들을 거리순으로 추천한다.
+   */
+  async nearby(request: NearbyPlacesRequest): Promise<NearbyPlacesResponse> {
+    const found = await this.places.placesAroundSpot(
+      { latitude: request.latitude, longitude: request.longitude },
+      {
+        categoryIds: request.categoryIds,
+        contentTypeIds: request.contentTypeIds,
+        radiusMeters: request.radiusMeters,
+        limit: request.limit,
+      },
+    );
+
+    return {
+      center: {
+        latitude: request.latitude,
+        longitude: request.longitude,
+      },
+      radiusMeters: request.radiusMeters,
+      places: found.places,
+      candidateLimitReached: found.limited,
+    };
+  }
 }
+
 
 function safeMessage(error: unknown, fallback: string): string {
   if (error instanceof RoutingError) {

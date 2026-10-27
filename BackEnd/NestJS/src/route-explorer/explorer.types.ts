@@ -56,3 +56,68 @@ export interface ExplorerResponse {
   radiusMeters: number;
   recommendationBasis: 'distance_to_route';
 }
+
+export interface SpotPlace extends PlaceCandidate {
+  /** 기준 지점(중심점/경유지)으로부터의 직선거리(m) */
+  distanceMeters: number;
+}
+
+export interface TimelineStopRequest {
+  label: string;
+  targetTime: string; // HH:mm
+  contentTypeIds: number[];
+  categoryIds: string[];
+  radiusMeters: number;
+  limit: number;
+}
+
+export interface TimelineRequest {
+  mode: RouteRequest['mode'];
+  points: RouteRequest['points'];
+  departureTime: string; // HH:mm
+  preference: RouteRequest['preference'];
+  stops: TimelineStopRequest[];
+}
+
+export interface TimelineStopResult {
+  label: string;
+  targetTime: string;
+  elapsedSeconds: number;
+  isAtDestination: boolean;
+  waypoint: {
+    longitude: number;
+    latitude: number;
+  };
+  places: SpotPlace[];
+  candidateLimitReached: boolean;
+  error: string | null;
+}
+
+export interface TimelineResponse {
+  departureTime: string;
+  estimatedArrivalTime: string;
+  totalDistanceMeters: number;
+  totalDurationSeconds: number;
+  routeGeometry: RouteResponse['geometry'];
+  stops: TimelineStopResult[];
+}
+
+export interface NearbyPlacesRequest {
+  latitude: number;
+  longitude: number;
+  contentTypeIds: number[];
+  categoryIds: string[];
+  radiusMeters: number;
+  limit: number;
+}
+
+export interface NearbyPlacesResponse {
+  center: {
+    latitude: number;
+    longitude: number;
+  };
+  radiusMeters: number;
+  places: SpotPlace[];
+  candidateLimitReached: boolean;
+}
+
