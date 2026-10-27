@@ -2,7 +2,6 @@ import React, { useRef, useState } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
-  Bot,
   Calendar,
   Clock,
   Coffee,
@@ -11,9 +10,7 @@ import {
   MapPin,
   Pencil,
   Plus,
-  RotateCcw,
   Route,
-  Send,
   Sparkles,
   Utensils,
 } from "lucide-react";

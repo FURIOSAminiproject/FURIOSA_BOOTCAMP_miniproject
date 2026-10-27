@@ -31,7 +31,7 @@ export function AiTravelChatWidget() {
   const { state } = useTripWorkspace();
   const { draft, result } = state;
 
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
