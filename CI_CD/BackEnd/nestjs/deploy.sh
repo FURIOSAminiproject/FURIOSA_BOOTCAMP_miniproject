@@ -47,12 +47,28 @@ else
     echo ">> 백엔드 디렉토리가 없어 백업 단계를 건너뜁니다."
 fi
 
+# 3-1. 디스크 공간 확보 (Docker 빌드 캐시 및 미사용 리소스 정리)
+echo ">> [디스크 점검] 현재 디스크 사용량:"
+df -h / || true
+
+echo ">> [디스크 정리] 미사용 Docker 빌드 캐시 및 댕글링 이미지 정리..."
+docker builder prune -af 2>/dev/null || true
+docker image prune -af 2>/dev/null || true
+docker container prune -f 2>/dev/null || true
+
+if command -v journalctl >/dev/null 2>&1; then
+    sudo journalctl --vacuum-time=1d 2>/dev/null || true
+fi
+
+echo ">> [디스크 정리 후] 여유 디스크 공간:"
+df -h / || true
+
 # 4. Docker Compose 백엔드 컨테이너 빌드 및 재기동
 echo "===== [4/5] Docker Compose 백엔드 컨테이너 기동 ====="
 cd "$PROJECT_ROOT"
 
 # 백엔드 컨테이너 빌드 및 백그라운드 무중단 실행
-APP_ENV="$APP_ENV" docker compose up -d --build backend
+APP_ENV="$APP_ENV" docker compose up -d --build --no-deps backend
 
 # 5. 백엔드 헬스체크 검증 (Health Check)
 echo "===== [5/5] 백엔드 헬스체크 검증 (GET /api/health) ====="
