@@ -392,8 +392,13 @@ ${contextLines.length ? `\n[현재 생성된 여행 계획 정보]\n${contextLin
         }
       }
 
-      reply = `네! **${updatedDraft.originName || '서울'}**에서 출발하여 **${updatedDraft.destinationName || '강원도 춘천'}**(으)로 떠나는 여정으로 확인했습니다. 🛣️\n\n📅 **2단계: 여행 기간은 며칠이고, 몇 시에 출발하시나요?**\n(예: '1박 2일 오전 10시 출발')`;
-      step = 2;
+      if (!updatedDraft.originName || !updatedDraft.destinationName) {
+        reply = `출발지와 도착지를 모두 말씀해 주세요. (예: '서울에서 춘천으로', '수원에서 부산 등')`;
+        step = 1;
+      } else {
+        reply = `네! **${updatedDraft.originName}**에서 출발하여 **${updatedDraft.destinationName}**(으)로 떠나는 여정으로 확인했습니다. 🛣️\n\n📅 **2단계: 여행 기간은 며칠이고, 몇 시에 출발하시나요?**\n(예: '1박 2일 오전 10시 출발')`;
+        step = 2;
+      }
     } else if (step === 2) {
       if (raw.includes('당일')) updatedDraft.durationLabel = '당일치기';
       else if (raw.includes('2박 3일') || raw.includes('2박3일')) updatedDraft.durationLabel = '2박 3일';
@@ -408,8 +413,16 @@ ${contextLines.length ? `\n[현재 생성된 여행 계획 정보]\n${contextLin
         updatedDraft.departureTime = `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
       }
 
-      reply = `일정 조건을 저장했습니다. ⏰\n\n🚗 **3단계: 어떻게 이동할까요?**\n직접 운전하시나요, 대중교통을 이용하시나요?`;
-      step = 3;
+      if (!updatedDraft.durationLabel && !updatedDraft.departureTime) {
+        reply = `여행 기간(당일치기, 1박 2일 등)과 대략적인 출발 시각을 말씀해 주세요! ⏰`;
+        step = 2;
+      } else {
+        const parts = [];
+        if (updatedDraft.durationLabel) parts.push(`**${updatedDraft.durationLabel}**`);
+        if (updatedDraft.departureTime) parts.push(`**${updatedDraft.departureTime} 출발**`);
+        reply = `${parts.join(', ')} 일정을 확인했습니다. ⏰\n\n🚗 **3단계: 어떻게 이동할까요?**\n직접 운전하시나요, 대중교통을 이용하시나요?`;
+        step = 3;
+      }
     } else if (step === 3) {
       if (raw.includes('대중교통') || raw.includes('버스') || raw.includes('기차')) {
         updatedDraft.mode = 'transit';

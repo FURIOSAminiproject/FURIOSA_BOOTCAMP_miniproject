@@ -121,19 +121,17 @@ export function FullScreenAiChatPlanner({
     mode: LocationRouteMode;
     preferences: string;
   }>(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
     return {
-      originName: currentWorkspaceDraft.origin?.name || "서울",
-      destinationName: currentWorkspaceDraft.destination?.name || "부산",
+      originName: currentWorkspaceDraft.origin?.name || "",
+      destinationName: currentWorkspaceDraft.destination?.name || "",
       originPlace: currentWorkspaceDraft.origin,
       destinationPlace: currentWorkspaceDraft.destination,
-      durationLabel: "1박 2일",
-      departureTime: "09:30",
-      startDate: today,
-      endDate: tomorrow,
-      mode: "driving",
-      preferences: "맛집, 카페, 명소",
+      durationLabel: "",
+      departureTime: "",
+      startDate: currentWorkspaceDraft.startDate || "",
+      endDate: currentWorkspaceDraft.endDate || "",
+      mode: currentWorkspaceDraft.mode || "driving",
+      preferences: "",
     };
   });
 
@@ -205,8 +203,8 @@ export function FullScreenAiChatPlanner({
 
   // 1단계 로컬 파싱 (폴백용): 출발지 및 도착지 추출
   const parseOriginAndDest = (text: string) => {
-    let origin = "서울";
-    let destination = "강원도 춘천";
+    let origin = "";
+    let destination = "";
 
     const raw = text.trim();
 
@@ -214,8 +212,8 @@ export function FullScreenAiChatPlanner({
     const depMatch = raw.match(/출발(?:지|은|:)?\s*([가-힣a-zA-Z0-9\s]+?)(?=\s*도착|\s*,|\s*$)/);
     const arrMatch = raw.match(/도착(?:지|은|:)?\s*([가-힣a-zA-Z0-9\s]+?)(?=\s*출발|\s*,|\s*$)/);
     if (depMatch && arrMatch) {
-      origin = cleanPlaceName(depMatch[1]) || "서울";
-      destination = cleanPlaceName(arrMatch[1]) || "강원도 춘천";
+      origin = cleanPlaceName(depMatch[1]);
+      destination = cleanPlaceName(arrMatch[1]);
       return { origin, destination };
     }
 
@@ -224,8 +222,8 @@ export function FullScreenAiChatPlanner({
       const sep = raw.includes("➔") ? "➔" : raw.includes("->") ? "->" : raw.includes("~") ? "~" : "-";
       const parts = raw.split(sep);
       if (parts.length >= 2) {
-        origin = cleanPlaceName(parts[0]) || "서울";
-        destination = cleanPlaceName(parts.slice(1).join(" ")) || "강원도 춘천";
+        origin = cleanPlaceName(parts[0]);
+        destination = cleanPlaceName(parts.slice(1).join(" "));
         return { origin, destination };
       }
     }
@@ -233,16 +231,16 @@ export function FullScreenAiChatPlanner({
     // 3. '부터' 조사 (예: '서울부터 강원도 춘천', '서울부터 춘천까지')
     if (raw.includes("부터")) {
       const parts = raw.split("부터");
-      origin = cleanPlaceName(parts[0]) || "서울";
-      destination = cleanPlaceName(parts.slice(1).join("부터")) || "강원도 춘천";
+      origin = cleanPlaceName(parts[0]);
+      destination = cleanPlaceName(parts.slice(1).join("부터"));
       return { origin, destination };
     }
 
     // 4. '에서' 조사 (예: '서울에서 강원도 춘천으로')
     if (raw.includes("에서")) {
       const parts = raw.split("에서");
-      origin = cleanPlaceName(parts[0]) || "서울";
-      destination = cleanPlaceName(parts.slice(1).join("에서")) || "강원도 춘천";
+      origin = cleanPlaceName(parts[0]);
+      destination = cleanPlaceName(parts.slice(1).join("에서"));
       return { origin, destination };
     }
 
@@ -252,10 +250,10 @@ export function FullScreenAiChatPlanner({
       const beforeKkaji = parts[0].trim();
       const tokens = beforeKkaji.split(/\s+/);
       if (tokens.length >= 2) {
-        origin = cleanPlaceName(tokens[0]) || "서울";
-        destination = cleanPlaceName(tokens.slice(1).join(" ")) || "강원도 춘천";
+        origin = cleanPlaceName(tokens[0]);
+        destination = cleanPlaceName(tokens.slice(1).join(" "));
       } else {
-        destination = cleanPlaceName(beforeKkaji) || "강원도 춘천";
+        destination = cleanPlaceName(beforeKkaji);
       }
       return { origin, destination };
     }
@@ -263,32 +261,32 @@ export function FullScreenAiChatPlanner({
     // 6. '(으)로' 조사
     const roMatch = raw.match(/^(.*?)\s+([^\s]+(?:으로|로))(?:\s.*)?$/);
     if (roMatch) {
-      origin = cleanPlaceName(roMatch[1]) || "서울";
-      destination = cleanPlaceName(roMatch[2]) || "강원도 춘천";
+      origin = cleanPlaceName(roMatch[1]);
+      destination = cleanPlaceName(roMatch[2]);
       return { origin, destination };
     }
 
     // 7. 공백 분리 토큰 (예: '서울 강원도 춘천')
     const tokens = raw.split(/[\s,]+/);
     if (tokens.length === 2) {
-      origin = cleanPlaceName(tokens[0]) || "서울";
-      destination = cleanPlaceName(tokens[1]) || "강원도 춘천";
+      origin = cleanPlaceName(tokens[0]);
+      destination = cleanPlaceName(tokens[1]);
     } else if (tokens.length >= 3) {
-      origin = cleanPlaceName(tokens[0]) || "서울";
-      destination = cleanPlaceName(tokens.slice(1).join(" ")) || "강원도 춘천";
+      origin = cleanPlaceName(tokens[0]);
+      destination = cleanPlaceName(tokens.slice(1).join(" "));
     }
 
     return {
-      origin: origin.replace(/[^가-힣a-zA-Z0-9\s]/g, "").trim() || "서울",
-      destination: destination.replace(/[^가-힣a-zA-Z0-9\s]/g, "").trim() || "강원도 춘천",
+      origin: origin.replace(/[^가-힣a-zA-Z0-9\s]/g, "").trim(),
+      destination: destination.replace(/[^가-힣a-zA-Z0-9\s]/g, "").trim(),
     };
   };
 
   // 2단계 로컬 파싱 (폴백용): 기간 및 출발 시각 추출
   const parseDurationAndTime = (text: string) => {
-    let durationLabel = "1박 2일";
-    let daysCount = 2;
-    let departureTime = "09:30";
+    let durationLabel = "";
+    let daysCount = 0;
+    let departureTime = "";
 
     if (text.includes("당일")) {
       durationLabel = "당일치기";
@@ -312,10 +310,14 @@ export function FullScreenAiChatPlanner({
       departureTime = `${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
     }
 
-    const today = new Date();
-    const end = new Date(today.getTime() + (daysCount - 1) * 86400000);
-    const startDate = today.toISOString().slice(0, 10);
-    const endDate = end.toISOString().slice(0, 10);
+    let startDate = "";
+    let endDate = "";
+    if (daysCount > 0) {
+      const today = new Date();
+      const end = new Date(today.getTime() + (daysCount - 1) * 86400000);
+      startDate = today.toISOString().slice(0, 10);
+      endDate = end.toISOString().slice(0, 10);
+    }
 
     return { durationLabel, departureTime, startDate, endDate };
   };
@@ -449,24 +451,39 @@ export function FullScreenAiChatPlanner({
           }
         } else if (currentStep === 1) {
           const parsed = parseOriginAndDest(userText);
-          updatedDraft.originName = parsed.origin;
-          updatedDraft.destinationName = parsed.destination;
-          aiReply =
-            `네! **${parsed.origin}**에서 출발하여 **${parsed.destination}**(으)로 떠나는 여정으로 확인했습니다. 🛣️\n\n` +
-            `📅 **2단계: 여행 기간은 며칠이고, 몇 시에 출발하시나요?**\n` +
-            `시간대에 맞춰 점심 식사와 휴게소 경유지를 추천해 드립니다. (예: '1박 2일 오전 10시 출발')`;
-          nextStep = 2;
+          if (parsed.origin) updatedDraft.originName = parsed.origin;
+          if (parsed.destination) updatedDraft.destinationName = parsed.destination;
+
+          if (!updatedDraft.originName || !updatedDraft.destinationName) {
+            aiReply = `출발지와 도착지를 모두 말씀해 주세요. (예: '서울에서 춘천으로', '수원에서 부산 등')`;
+            nextStep = 1;
+          } else {
+            aiReply =
+              `네! **${updatedDraft.originName}**에서 출발하여 **${updatedDraft.destinationName}**(으)로 떠나는 여정으로 확인했습니다. 🛣️\n\n` +
+              `📅 **2단계: 여행 기간은 며칠이고, 몇 시에 출발하시나요?**\n` +
+              `시간대에 맞춰 점심 식사와 휴게소 경유지를 추천해 드립니다. (예: '1박 2일 오전 10시 출발')`;
+            nextStep = 2;
+          }
         } else if (currentStep === 2) {
           const parsed = parseDurationAndTime(userText);
-          updatedDraft.durationLabel = parsed.durationLabel;
-          updatedDraft.departureTime = parsed.departureTime;
-          updatedDraft.startDate = parsed.startDate;
-          updatedDraft.endDate = parsed.endDate;
-          aiReply =
-            `**${parsed.durationLabel}** 일정, **${parsed.departureTime} 출발**로 저장했습니다. ⏰\n\n` +
-            `🚗 **3단계: 어떻게 이동할까요?**\n` +
-            `직접 운전하시나요, 대중교통을 이용하시나요? 자동차 경로 시 권장 경로와 최단 경로를 함께 비교해 드립니다.`;
-          nextStep = 3;
+          if (parsed.durationLabel) updatedDraft.durationLabel = parsed.durationLabel;
+          if (parsed.departureTime) updatedDraft.departureTime = parsed.departureTime;
+          if (parsed.startDate) updatedDraft.startDate = parsed.startDate;
+          if (parsed.endDate) updatedDraft.endDate = parsed.endDate;
+
+          if (!updatedDraft.durationLabel && !updatedDraft.departureTime) {
+            aiReply = `여행 기간(당일치기, 1박 2일 등)과 대략적인 출발 시각을 말씀해 주세요! ⏰`;
+            nextStep = 2;
+          } else {
+            const parts = [];
+            if (updatedDraft.durationLabel) parts.push(`**${updatedDraft.durationLabel}**`);
+            if (updatedDraft.departureTime) parts.push(`**${updatedDraft.departureTime} 출발**`);
+            aiReply =
+              `${parts.join(", ")} 일정을 확인했습니다. ⏰\n\n` +
+              `🚗 **3단계: 어떻게 이동할까요?**\n` +
+              `직접 운전하시나요, 대중교통을 이용하시나요? 자동차 경로 시 권장 경로와 최단 경로를 함께 비교해 드립니다.`;
+            nextStep = 3;
+          }
         } else if (currentStep === 3) {
           const mode = parseMode(userText);
           updatedDraft.mode = mode;
@@ -531,20 +548,18 @@ export function FullScreenAiChatPlanner({
     localStorage.removeItem(STORAGE_KEY);
     setCurrentStep(1);
     setGenerationError(null);
-    const today = new Date().toISOString().slice(0, 10);
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 
     const initialDraft = {
-      originName: "서울",
-      destinationName: "부산",
+      originName: "",
+      destinationName: "",
       originPlace: null,
       destinationPlace: null,
-      durationLabel: "1박 2일",
-      departureTime: "09:30",
-      startDate: today,
-      endDate: tomorrow,
+      durationLabel: "",
+      departureTime: "",
+      startDate: "",
+      endDate: "",
       mode: "driving" as LocationRouteMode,
-      preferences: "맛집, 카페, 명소",
+      preferences: "",
     };
     setChatDraft(initialDraft);
 
@@ -555,7 +570,7 @@ export function FullScreenAiChatPlanner({
       text:
         "새로운 대화가 시작되었습니다! 🚗✨\n\n" +
         "📍 **1단계: 어디에서 출발하여 어디로 떠나시나요?**\n" +
-        "출발지와 도착지를 편하게 말씀해 주세요. (예: '서울에서 부산으로')",
+        "출발지와 도착지를 편하게 말씀해 주세요. (예: '서울에서 춘천으로')",
       timestamp: new Date().toLocaleTimeString("ko-KR", {
         hour: "2-digit",
         minute: "2-digit",
@@ -572,41 +587,40 @@ export function FullScreenAiChatPlanner({
     setGenerationError(null);
 
     try {
-      // 1. 출발지 & 도착지 좌표가 없으면 자동 검색으로 보충
+      if (!chatDraft.originName || !chatDraft.originName.trim()) {
+        throw new Error("출발지가 설정되지 않았습니다. 출발지를 먼저 입력해 주세요.");
+      }
+      if (!chatDraft.destinationName || !chatDraft.destinationName.trim()) {
+        throw new Error("도착지가 설정되지 않았습니다. 도착지를 먼저 입력해 주세요.");
+      }
+
+      // 1. 출발지 & 도착지 실제 지도 좌표 검색
       let originPlace = chatDraft.originPlace;
-      if (!originPlace) {
-        const originSearch = await searchMapPlaces(chatDraft.originName || "서울");
+      if (!originPlace || originPlace.name !== chatDraft.originName.trim()) {
+        const originSearch = await searchMapPlaces(chatDraft.originName.trim());
         if (originSearch && originSearch.length > 0) {
           originPlace = originSearch[0];
         } else {
-          originPlace = {
-            id: "origin-fallback",
-            name: chatDraft.originName || "서울",
-            address: "서울특별시 중구 세종대로 110",
-            latitude: 37.5665,
-            longitude: 126.978,
-          };
+          throw new Error(`'${chatDraft.originName}'에 대한 지도 위치를 찾지 못했습니다. 보다 명확한 지명으로 입력해 주세요.`);
         }
       }
 
       let destPlace = chatDraft.destinationPlace;
-      if (!destPlace) {
-        const destSearch = await searchMapPlaces(chatDraft.destinationName || "부산");
+      if (!destPlace || destPlace.name !== chatDraft.destinationName.trim()) {
+        const destSearch = await searchMapPlaces(chatDraft.destinationName.trim());
         if (destSearch && destSearch.length > 0) {
           destPlace = destSearch[0];
         } else {
-          destPlace = {
-            id: "dest-fallback",
-            name: chatDraft.destinationName || "부산",
-            address: "부산광역시 연제구 중앙대로 1001",
-            latitude: 35.1796,
-            longitude: 129.0756,
-          };
+          throw new Error(`'${chatDraft.destinationName}'에 대한 지도 위치를 찾지 못했습니다. 보다 명확한 지명으로 입력해 주세요.`);
         }
       }
 
       // 2. Draft 구성
-      const duration = calculateTripDuration(chatDraft.startDate, chatDraft.endDate);
+      const today = new Date().toISOString().slice(0, 10);
+      const startDate = chatDraft.startDate || today;
+      const endDate = chatDraft.endDate || startDate;
+      const depTime = chatDraft.departureTime || "09:00";
+      const duration = calculateTripDuration(startDate, endDate);
       const updatedDraft: TripDraft = {
         ...currentWorkspaceDraft,
         title: `${originPlace.name}에서 ${destPlace.name}까지 (${duration.label})`,
@@ -614,10 +628,10 @@ export function FullScreenAiChatPlanner({
         destinationQuery: destPlace.name,
         origin: originPlace,
         destination: destPlace,
-        mode: chatDraft.mode,
-        startDate: chatDraft.startDate,
-        endDate: chatDraft.endDate,
-        departureTime: chatDraft.departureTime,
+        mode: chatDraft.mode || "driving",
+        startDate,
+        endDate,
+        departureTime: depTime,
         radiusMeters: 15000,
         selectedCategoryIds: [],
         categorySelections: {},
@@ -632,7 +646,6 @@ export function FullScreenAiChatPlanner({
       const comparison = await compareRoutes(input);
 
       // 4. 서버 API 호출: 타임라인 구간 추천 (/api/routes/timeline)
-      const depTime = chatDraft.departureTime || "09:30";
       const addMinutes = (timeStr: string, mins: number) => {
         const [hStr, mStr] = (timeStr || "09:30").split(":");
         const total = (((Number(hStr) || 9) * 60 + (Number(mStr) || 30) + mins) % (24 * 60) + 24 * 60) % (24 * 60);
@@ -841,7 +854,7 @@ export function FullScreenAiChatPlanner({
                         <div>
                           <span className="text-white/60 text-[11px] block">경로</span>
                           <span className="font-bold text-white">
-                            {chatDraft.originName} ➔ {chatDraft.destinationName}
+                            {chatDraft.originName || "출발지 미정"} ➔ {chatDraft.destinationName || "도착지 미정"}
                           </span>
                         </div>
                       </div>
@@ -851,7 +864,8 @@ export function FullScreenAiChatPlanner({
                         <div>
                           <span className="text-white/60 text-[11px] block">기간 및 출발시각</span>
                           <span className="font-bold text-white">
-                            {chatDraft.durationLabel} ({chatDraft.departureTime} 출발)
+                            {chatDraft.durationLabel || "일정 미지정"}{" "}
+                            {chatDraft.departureTime ? `(${chatDraft.departureTime} 출발)` : ""}
                           </span>
                         </div>
                       </div>
@@ -875,7 +889,7 @@ export function FullScreenAiChatPlanner({
                         <div>
                           <span className="text-white/60 text-[11px] block">취향 테마</span>
                           <span className="font-bold text-white truncate max-w-[180px] block">
-                            {chatDraft.preferences}
+                            {chatDraft.preferences || "추천 코스 및 명소"}
                           </span>
                         </div>
                       </div>
