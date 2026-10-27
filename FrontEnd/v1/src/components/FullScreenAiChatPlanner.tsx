@@ -750,10 +750,18 @@ export function FullScreenAiChatPlanner({
 
       const comparison = await compareRoutes(input);
 
-      // 4. 서버 API 호출: 타임라인 구간 추천 (/api/routes/timeline)
+      // 4. 서버 API 호출: 실제 주행 경로 소요시간 기반 동적 타임라인 구간 산출 (/api/routes/timeline)
+      const primaryRoute = comparison.routes?.[0];
+      const routeDurationSec = primaryRoute?.durationSeconds || 3600;
+      const totalDriveMinutes = Math.max(Math.round(routeDurationSec / 60), 20);
+
       const addMinutes = (timeStr: string, mins: number) => {
         const [hStr, mStr] = (timeStr || "09:30").split(":");
-        const total = (((Number(hStr) || 9) * 60 + (Number(mStr) || 30) + mins) % (24 * 60) + 24 * 60) % (24 * 60);
+        const total =
+          (((Number(hStr) || 9) * 60 + (Number(mStr) || 30) + Math.round(mins)) %
+            (24 * 60) +
+            24 * 60) %
+          (24 * 60);
         return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
       };
 
@@ -767,121 +775,101 @@ export function FullScreenAiChatPlanner({
         ),
       ];
 
-      const isMultiDay =
-        chatDraft.durationLabel.includes("1박") ||
-        chatDraft.durationLabel.includes("2박") ||
-        chatDraft.durationLabel.includes("3박") ||
-        (duration.days && duration.days > 1);
-      const is2Nights =
-        chatDraft.durationLabel.includes("2박") ||
-        chatDraft.durationLabel.includes("3박") ||
-        (duration.days && duration.days > 2);
+      const themeDesc =
+        chatDraft.preferences.trim() ||
+        (chatDraft.categoryNames && chatDraft.categoryNames.length > 0
+          ? chatDraft.categoryNames.join(", ")
+          : "추천 쉼터 & 명소");
 
-      const stops: TimelineStopRequest[] = !isMultiDay
-        ? [
-            {
-              label: "오전 · 출발 쉼터 & 전망 좋은 카페",
-              targetTime: addMinutes(depTime, 45),
-              contentTypeIds: mappedCategoryIds.length > 0 ? [] : [12, 14, 38, 39],
-              categoryIds: mappedCategoryIds,
-              radiusMeters: 5000,
-              limit: 5,
-            },
-            {
-              label: "점심 · 길목 로컬 맛집 식사",
-              targetTime: "12:30",
-              contentTypeIds: mappedCategoryIds.length > 0 ? [] : [39],
-              categoryIds: mappedCategoryIds,
-              radiusMeters: 5000,
-              limit: 5,
-            },
-            {
-              label: "오후 · 핵심 관광 명소 & 힐링 체험",
-              targetTime: addMinutes("12:30", 120),
-              contentTypeIds: mappedCategoryIds.length > 0 ? [] : [12, 14, 28],
-              categoryIds: mappedCategoryIds,
-              radiusMeters: 5000,
-              limit: 5,
-            },
-            {
-              label: "저녁 · 귀가 전 저녁 식사 & 디저트 카페",
-              targetTime: "18:30",
-              contentTypeIds: mappedCategoryIds.length > 0 ? [] : [39],
-              categoryIds: mappedCategoryIds,
-              radiusMeters: 5000,
-              limit: 5,
-            },
-          ]
-        : [
-            // 1일차: 출발지 -> 이동 경로 -> 목적지 도착
-            {
-              label: "[1일차] 오전 · 출발 쉼터 & 힐링 카페",
-              targetTime: addMinutes(depTime, 45),
-              contentTypeIds: mappedCategoryIds.length > 0 ? [] : [12, 14, 38, 39],
-              categoryIds: mappedCategoryIds,
-              radiusMeters: 5000,
-              limit: 5,
-            },
-            {
-              label: "[1일차] 점심 · 길목 향토 로컬 맛집",
-              targetTime: "12:30",
-              contentTypeIds: mappedCategoryIds.length > 0 ? [] : [39],
-              categoryIds: mappedCategoryIds,
-              radiusMeters: 5000,
-              limit: 5,
-            },
-            {
-              label: "[1일차] 오후 · 목적지 대표 명소 & 산책길",
-              targetTime: "15:30",
-              contentTypeIds: mappedCategoryIds.length > 0 ? [] : [12, 14, 28],
-              categoryIds: mappedCategoryIds,
-              radiusMeters: 5000,
-              limit: 5,
-            },
-            {
-              label: "[1일차] 저녁 · 목적지 저녁 식사 & 숙소 휴식",
-              targetTime: "18:30",
-              contentTypeIds: mappedCategoryIds.length > 0 ? [] : [39, 32],
-              categoryIds: mappedCategoryIds,
-              radiusMeters: 5000,
-              limit: 5,
-            },
-            // 2일차: 목적지 주변 관광 및 복귀
-            {
-              label: "[2일차] 오전 · 여유로운 브런치 & 감성 카페",
-              targetTime: "10:30",
-              contentTypeIds: mappedCategoryIds.length > 0 ? [] : [39],
-              categoryIds: mappedCategoryIds,
-              radiusMeters: 5000,
-              limit: 5,
-            },
-            {
-              label: "[2일차] 오후 · 2일차 핵심 명소 & 로컬 체험",
-              targetTime: "13:30",
-              contentTypeIds: mappedCategoryIds.length > 0 ? [] : [12, 14, 28],
-              categoryIds: mappedCategoryIds,
-              radiusMeters: 5000,
-              limit: 5,
-            },
-            {
-              label: "[2일차] 복귀 · 귀가길 로컬 맛집 & 여정 마무리",
-              targetTime: "17:00",
-              contentTypeIds: mappedCategoryIds.length > 0 ? [] : [39, 38],
-              categoryIds: mappedCategoryIds,
-              radiusMeters: 5000,
-              limit: 5,
-            },
-          ];
+      const defaultContentTypes = mappedCategoryIds.length > 0 ? [] : [12, 14, 38, 39];
 
-      if (is2Nights && isMultiDay) {
-        stops.push({
-          label: "[3일차] 마무리 · 기념 선물 & 여정 마무리 명소",
-          targetTime: "19:00",
-          contentTypeIds: mappedCategoryIds.length > 0 ? [] : [12, 38],
-          categoryIds: mappedCategoryIds,
-          radiusMeters: 5000,
-          limit: 5,
-        });
+      // 주행 소요시간(totalDriveMinutes)과 실제 이동 경로 기반 동적 스팟 산출 (하드코딩 가데이터 제거)
+      const stops: TimelineStopRequest[] = [];
+
+      if (totalDriveMinutes <= 45) {
+        // 단거리 (45분 이하): 중간 경유지 및 도착지 거점
+        stops.push(
+          {
+            label: `${originPlace.name}➔${destPlace.name} 길목 쉼터 (${themeDesc})`,
+            targetTime: addMinutes(depTime, totalDriveMinutes * 0.5),
+            contentTypeIds: defaultContentTypes,
+            categoryIds: mappedCategoryIds,
+            radiusMeters: 5000,
+            limit: 5,
+          },
+          {
+            label: `${destPlace.name} 도착 핵심 거점 (${themeDesc})`,
+            targetTime: addMinutes(depTime, totalDriveMinutes),
+            contentTypeIds: defaultContentTypes,
+            categoryIds: mappedCategoryIds,
+            radiusMeters: 5000,
+            limit: 5,
+          }
+        );
+      } else if (totalDriveMinutes <= 120) {
+        // 중거리 (45분~2시간): 1차 쉼터, 도착 전 추천지, 도착지 거점
+        stops.push(
+          {
+            label: `길목 전반 쉼터 & 추천 (${chatDraft.categoryNames?.[0] || themeDesc})`,
+            targetTime: addMinutes(depTime, totalDriveMinutes * 0.4),
+            contentTypeIds: defaultContentTypes,
+            categoryIds: mappedCategoryIds,
+            radiusMeters: 5000,
+            limit: 5,
+          },
+          {
+            label: `${destPlace.name} 진입로 주요 스팟 (${chatDraft.categoryNames?.[1] || themeDesc})`,
+            targetTime: addMinutes(depTime, totalDriveMinutes * 0.8),
+            contentTypeIds: defaultContentTypes,
+            categoryIds: mappedCategoryIds,
+            radiusMeters: 5000,
+            limit: 5,
+          },
+          {
+            label: `${destPlace.name} 도착 핵심 거점 (${themeDesc})`,
+            targetTime: addMinutes(depTime, totalDriveMinutes),
+            contentTypeIds: defaultContentTypes,
+            categoryIds: mappedCategoryIds,
+            radiusMeters: 5000,
+            limit: 5,
+          }
+        );
+      } else {
+        // 장거리 (2시간 이상): 1차 쉼터, 중간 경유 스팟, 2차 쉼터, 도착지 거점
+        stops.push(
+          {
+            label: `1차 경유 쉼터 (${originPlace.name} 외곽 휴식)`,
+            targetTime: addMinutes(depTime, totalDriveMinutes * 0.25),
+            contentTypeIds: defaultContentTypes,
+            categoryIds: mappedCategoryIds,
+            radiusMeters: 5000,
+            limit: 5,
+          },
+          {
+            label: `중간 길목 주요 추천지 (${themeDesc})`,
+            targetTime: addMinutes(depTime, totalDriveMinutes * 0.55),
+            contentTypeIds: defaultContentTypes,
+            categoryIds: mappedCategoryIds,
+            radiusMeters: 5000,
+            limit: 5,
+          },
+          {
+            label: `2차 경유 쉼터 (${destPlace.name} 진입 전)`,
+            targetTime: addMinutes(depTime, totalDriveMinutes * 0.82),
+            contentTypeIds: defaultContentTypes,
+            categoryIds: mappedCategoryIds,
+            radiusMeters: 5000,
+            limit: 5,
+          },
+          {
+            label: `${destPlace.name} 최종 도착 핵심 명소 (${themeDesc})`,
+            targetTime: addMinutes(depTime, totalDriveMinutes),
+            contentTypeIds: defaultContentTypes,
+            categoryIds: mappedCategoryIds,
+            radiusMeters: 5000,
+            limit: 5,
+          }
+        );
       }
 
       let timeline = null;

@@ -165,7 +165,7 @@ export function TripRequestPage({
           targetTime: addMinutes(depTime, 45),
           contentTypeIds: [12, 14, 38, 39], // 관광지, 문화시설, 쇼핑, 카페
           categoryIds: userSelectedCatIds,
-          radiusMeters: 15000,
+          radiusMeters: 5000,
           limit: 5,
         },
         {
@@ -173,7 +173,7 @@ export function TripRequestPage({
           targetTime: draft.lunchTime || "12:30",
           contentTypeIds: [39],
           categoryIds: userSelectedCatIds,
-          radiusMeters: 15000,
+          radiusMeters: 5000,
           limit: 5,
         },
         {
@@ -181,7 +181,7 @@ export function TripRequestPage({
           targetTime: addMinutes(draft.lunchTime || "12:30", 120),
           contentTypeIds: [12, 14, 28],
           categoryIds: userSelectedCatIds,
-          radiusMeters: 15000,
+          radiusMeters: 5000,
           limit: 5,
         },
         {
@@ -193,7 +193,7 @@ export function TripRequestPage({
             : addMinutes(draft.lunchTime || "12:30", 240),
           contentTypeIds: draft.includeDinner ? [39] : [12, 14, 39],
           categoryIds: userSelectedCatIds,
-          radiusMeters: 15000,
+          radiusMeters: 5000,
           limit: 5,
         },
       ];
