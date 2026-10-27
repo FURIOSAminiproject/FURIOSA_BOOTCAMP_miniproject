@@ -2,21 +2,30 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   ArrowRightLeft,
+  Calendar,
   Check,
+  Clock,
   Compass,
   MapPin,
   Route,
   SlidersHorizontal,
+  Utensils,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   compareRoutes,
   getRouteCategories,
+  getRouteTimeline,
   type CategoryOptions,
   type SearchPlace,
   type ComparedRoute,
+  type TimelineStopRequest,
 } from "../services/route-explorer";
-import { tripCompareRequest, type TripDraft } from "../services/trip-workspace";
+import {
+  tripCompareRequest,
+  calculateTripDuration,
+  type TripDraft,
+} from "../services/trip-workspace";
 import { useTripWorkspace } from "./TripWorkspaceContext";
 import { MapPlaceSearch } from "./MapPlaceSearch";
 import { TripFlowHeader } from "./TripFlowHeader";
@@ -30,6 +39,16 @@ import {
   categoryTrail,
   MAX_CATEGORY_FILTERS,
 } from "../services/trip-categories";
+
+function addDays(dateStr: string, days: number): string {
+  try {
+    const d = new Date(dateStr);
+    d.setDate(d.getDate() + days);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  } catch {
+    return dateStr;
+  }
+}
 
 const EMPTY_ROUTES: ComparedRoute[] = [];
 export const formatRouteDistance = (meters: number) =>
@@ -115,13 +134,64 @@ export function TripRequestPage({
     request.current = controller;
     setBusy(true);
     try {
-      const comparison = await compareRoutes(input, controller.signal);
+      const comparisonPromise = compareRoutes(input, controller.signal);
+
+      // 타임라인 식사 스팟 요청 구성
+      const stops: TimelineStopRequest[] = [];
+      if (draft.includeLunch && draft.lunchTime) {
+        stops.push({
+          label: "점심 식사",
+          targetTime: draft.lunchTime,
+          contentTypeIds: [39],
+          radiusMeters: draft.radiusMeters,
+          limit: 5,
+        });
+      }
+      if (draft.includeDinner && draft.dinnerTime) {
+        stops.push({
+          label: "저녁 식사",
+          targetTime: draft.dinnerTime,
+          contentTypeIds: [39],
+          radiusMeters: draft.radiusMeters,
+          limit: 5,
+        });
+      }
+
+      let timeline = null;
+      if (stops.length > 0 && draft.origin && draft.destination) {
+        try {
+          timeline = await getRouteTimeline(
+            {
+              mode: draft.mode,
+              points: [
+                { longitude: draft.origin.longitude, latitude: draft.origin.latitude },
+                { longitude: draft.destination.longitude, latitude: draft.destination.latitude },
+              ],
+              departureTime: draft.departureTime || "09:30",
+              stops,
+            },
+            controller.signal,
+          );
+        } catch (timelineErr) {
+          console.warn("Timeline fetch error:", timelineErr);
+        }
+      }
+
+      const comparison = await comparisonPromise;
       if (controller.signal.aborted || request.current !== controller) return;
+
+      const duration = calculateTripDuration(draft.startDate, draft.endDate);
+
       dispatch({
         type: "complete",
         result: {
           request: input,
           comparison,
+          startDate: draft.startDate,
+          endDate: draft.endDate,
+          departureTime: draft.departureTime,
+          durationLabel: duration.label,
+          timeline,
           categoryGroups: draft.selectedCategoryIds.map((id) => ({
             id,
             name:
@@ -141,7 +211,7 @@ export function TripRequestPage({
           })),
           title:
             draft.title.trim() ||
-            `${draft.origin!.name}에서 ${draft.destination!.name}까지`,
+            `${draft.origin!.name}에서 ${draft.destination!.name}까지 (${duration.label})`,
         },
       });
       if (onComplete) onComplete();
@@ -247,9 +317,153 @@ export function TripRequestPage({
               />
             </div>
           </section>
+          {/* Step 2: 언제 떠나시나요? (여행 날짜 & 시간대) */}
+          <section className="space-y-4 border-t border-stone-100 pt-6">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="flex items-center gap-2.5 text-base font-bold">
+                <StepNumber number="2" />
+                언제 떠나시나요?
+              </h2>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100/80 px-3 py-1 text-xs font-bold text-emerald-900 border border-emerald-200">
+                <Calendar className="h-3.5 w-3.5 text-emerald-800" />
+                {calculateTripDuration(draft.startDate, draft.endDate).label}
+              </span>
+            </div>
+            <p className="text-xs leading-relaxed text-stone-500">
+              출발일과 도착일을 선택해 주세요. 당일치기부터 장기 여행까지 일정을 자유롭게 지정할 수 있어요.
+            </p>
+
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-stone-600 mb-1">
+                    출발 날짜
+                  </label>
+                  <input
+                    type="date"
+                    aria-label="출발 날짜"
+                    value={draft.startDate}
+                    onChange={(e) => {
+                      const newStart = e.target.value;
+                      const newEnd = newStart > draft.endDate ? newStart : draft.endDate;
+                      edit({ startDate: newStart, endDate: newEnd });
+                    }}
+                    className="w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-sm font-medium focus:border-emerald-600 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-stone-600 mb-1">
+                    도착 날짜
+                  </label>
+                  <input
+                    type="date"
+                    aria-label="도착 날짜"
+                    min={draft.startDate}
+                    value={draft.endDate}
+                    onChange={(e) => edit({ endDate: e.target.value })}
+                    className="w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-sm font-medium focus:border-emerald-600 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* 퀵 프리셋 버튼 */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <span className="text-xs text-stone-400 mr-1">빠른 선택:</span>
+                {[
+                  { label: "당일치기", days: 0 },
+                  { label: "1박 2일", days: 1 },
+                  { label: "2박 3일", days: 2 },
+                  { label: "3박 4일", days: 3 },
+                  { label: "4박 5일", days: 4 },
+                ].map((preset) => {
+                  const targetEnd = addDays(draft.startDate, preset.days);
+                  const isSelected = draft.endDate === targetEnd;
+                  return (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => edit({ endDate: targetEnd })}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                        isSelected
+                          ? "bg-emerald-800 text-white shadow-xs"
+                          : "bg-stone-100 text-stone-600 hover:bg-stone-200"
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 출발 시각 & 식사 시간대 설정 (타임라인 맛집 연동) */}
+            <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-1.5 text-xs font-bold text-stone-800">
+                  <Clock className="h-4 w-4 text-emerald-800" />
+                  출발 시각
+                </label>
+                <input
+                  type="time"
+                  aria-label="출발 시각"
+                  value={draft.departureTime}
+                  onChange={(e) => edit({ departureTime: e.target.value })}
+                  className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-stone-800 focus:border-emerald-600 focus:outline-none"
+                />
+              </div>
+
+              <div className="border-t border-stone-200/80 pt-3 space-y-2">
+                <p className="text-[11px] font-semibold text-stone-600 flex items-center gap-1">
+                  <Utensils className="h-3.5 w-3.5 text-emerald-700" />
+                  이동 중 식사 시간대 길목 맛집 추천
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <label className="flex items-center justify-between rounded-xl border border-stone-200 bg-white p-2.5 cursor-pointer hover:border-emerald-300">
+                    <span className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={draft.includeLunch}
+                        onChange={(e) => edit({ includeLunch: e.target.checked })}
+                        className="accent-emerald-800"
+                      />
+                      <span className="font-semibold text-stone-700">점심 식사</span>
+                    </span>
+                    <input
+                      type="time"
+                      value={draft.lunchTime}
+                      disabled={!draft.includeLunch}
+                      onChange={(e) => edit({ lunchTime: e.target.value })}
+                      className="rounded border border-stone-200 bg-stone-50 px-1.5 py-0.5 text-xs font-mono disabled:opacity-40"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between rounded-xl border border-stone-200 bg-white p-2.5 cursor-pointer hover:border-emerald-300">
+                    <span className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={draft.includeDinner}
+                        onChange={(e) => edit({ includeDinner: e.target.checked })}
+                        className="accent-emerald-800"
+                      />
+                      <span className="font-semibold text-stone-700">저녁 식사</span>
+                    </span>
+                    <input
+                      type="time"
+                      value={draft.dinnerTime}
+                      disabled={!draft.includeDinner}
+                      onChange={(e) => edit({ dinnerTime: e.target.value })}
+                      className="rounded border border-stone-200 bg-stone-50 px-1.5 py-0.5 text-xs font-mono disabled:opacity-40"
+                    />
+                  </label>
+                </div>
+                <p className="text-[11px] text-stone-400">
+                  출발 시각을 기준으로 해당 시각에 지나가는 고속도로/국도 주변 맛집을 계산하여 찾아드려요.
+                </p>
+              </div>
+            </div>
+          </section>
           <section className="space-y-4 border-t border-stone-100 pt-6">
             <h2 className="flex items-center gap-2.5 text-base font-bold">
-              <StepNumber number="2" />
+              <StepNumber number="3" />
               어떻게 이동할까요?
             </h2>
             <div
@@ -293,7 +507,7 @@ export function TripRequestPage({
           </section>
           <section className="space-y-4 border-t border-stone-100 pt-6">
             <h2 className="flex items-center gap-2.5 text-base font-bold">
-              <StepNumber number="3" />
+              <StepNumber number="4" />
               어떤 곳에 들르고 싶으세요?
             </h2>
             <p className="text-xs text-stone-500">
@@ -465,6 +679,16 @@ export function TripRequestPage({
               mode={draft.mode}
             />
             <div className="border-t border-white/15 pt-4 text-xs leading-relaxed text-emerald-50 space-y-2">
+              <p className="flex items-center gap-1.5 font-semibold text-white">
+                <Calendar className="h-3.5 w-3.5 text-emerald-300" />
+                {calculateTripDuration(draft.startDate, draft.endDate).label} ({draft.startDate} ~ {draft.endDate})
+              </p>
+              <p className="flex items-center gap-1.5 text-emerald-100">
+                <Clock className="h-3.5 w-3.5 text-emerald-300" />
+                출발 {draft.departureTime}
+                {draft.includeLunch && ` · 점심 ${draft.lunchTime}`}
+                {draft.includeDinner && ` · 저녁 ${draft.dinnerTime}`}
+              </p>
               <p>
                 {draft.mode === "driving" ? "자동차" : "도보"} · 권장 경로와
                 최단 경로 비교

@@ -3,10 +3,31 @@ import type {
   CompareRequest,
   Preference,
   SearchPlace,
+  TimelineResponse,
 } from "./route-explorer";
 import type { LocationRouteMode } from "../types/location";
 
-/** 두 여행 화면에서 공유하는 사용자 입력. 검색 문자열과 확정 좌표를 분리한다. */
+/** 출발일과 도착일로 몇박 몇일을 계산한다. */
+export function calculateTripDuration(
+  startDate: string,
+  endDate: string,
+): { nights: number; days: number; label: string } {
+  if (!startDate || !endDate) return { nights: 0, days: 1, label: "당일치기 (1일)" };
+  const s = new Date(startDate);
+  const e = new Date(endDate);
+  const diffTime = e.getTime() - s.getTime();
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+  if (diffDays <= 0) {
+    return { nights: 0, days: 1, label: "당일치기" };
+  }
+  return {
+    nights: diffDays,
+    days: diffDays + 1,
+    label: `${diffDays}박 ${diffDays + 1}일`,
+  };
+}
+
+/** 두 여행 화면에서 공유하는 사용자 입력. 검색 문자열과 확정 좌표, 일정 기간을 보관한다. */
 export interface TripDraft {
   title: string;
   originQuery: string;
@@ -14,6 +35,18 @@ export interface TripDraft {
   origin: SearchPlace | null;
   destination: SearchPlace | null;
   mode: LocationRouteMode;
+  /** 출발 날짜 (YYYY-MM-DD) */
+  startDate: string;
+  /** 도착 날짜 (YYYY-MM-DD) */
+  endDate: string;
+  /** 출발 시각 (HH:mm, 예: 09:30) */
+  departureTime: string;
+  /** 점심 식사 시간대 추천 포함 여부 및 시각 */
+  includeLunch: boolean;
+  lunchTime: string;
+  /** 저녁 식사 시간대 추천 포함 여부 및 시각 */
+  includeDinner: boolean;
+  dinnerTime: string;
   /** DB LEVEL1의 UUID와 그 아래 선택한 LEVEL2/3 UUID. 빈 상세 목록은 해당 LEVEL1 전체다. */
   selectedCategoryIds: string[];
   categorySelections: Record<string, string[]>;
@@ -24,6 +57,11 @@ export interface TripResult {
   request: CompareRequest;
   comparison: Comparison;
   categoryGroups?: { id: string; name: string; details: string[] }[];
+  startDate?: string;
+  endDate?: string;
+  departureTime?: string;
+  durationLabel?: string;
+  timeline?: TimelineResponse | null;
 }
 export interface TripWorkspace {
   draft: TripDraft;
@@ -38,6 +76,11 @@ export type TripAction =
 
 /** 좌표·이름·견적·예시 일정을 넣지 않는다. 기본값은 조회 조건에만 적용한다. */
 export function createTripWorkspace(destinationQuery = ""): TripWorkspace {
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const tomorrowDate = new Date(now.getTime() + 86400000);
+  const tomorrow = `${tomorrowDate.getFullYear()}-${String(tomorrowDate.getMonth() + 1).padStart(2, "0")}-${String(tomorrowDate.getDate()).padStart(2, "0")}`;
+
   return {
     draft: {
       title: "",
@@ -46,6 +89,13 @@ export function createTripWorkspace(destinationQuery = ""): TripWorkspace {
       origin: null,
       destination: null,
       mode: "driving",
+      startDate: today,
+      endDate: tomorrow,
+      departureTime: "09:30",
+      includeLunch: true,
+      lunchTime: "12:30",
+      includeDinner: false,
+      dinnerTime: "18:30",
       selectedCategoryIds: [],
       categorySelections: {},
       radiusMeters: 1000,

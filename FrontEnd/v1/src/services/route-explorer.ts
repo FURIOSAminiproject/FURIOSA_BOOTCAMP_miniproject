@@ -51,6 +51,46 @@ export interface CompareRequest {
   limit: number;
 }
 
+export interface TimelineStopRequest {
+  label?: string;
+  targetTime: string;
+  contentTypeIds?: number[];
+  categoryIds?: string[];
+  radiusMeters?: number;
+  limit?: number;
+}
+
+export interface TimelineRequest {
+  mode: LocationRouteMode;
+  points: { longitude: number; latitude: number }[];
+  departureTime?: string;
+  preference?: Preference;
+  stops: TimelineStopRequest[];
+}
+
+export interface TimelineStopResult {
+  label: string;
+  targetTime: string;
+  elapsedSeconds: number;
+  isAtDestination: boolean;
+  waypoint: { longitude: number; latitude: number };
+  places: RecommendedPlace[];
+  candidateLimitReached: boolean;
+  error: string | null;
+}
+
+export interface TimelineResponse {
+  departureTime: string;
+  estimatedArrivalTime: string;
+  totalDistanceMeters: number;
+  totalDurationSeconds: number;
+  routeGeometry: {
+    type: "LineString";
+    coordinates: [number, number][];
+  };
+  stops: TimelineStopResult[];
+}
+
 const record = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 const optionalText = (value: unknown): value is string | null =>
@@ -272,3 +312,22 @@ export async function compareRoutes(
   );
   return parseComparison(data, request);
 }
+
+export async function getRouteTimeline(
+  request: TimelineRequest,
+  signal?: AbortSignal,
+  transport: typeof fetch = fetch,
+): Promise<TimelineResponse> {
+  const data = await requestJson(
+    "/api/routes/timeline",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    },
+    signal,
+    transport,
+  );
+  return data as TimelineResponse;
+}
+
