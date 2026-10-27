@@ -53,12 +53,12 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
         <div className="relative z-10 px-6 sm:px-12 md:px-16 py-4 max-w-3xl space-y-6 text-white">
           <div className="space-y-2">
             <span className="inline-block text-xs sm:text-sm font-bold tracking-[0.25em] text-[#e87a41] uppercase font-mono">
-              PREMIUM DOMESTIC TRAVEL CONCIERGE · GILBEOT AI AGENTS
+              PREMIUM DOMESTIC TRAVEL CONCIERGE · I LIKE YOUR J
             </span>
             <h1 className="text-3xl sm:text-5xl md:text-6xl font-extrabold tracking-tight leading-[1.15] text-white font-serif drop-shadow-md">
               여행 계획은 AI 팀이,<br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-stone-100 via-emerald-200 to-amber-200">
-                확정은 사람이.
+                I like your J.
               </span>
             </h1>
           </div>

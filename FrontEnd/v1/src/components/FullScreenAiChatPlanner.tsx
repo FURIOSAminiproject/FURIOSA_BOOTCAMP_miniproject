@@ -63,7 +63,7 @@ export function FullScreenAiChatPlanner({ onSwitchToPlanner }: FullScreenAiChatP
       id: "welcome-planner",
       role: "model",
       text:
-        "안녕하세요! 대한민국 전속 여행 큐레이터 **'길벗(RoadFriend)'**입니다. 🚗✨\n\n" +
+        "안녕하세요! 당신의 완벽한 계획형 여행 메이트 **'I like your J'**의 전속 AI 큐레이터입니다. 🚗✨\n\n" +
         "어디로 떠나고 싶으신지, 며칠 일정인지, 혹은 특별히 원하시는 테마(맛집, 힐링, 카페, 아이 동반 등)를 편하게 말씀해 주세요.\n" +
         "출발부터 도착까지 실제 운전 경로와 식사 시간대를 고려한 **최적의 1:1 맞춤형 여행 코스**를 즉시 설계해 드립니다!",
       timestamp: new Date().toLocaleTimeString("ko-KR", {
@@ -176,7 +176,7 @@ export function FullScreenAiChatPlanner({ onSwitchToPlanner }: FullScreenAiChatP
           <div>
             <div className="flex items-center gap-2">
               <h2 className="font-bold text-base sm:text-lg tracking-tight">
-                길벗 AI 전속 큐레이터 대화형 여행 플래너
+                I like your J 전속 AI 큐레이터 대화형 여행 플래너
               </h2>
               <span className="rounded-full bg-emerald-400/25 px-2 py-0.5 text-[11px] font-semibold text-emerald-200">
                 Gemini Flash-Lite

@@ -133,7 +133,7 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 space-y-2">
             <p className="text-xs font-bold tracking-widest text-emerald-800">
-              내가 고른 동선, 길벗이 찾은 장소
+              내가 고른 동선, I like your J가 찾은 장소
             </p>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight break-words">
               {title}

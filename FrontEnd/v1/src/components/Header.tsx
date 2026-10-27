@@ -51,7 +51,7 @@ export const Header: React.FC<HeaderProps> = ({
             <Compass className="w-5 h-5" />
           </div>
           <span className="font-bold text-stone-900 text-lg sm:text-xl tracking-tight">
-            길벗 여행
+            I like your J
           </span>
         </div>
 

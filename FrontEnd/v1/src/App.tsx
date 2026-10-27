@@ -421,7 +421,17 @@ function AppContent() {
 
         {currentTab === 'USER' && (
           <UserHomePage
-            onStartRequest={() => startTrip()}
+            currentUser={currentUser}
+            onStartRequest={() => {
+              tripDispatch({ type: 'new' });
+              handleSelectTab('REQUEST');
+              navigate('/trips/new?mode=planner');
+            }}
+            onStartChat={() => {
+              tripDispatch({ type: 'new' });
+              handleSelectTab('REQUEST');
+              navigate('/trips/new?mode=chat');
+            }}
             onOpenTripArchive={() => handleSelectTab('PLAN')}
             onQuickExplore={startTrip}
             onSelectPlan={plan => startTrip(plan.request.destination)}
@@ -524,12 +534,12 @@ function AppContent() {
       {/* Gemini Flash-Lite 기반 실시간 AI 여행 상담 플로팅 챗봇 */}
       <AiTravelChatWidget />
 
-      {/* Footer - Exactly matching screenshot footer */}
+      {/* Footer - I like your J branding */}
       <footer className="mt-20 border-t border-[#e8e4dc] py-10 text-xs text-stone-500 bg-[#faf7f2] print:hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-1">
-          <div className="font-bold text-stone-900 text-sm">길벗 여행</div>
+          <div className="font-bold text-stone-900 text-sm">I like your J</div>
           <div>경로를 비교하고, 길 위의 여행 장소를 찾는 국내여행 서비스</div>
-          <div className="text-stone-400">© 2026 Gilbeot AI Travel. All rights reserved.</div>
+          <div className="text-stone-400">© 2026 I like your J. All rights reserved.</div>
         </div>
       </footer>
     </div>

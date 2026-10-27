@@ -47,7 +47,7 @@ export function AiTravelChatWidget() {
     {
       id: "welcome-msg",
       role: "model",
-      text: "안녕하세요! 저는 길벗 AI 여행사의 전속 큐레이터 **'길벗(RoadFriend)'**입니다. 🚗✨\n\n출발지, 도착지, 여행 일정, 도로변 맛집, 휴게소 등 여행에 관한 어떤 질문이든 편하게 물어보세요!",
+      text: "안녕하세요! 계획형 여행 메이트 **'I like your J'**의 전속 AI 큐레이터입니다. 🚗✨\n\n출발지, 도착지, 여행 일정, 도로변 맛집, 휴게소 등 여행에 관한 어떤 질문이든 편하게 물어보세요!",
       timestamp: new Date().toLocaleTimeString("ko-KR", {
         hour: "2-digit",
         minute: "2-digit",
@@ -197,7 +197,7 @@ export function AiTravelChatWidget() {
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
-                  <h3 className="font-bold text-sm">길벗 AI 플래너</h3>
+                  <h3 className="font-bold text-sm">I like your J 플래너</h3>
                   <span className="rounded-full bg-emerald-400/25 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-200">
                     Flash-Lite
                   </span>
