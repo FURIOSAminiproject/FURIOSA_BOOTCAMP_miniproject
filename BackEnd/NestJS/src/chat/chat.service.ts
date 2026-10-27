@@ -596,7 +596,8 @@ ${contextLines.length ? `\n[현재 생성된 여행 계획 정보]\n${contextLin
       updatedDraft.categoryNames = categoryNames;
 
       const badgeStr = categoryNames.map((n) => `[${n}]`).join(' ');
-      reply = `선호하시는 취향(**${raw}**)을 바탕으로 최적의 추천 카테고리를 자동 매핑했습니다! 🎯\n\n📌 **AI 자동 매핑 카테고리**: ${badgeStr}\n\n이제 여행 계획을 생성하기 위한 모든 조건이 완벽히 준비되었습니다! 🎉\n아래 요약 카드를 확인하시고 **[최적 경로 & 4구간 타임라인 생성하기]** 버튼을 눌러 일정을 완성하세요.`;
+      const durationTag = updatedDraft.durationLabel ? `${updatedDraft.durationLabel} 맞춤` : '맞춤';
+      reply = `선호하시는 취향(**${raw}**)을 바탕으로 최적의 추천 카테고리를 자동 매핑했습니다! 🎯\n\n📌 **AI 자동 매핑 카테고리**: ${badgeStr}\n\n이제 여행 계획을 생성하기 위한 모든 조건이 완벽히 준비되었습니다! 🎉\n아래 요약 카드를 확인하시고 **[최적 경로 & ${durationTag} 타임라인 생성하기]** 버튼을 눌러 일정을 완성하세요.`;
       step = 5;
     }
 

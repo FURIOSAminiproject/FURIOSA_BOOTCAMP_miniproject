@@ -765,40 +765,122 @@ export function FullScreenAiChatPlanner({
         ),
       ];
 
-      const stops: TimelineStopRequest[] = [
-        {
-          label: "1구간 · 출발지 인근 쉼터 & 명소",
-          targetTime: addMinutes(depTime, 45),
-          contentTypeIds: mappedCategoryIds.length > 0 ? [] : [12, 14, 38, 39],
+      const isMultiDay =
+        chatDraft.durationLabel.includes("1박") ||
+        chatDraft.durationLabel.includes("2박") ||
+        chatDraft.durationLabel.includes("3박") ||
+        (duration.days && duration.days > 1);
+      const is2Nights =
+        chatDraft.durationLabel.includes("2박") ||
+        chatDraft.durationLabel.includes("3박") ||
+        (duration.days && duration.days > 2);
+
+      const stops: TimelineStopRequest[] = !isMultiDay
+        ? [
+            {
+              label: "오전 · 출발 쉼터 & 전망 좋은 카페",
+              targetTime: addMinutes(depTime, 45),
+              contentTypeIds: mappedCategoryIds.length > 0 ? [] : [12, 14, 38, 39],
+              categoryIds: mappedCategoryIds,
+              radiusMeters: 15000,
+              limit: 5,
+            },
+            {
+              label: "점심 · 길목 로컬 맛집 식사",
+              targetTime: "12:30",
+              contentTypeIds: mappedCategoryIds.length > 0 ? [] : [39],
+              categoryIds: mappedCategoryIds,
+              radiusMeters: 15000,
+              limit: 5,
+            },
+            {
+              label: "오후 · 핵심 관광 명소 & 힐링 체험",
+              targetTime: addMinutes("12:30", 120),
+              contentTypeIds: mappedCategoryIds.length > 0 ? [] : [12, 14, 28],
+              categoryIds: mappedCategoryIds,
+              radiusMeters: 15000,
+              limit: 5,
+            },
+            {
+              label: "저녁 · 귀가 전 저녁 식사 & 디저트 카페",
+              targetTime: "18:30",
+              contentTypeIds: mappedCategoryIds.length > 0 ? [] : [39],
+              categoryIds: mappedCategoryIds,
+              radiusMeters: 15000,
+              limit: 5,
+            },
+          ]
+        : [
+            // 1일차: 출발지 -> 이동 경로 -> 목적지 도착
+            {
+              label: "[1일차] 오전 · 출발 쉼터 & 힐링 카페",
+              targetTime: addMinutes(depTime, 45),
+              contentTypeIds: mappedCategoryIds.length > 0 ? [] : [12, 14, 38, 39],
+              categoryIds: mappedCategoryIds,
+              radiusMeters: 15000,
+              limit: 5,
+            },
+            {
+              label: "[1일차] 점심 · 길목 향토 로컬 맛집",
+              targetTime: "12:30",
+              contentTypeIds: mappedCategoryIds.length > 0 ? [] : [39],
+              categoryIds: mappedCategoryIds,
+              radiusMeters: 15000,
+              limit: 5,
+            },
+            {
+              label: "[1일차] 오후 · 목적지 대표 명소 & 산책길",
+              targetTime: "15:30",
+              contentTypeIds: mappedCategoryIds.length > 0 ? [] : [12, 14, 28],
+              categoryIds: mappedCategoryIds,
+              radiusMeters: 15000,
+              limit: 5,
+            },
+            {
+              label: "[1일차] 저녁 · 목적지 저녁 식사 & 숙소 휴식",
+              targetTime: "18:30",
+              contentTypeIds: mappedCategoryIds.length > 0 ? [] : [39, 32],
+              categoryIds: mappedCategoryIds,
+              radiusMeters: 15000,
+              limit: 5,
+            },
+            // 2일차: 목적지 주변 관광 및 복귀
+            {
+              label: "[2일차] 오전 · 여유로운 브런치 & 감성 카페",
+              targetTime: "10:30",
+              contentTypeIds: mappedCategoryIds.length > 0 ? [] : [39],
+              categoryIds: mappedCategoryIds,
+              radiusMeters: 15000,
+              limit: 5,
+            },
+            {
+              label: "[2일차] 오후 · 2일차 핵심 명소 & 로컬 체험",
+              targetTime: "13:30",
+              contentTypeIds: mappedCategoryIds.length > 0 ? [] : [12, 14, 28],
+              categoryIds: mappedCategoryIds,
+              radiusMeters: 15000,
+              limit: 5,
+            },
+            {
+              label: "[2일차] 복귀 · 귀가길 로컬 맛집 & 여정 마무리",
+              targetTime: "17:00",
+              contentTypeIds: mappedCategoryIds.length > 0 ? [] : [39, 38],
+              categoryIds: mappedCategoryIds,
+              radiusMeters: 15000,
+              limit: 5,
+            },
+          ];
+
+      if (is2Nights && isMultiDay) {
+        stops.push({
+          label: "[3일차] 마무리 · 기념 선물 & 여정 마무리 명소",
+          targetTime: "19:00",
+          contentTypeIds: mappedCategoryIds.length > 0 ? [] : [12, 38],
           categoryIds: mappedCategoryIds,
           radiusMeters: 15000,
           limit: 5,
-        },
-        {
-          label: "2구간 · 점심 식사 & 길목 맛집",
-          targetTime: "12:30",
-          contentTypeIds: mappedCategoryIds.length > 0 ? [] : [39],
-          categoryIds: mappedCategoryIds,
-          radiusMeters: 15000,
-          limit: 5,
-        },
-        {
-          label: "3구간 · 오후 힐링 여행지 & 관광 명소",
-          targetTime: addMinutes("12:30", 120),
-          contentTypeIds: mappedCategoryIds.length > 0 ? [] : [12, 14, 28],
-          categoryIds: mappedCategoryIds,
-          radiusMeters: 15000,
-          limit: 5,
-        },
-        {
-          label: "4구간 · 도착지 인근 저녁 식사 및 숙소",
-          targetTime: "18:30",
-          contentTypeIds: mappedCategoryIds.length > 0 ? [] : [39, 32],
-          categoryIds: mappedCategoryIds,
-          radiusMeters: 15000,
-          limit: 5,
-        },
-      ];
+        });
+      }
 
       let timeline = null;
       try {
@@ -1054,7 +1136,9 @@ export function FullScreenAiChatPlanner({
                         ) : (
                           <>
                             <ArrowRight className="h-4 w-4" />
-                            <span>최적 경로 & 4구간 타임라인 생성하기</span>
+                            <span>
+                              최적 경로 & {chatDraft.durationLabel ? `${chatDraft.durationLabel} 맞춤` : "일정별"} 타임라인 생성하기
+                            </span>
                           </>
                         )}
                       </button>

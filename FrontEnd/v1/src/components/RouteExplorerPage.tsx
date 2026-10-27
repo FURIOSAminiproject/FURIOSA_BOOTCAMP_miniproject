@@ -161,7 +161,7 @@ export function TripRequestPage({
       const userSelectedCatIds = Object.values(draft.categorySelections).flat();
       const stops: TimelineStopRequest[] = [
         {
-          label: "1구간 · 출발지 인근 쉼터 & 명소",
+          label: "오전 · 출발지 인근 쉼터 & 명소",
           targetTime: addMinutes(depTime, 45),
           contentTypeIds: [12, 14, 38, 39], // 관광지, 문화시설, 쇼핑, 카페
           categoryIds: userSelectedCatIds,
@@ -169,7 +169,7 @@ export function TripRequestPage({
           limit: 5,
         },
         {
-          label: "2구간 · 점심 식사 & 길목 맛집",
+          label: "점심 · 식사 & 길목 맛집",
           targetTime: draft.lunchTime || "12:30",
           contentTypeIds: [39],
           categoryIds: userSelectedCatIds,
@@ -177,7 +177,7 @@ export function TripRequestPage({
           limit: 5,
         },
         {
-          label: "3구간 · 오후 힐링 여행지 & 관광 명소",
+          label: "오후 · 힐링 여행지 & 관광 명소",
           targetTime: addMinutes(draft.lunchTime || "12:30", 120),
           contentTypeIds: [12, 14, 28],
           categoryIds: userSelectedCatIds,
@@ -186,8 +186,8 @@ export function TripRequestPage({
         },
         {
           label: draft.includeDinner
-            ? "4구간 · 저녁 식사 & 길목 맛집"
-            : "4구간 · 도착지 인근 추천 명소",
+            ? "저녁 · 도착지 인근 저녁 식사 & 맛집"
+            : "저녁 · 도착지 인근 추천 명소",
           targetTime: draft.includeDinner
             ? draft.dinnerTime || "18:30"
             : addMinutes(draft.lunchTime || "12:30", 240),
