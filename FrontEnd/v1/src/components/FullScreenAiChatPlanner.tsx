@@ -120,6 +120,9 @@ export function FullScreenAiChatPlanner({
     endDate: string;
     mode: LocationRouteMode;
     preferences: string;
+    selectedCategoryIds?: string[];
+    categorySelections?: Record<string, string[]>;
+    categoryNames?: string[];
   }>(() => {
     return {
       originName: currentWorkspaceDraft.origin?.name || "",
@@ -132,6 +135,9 @@ export function FullScreenAiChatPlanner({
       endDate: currentWorkspaceDraft.endDate || "",
       mode: currentWorkspaceDraft.mode || "driving",
       preferences: "",
+      selectedCategoryIds: currentWorkspaceDraft.selectedCategoryIds || [],
+      categorySelections: currentWorkspaceDraft.categorySelections || {},
+      categoryNames: [],
     };
   });
 
@@ -142,9 +148,9 @@ export function FullScreenAiChatPlanner({
       step: 1,
       text:
         "안녕하세요! 당신의 완벽한 계획형 여행 메이트 **'I like your J'**의 AI 큐레이터입니다. 🚗✨\n\n" +
-        "최적의 여행 경로와 식사 시간대별 추천 일정을 완성하기 위해 **4가지 질문**을 순서대로 드릴게요.\n\n" +
+        "사용자 맞춤형 경로와 식사 시간대별 추천 일정을 완성하기 위해 **4가지 질문**을 순서대로 드릴게요.\n\n" +
         "📍 **1단계: 어디에서 출발하여 어디로 떠나시나요?**\n" +
-        "출발지와 도착지를 편하게 말씀해 주세요. (예: '서울에서 부산으로', '수원에서 경주 등')",
+        "출발지와 도착지를 편하게 말씀해 주세요. (예: '서울에서 춘천으로', '수원에서 부산 등')",
       timestamp: new Date().toLocaleTimeString("ko-KR", {
         hour: "2-digit",
         minute: "2-digit",
@@ -282,11 +288,13 @@ export function FullScreenAiChatPlanner({
     };
   };
 
-  // 2단계 로컬 파싱 (폴백용): 기간 및 출발 시각 추출
+  // 2단계 로컬 파싱 (폴백용): 기간, 출발 날짜, 출발 시각 추출
   const parseDurationAndTime = (text: string) => {
     let durationLabel = "";
     let daysCount = 0;
     let departureTime = "";
+    let startDate = "";
+    let endDate = "";
 
     if (text.includes("당일")) {
       durationLabel = "당일치기";
@@ -300,26 +308,57 @@ export function FullScreenAiChatPlanner({
     } else if (text.includes("1박 2일") || text.includes("1박2일")) {
       durationLabel = "1박 2일";
       daysCount = 2;
+    } else {
+      const ndMatch = text.match(/(\d+)\s*박\s*(\d+)\s*일/);
+      if (ndMatch) {
+        durationLabel = `${ndMatch[1]}박 ${ndMatch[2]}일`;
+        daysCount = parseInt(ndMatch[2], 10);
+      }
     }
 
-    const timeMatch = text.match(/(\d{1,2})시(?:\s*(\d{1,2})분)?/);
+    const timeMatch = text.match(/(오전|오후|아침|새벽|저녁|낮|밤)?\s*(\d{1,2})시(?:\s*(\d{1,2})분)?/);
     if (timeMatch) {
-      let hour = parseInt(timeMatch[1], 10);
-      const min = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
-      if (text.includes("오후") && hour < 12) hour += 12;
+      const meridiem = timeMatch[1] || "";
+      let hour = parseInt(timeMatch[2], 10);
+      const min = timeMatch[3] ? parseInt(timeMatch[3], 10) : 0;
+      if ((meridiem.includes("오후") || meridiem.includes("저녁") || meridiem.includes("밤")) && hour < 12) {
+        hour += 12;
+      } else if ((meridiem.includes("오전") || meridiem.includes("새벽") || meridiem.includes("아침")) && hour === 12) {
+        hour = 0;
+      }
       departureTime = `${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+    } else {
+      const colonMatch = text.match(/(\d{1,2}):(\d{2})/);
+      if (colonMatch) {
+        departureTime = `${colonMatch[1].padStart(2, "0")}:${colonMatch[2]}`;
+      }
     }
 
-    let startDate = "";
-    let endDate = "";
-    if (daysCount > 0) {
-      const today = new Date();
-      const end = new Date(today.getTime() + (daysCount - 1) * 86400000);
-      startDate = today.toISOString().slice(0, 10);
-      endDate = end.toISOString().slice(0, 10);
+    const currentYear = new Date().getFullYear();
+    const mdMatch = text.match(/(\d{1,2})월\s*(\d{1,2})일/);
+    if (mdMatch) {
+      const m = String(parseInt(mdMatch[1], 10)).padStart(2, "0");
+      const d = String(parseInt(mdMatch[2], 10)).padStart(2, "0");
+      startDate = `${currentYear}-${m}-${d}`;
+    } else if (text.includes("오늘")) {
+      startDate = new Date().toISOString().slice(0, 10);
+    } else if (text.includes("내일")) {
+      const tm = new Date(Date.now() + 86400000);
+      startDate = tm.toISOString().slice(0, 10);
+    } else if (text.includes("모레")) {
+      const mr = new Date(Date.now() + 86400000 * 2);
+      startDate = mr.toISOString().slice(0, 10);
     }
 
-    return { durationLabel, departureTime, startDate, endDate };
+    if (startDate && daysCount > 0) {
+      const s = new Date(`${startDate}T00:00:00`);
+      const e = new Date(s.getTime() + (daysCount - 1) * 86400000);
+      endDate = e.toISOString().slice(0, 10);
+    } else if (startDate && !endDate) {
+      endDate = startDate;
+    }
+
+    return { durationLabel, departureTime, startDate, endDate, daysCount };
   };
 
   // 3단계 로컬 파싱 (폴백용): 이동 수단
@@ -395,19 +434,14 @@ export function FullScreenAiChatPlanner({
             if (data.extracted.destinationName) {
               updatedDraft.destinationName = data.extracted.destinationName;
             }
+            if (data.extracted.startDate) {
+              updatedDraft.startDate = data.extracted.startDate;
+            }
+            if (data.extracted.endDate) {
+              updatedDraft.endDate = data.extracted.endDate;
+            }
             if (data.extracted.durationLabel) {
               updatedDraft.durationLabel = data.extracted.durationLabel;
-              const daysCount = data.extracted.durationLabel.includes("당일")
-                ? 1
-                : data.extracted.durationLabel.includes("2박 3일")
-                ? 3
-                : data.extracted.durationLabel.includes("3박 4일")
-                ? 4
-                : 2;
-              const today = new Date();
-              const end = new Date(today.getTime() + (daysCount - 1) * 86400000);
-              updatedDraft.startDate = today.toISOString().slice(0, 10);
-              updatedDraft.endDate = end.toISOString().slice(0, 10);
             }
             if (data.extracted.departureTime) {
               updatedDraft.departureTime = data.extracted.departureTime;
@@ -417,6 +451,15 @@ export function FullScreenAiChatPlanner({
             }
             if (data.extracted.preferences) {
               updatedDraft.preferences = data.extracted.preferences;
+            }
+            if (data.extracted.selectedCategoryIds) {
+              updatedDraft.selectedCategoryIds = data.extracted.selectedCategoryIds;
+            }
+            if (data.extracted.categorySelections) {
+              updatedDraft.categorySelections = data.extracted.categorySelections;
+            }
+            if (data.extracted.categoryNames) {
+              updatedDraft.categoryNames = data.extracted.categoryNames;
             }
           }
         }
@@ -440,11 +483,11 @@ export function FullScreenAiChatPlanner({
 
           if (destMatch) {
             updatedDraft.destinationName = cleanPlaceName(destMatch[1]);
-            aiReply = `도착지를 **${updatedDraft.destinationName}**(으)로 수정했습니다! 🚗\n\n📅 **2단계: 여행 기간은 며칠이고, 몇 시에 출발하시나요?**\n(예: '1박 2일 오전 10시 출발')`;
+            aiReply = `도착지를 **${updatedDraft.destinationName}**(으)로 수정했습니다! 🚗\n\n📅 **2단계: 언제 출발하시고, 며칠 동안 여행하시나요?**\n출발 날짜(몇월 몇일)와 여행 기간(당일치기, 1박 2일 등), 그리고 출발 시각을 알려주세요.\n(예: '10월 28일 출발 1박 2일, 오전 9시 30분 출발')`;
             nextStep = 2;
           } else if (origMatch) {
             updatedDraft.originName = cleanPlaceName(origMatch[1]);
-            aiReply = `출발지를 **${updatedDraft.originName}**(으)로 수정했습니다! 🚗\n\n📅 **2단계: 여행 기간은 며칠이고, 몇 시에 출발하시나요?**\n(예: '1박 2일 오전 10시 출발')`;
+            aiReply = `출발지를 **${updatedDraft.originName}**(으)로 수정했습니다! 🚗\n\n📅 **2단계: 언제 출발하시고, 며칠 동안 여행하시나요?**\n출발 날짜(몇월 몇일)와 여행 기간(당일치기, 1박 2일 등), 그리고 출발 시각을 알려주세요.\n(예: '10월 28일 출발 1박 2일, 오전 9시 30분 출발')`;
             nextStep = 2;
           } else {
             aiReply = `수정할 출발지 또는 도착지를 명확히 말씀해 주세요! 😊`;
@@ -460,8 +503,8 @@ export function FullScreenAiChatPlanner({
           } else {
             aiReply =
               `네! **${updatedDraft.originName}**에서 출발하여 **${updatedDraft.destinationName}**(으)로 떠나는 여정으로 확인했습니다. 🛣️\n\n` +
-              `📅 **2단계: 여행 기간은 며칠이고, 몇 시에 출발하시나요?**\n` +
-              `시간대에 맞춰 점심 식사와 휴게소 경유지를 추천해 드립니다. (예: '1박 2일 오전 10시 출발')`;
+              `📅 **2단계: 언제 출발하시고, 며칠 동안 여행하시나요?**\n` +
+              `정확한 경로 탐색과 시간대별 식사/명소 추천을 위해 **출발 날짜(몇월 몇일)**와 **여행 기간(당일치기, 1박 2일 등)**, 그리고 **출발 시각**을 알려주세요!\n(예: '10월 28일 출발 1박 2일, 오전 9시 30분 출발')`;
             nextStep = 2;
           }
         } else if (currentStep === 2) {
@@ -471,18 +514,26 @@ export function FullScreenAiChatPlanner({
           if (parsed.startDate) updatedDraft.startDate = parsed.startDate;
           if (parsed.endDate) updatedDraft.endDate = parsed.endDate;
 
-          if (!updatedDraft.durationLabel && !updatedDraft.departureTime) {
-            aiReply = `여행 기간(당일치기, 1박 2일 등)과 대략적인 출발 시각을 말씀해 주세요! ⏰`;
+          const missingList: string[] = [];
+          if (!updatedDraft.startDate) missingList.push("출발 날짜(몇월 몇일)");
+          if (!updatedDraft.durationLabel) missingList.push("여행 기간(당일치기, 1박 2일 등)");
+          if (!updatedDraft.departureTime) missingList.push("출발 시각(몇 시 몇 분)");
+
+          if (missingList.length > 0) {
             nextStep = 2;
+            const known: string[] = [];
+            if (updatedDraft.startDate) known.push(`**${updatedDraft.startDate} 출발**`);
+            if (updatedDraft.durationLabel) known.push(`**${updatedDraft.durationLabel}**`);
+            if (updatedDraft.departureTime) known.push(`**${updatedDraft.departureTime} 출발**`);
+
+            const prefix = known.length > 0 ? `${known.join(", ")} 일정을 확인했습니다! 😊\n\n` : "";
+            aiReply = `${prefix}정확한 경로 탐색과 시간대별 식사/명소 추천을 위해, 아직 확인되지 않은 **${missingList.join(", ")}**을(를) 알려주세요!\n(예: '10월 28일 출발 1박 2일, 오전 9시 30분 출발')`;
           } else {
-            const parts = [];
-            if (updatedDraft.durationLabel) parts.push(`**${updatedDraft.durationLabel}**`);
-            if (updatedDraft.departureTime) parts.push(`**${updatedDraft.departureTime} 출발**`);
-            aiReply =
-              `${parts.join(", ")} 일정을 확인했습니다. ⏰\n\n` +
-              `🚗 **3단계: 어떻게 이동할까요?**\n` +
-              `직접 운전하시나요, 대중교통을 이용하시나요? 자동차 경로 시 권장 경로와 최단 경로를 함께 비교해 드립니다.`;
             nextStep = 3;
+            aiReply =
+              `📅 **${updatedDraft.startDate} ~ ${updatedDraft.endDate} (${updatedDraft.durationLabel})**, **${updatedDraft.departureTime} 출발**로 일정을 완벽히 기록했습니다! ⏰🚗\n\n` +
+              `🚗 **3단계: 어떻게 이동할까요?**\n` +
+              `직접 운전하시나요, 대중교통이나 도보를 이용하시나요? 자동차 경로 시 권장 경로와 최단 경로를 함께 비교해 드립니다.`;
           }
         } else if (currentStep === 3) {
           const mode = parseMode(userText);
@@ -491,12 +542,64 @@ export function FullScreenAiChatPlanner({
           aiReply =
             `이동 수단은 **${modeLabel}**(으)로 설정했습니다. 🚙\n\n` +
             `🎯 **4단계: 길목에서 어떤 곳에 들르고 싶으세요?**\n` +
-            `도로변 맛집, 오션뷰 카페, 힐링 명소 등 마음에 드는 여행 테마를 편하게 말씀해 주세요.`;
+            `원하시는 취향이나 방문 희망 장소를 자유롭게 말씀해 주세요. (예: '뷰 좋은 카페, 닭갈비 맛집, 힐링 자연 산책로' 등)\n💡 AI가 취향을 분석하여 우리 시스템 추천 카테고리에 딱 맞게 자동 매핑해 드립니다!`;
           nextStep = 4;
         } else if (currentStep === 4) {
           updatedDraft.preferences = userText;
+
+          const FOOD_ID = "dd608518-f993-4a23-bd10-2c59a24fa674";
+          const CAFE_ID = "f63cd46c-13db-465b-923d-4f064ab05feb";
+          const KOREAN_FOOD_ID = "917f7b5a-5f95-414d-8ca6-9dc8c5535199";
+          const NATURE_ID = "6486b07a-4e08-4f42-9942-eec0b631592b";
+          const FOREST_ID = "b1c0732e-15d7-4837-ad8c-b5f3a88af4b2";
+          const PARK_ID = "a44a0670-6aa4-4794-8b7d-0126f260e439";
+          const CULTURE_ID = "1cd55dd3-084a-4f30-aa37-b9f772807d90";
+          const ACTIVITY_ID = "02e5b4c1-7434-48a1-8712-76cba3e09ad8";
+
+          const selectedCategoryIds: string[] = [];
+          const categorySelections: Record<string, string[]> = {};
+          const categoryNames: string[] = [];
+
+          if (userText.includes("카페") || userText.includes("디저트") || userText.includes("커피") || userText.includes("찻집") || userText.includes("빵")) {
+            if (!selectedCategoryIds.includes(FOOD_ID)) selectedCategoryIds.push(FOOD_ID);
+            categorySelections[FOOD_ID] = categorySelections[FOOD_ID] || [];
+            categorySelections[FOOD_ID].push(CAFE_ID);
+            categoryNames.push("카페/ 찻집");
+          }
+          if (userText.includes("맛집") || userText.includes("밥") || userText.includes("한식") || userText.includes("닭갈비") || userText.includes("고기")) {
+            if (!selectedCategoryIds.includes(FOOD_ID)) selectedCategoryIds.push(FOOD_ID);
+            categorySelections[FOOD_ID] = categorySelections[FOOD_ID] || [];
+            if (!categorySelections[FOOD_ID].includes(KOREAN_FOOD_ID)) categorySelections[FOOD_ID].push(KOREAN_FOOD_ID);
+            categoryNames.push("한식(맛집)");
+          }
+          if (userText.includes("자연") || userText.includes("휴양") || userText.includes("숲") || userText.includes("산책") || userText.includes("힐링")) {
+            if (!selectedCategoryIds.includes(NATURE_ID)) selectedCategoryIds.push(NATURE_ID);
+            categorySelections[NATURE_ID] = [FOREST_ID, PARK_ID];
+            categoryNames.push("자연휴양림 & 자연공원");
+          }
+          if (userText.includes("박물관") || userText.includes("미술관") || userText.includes("전시") || userText.includes("문화")) {
+            if (!selectedCategoryIds.includes(CULTURE_ID)) selectedCategoryIds.push(CULTURE_ID);
+            categoryNames.push("문화관광");
+          }
+          if (userText.includes("체험") || userText.includes("액티비티") || userText.includes("레포츠")) {
+            if (!selectedCategoryIds.includes(ACTIVITY_ID)) selectedCategoryIds.push(ACTIVITY_ID);
+            categoryNames.push("체험관광");
+          }
+          if (selectedCategoryIds.length === 0) {
+            selectedCategoryIds.push(FOOD_ID, NATURE_ID);
+            categorySelections[FOOD_ID] = [CAFE_ID, KOREAN_FOOD_ID];
+            categorySelections[NATURE_ID] = [PARK_ID];
+            categoryNames.push("카페/ 찻집", "한식(맛집)", "자연공원");
+          }
+
+          updatedDraft.selectedCategoryIds = selectedCategoryIds;
+          updatedDraft.categorySelections = categorySelections;
+          updatedDraft.categoryNames = categoryNames;
+
+          const badgeStr = categoryNames.map((n) => `[${n}]`).join(" ");
           aiReply =
-            `선호하시는 테마(**${userText}**)까지 모든 설정이 완벽하게 정리되었습니다! 🎉\n\n` +
+            `선호하시는 취향(**${userText}**)을 바탕으로 최적의 추천 카테고리를 자동 매핑했습니다! 🎯\n\n` +
+            `📌 **AI 자동 매핑 카테고리**: ${badgeStr}\n\n` +
             `수집된 모든 여행 조건을 바탕으로 우리 서버의 경로 탐색 엔진과 1:1 매핑할 준비가 끝났습니다. 아래 요약을 확인해 주세요.`;
           nextStep = 5;
         }
@@ -633,8 +736,8 @@ export function FullScreenAiChatPlanner({
         endDate,
         departureTime: depTime,
         radiusMeters: 15000,
-        selectedCategoryIds: [],
-        categorySelections: {},
+        selectedCategoryIds: chatDraft.selectedCategoryIds || [],
+        categorySelections: chatDraft.categorySelections || {},
       };
 
       workspaceDispatch({ type: "edit", patch: updatedDraft });
@@ -652,32 +755,46 @@ export function FullScreenAiChatPlanner({
         return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
       };
 
+      const mappedCategoryIds = [
+        ...new Set(
+          (chatDraft.selectedCategoryIds || []).flatMap((id) =>
+            chatDraft.categorySelections?.[id]?.length
+              ? chatDraft.categorySelections[id]
+              : [id]
+          )
+        ),
+      ];
+
       const stops: TimelineStopRequest[] = [
         {
           label: "1구간 · 출발지 인근 쉼터 & 명소",
           targetTime: addMinutes(depTime, 45),
-          contentTypeIds: [12, 14, 38, 39],
+          contentTypeIds: mappedCategoryIds.length > 0 ? [] : [12, 14, 38, 39],
+          categoryIds: mappedCategoryIds,
           radiusMeters: 15000,
           limit: 5,
         },
         {
           label: "2구간 · 점심 식사 & 길목 맛집",
           targetTime: "12:30",
-          contentTypeIds: [39],
+          contentTypeIds: mappedCategoryIds.length > 0 ? [] : [39],
+          categoryIds: mappedCategoryIds,
           radiusMeters: 15000,
           limit: 5,
         },
         {
           label: "3구간 · 오후 힐링 여행지 & 관광 명소",
           targetTime: addMinutes("12:30", 120),
-          contentTypeIds: [12, 14, 28],
+          contentTypeIds: mappedCategoryIds.length > 0 ? [] : [12, 14, 28],
+          categoryIds: mappedCategoryIds,
           radiusMeters: 15000,
           limit: 5,
         },
         {
           label: "4구간 · 도착지 인근 저녁 식사 및 숙소",
           targetTime: "18:30",
-          contentTypeIds: [39, 32],
+          contentTypeIds: mappedCategoryIds.length > 0 ? [] : [39, 32],
+          categoryIds: mappedCategoryIds,
           radiusMeters: 15000,
           limit: 5,
         },
@@ -864,6 +981,7 @@ export function FullScreenAiChatPlanner({
                         <div>
                           <span className="text-white/60 text-[11px] block">기간 및 출발시각</span>
                           <span className="font-bold text-white">
+                            {chatDraft.startDate ? `${chatDraft.startDate} · ` : ""}
                             {chatDraft.durationLabel || "일정 미지정"}{" "}
                             {chatDraft.departureTime ? `(${chatDraft.departureTime} 출발)` : ""}
                           </span>
@@ -894,6 +1012,26 @@ export function FullScreenAiChatPlanner({
                         </div>
                       </div>
                     </div>
+
+                    {/* AI 자동 매핑된 카테고리 태그 */}
+                    {chatDraft.categoryNames && chatDraft.categoryNames.length > 0 && (
+                      <div className="p-3 rounded-xl bg-white/10 border border-white/15">
+                        <span className="text-amber-200 text-[11px] font-semibold flex items-center gap-1.5 mb-1.5">
+                          <Sparkles className="h-3.5 w-3.5 text-amber-300" />
+                          AI 자동 매핑 추천 카테고리 (경로 주변 탐색에 적용)
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {chatDraft.categoryNames.map((name, i) => (
+                            <span
+                              key={i}
+                              className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-500/25 text-emerald-100 border border-emerald-400/40 text-[11px] font-medium"
+                            >
+                              {name}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {generationError && (
                       <div className="rounded-xl bg-red-500/20 border border-red-400/40 p-3 text-xs text-red-200">
