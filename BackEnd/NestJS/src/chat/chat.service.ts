@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { DataSource } from 'typeorm';
 import { GoogleGenAI } from '@google/genai';
 
 export interface ChatMessageDto {
@@ -30,6 +31,10 @@ export interface ChatResponseDto {
 export class ChatService {
   private readonly logger = new Logger(ChatService.name);
 
+  constructor(
+    @Optional() @Inject(DataSource) private readonly dataSource?: DataSource,
+  ) {}
+
   async chat(dto: ChatRequestDto): Promise<ChatResponseDto> {
     const userMessage = (dto.message || dto.text || '').trim();
     if (!userMessage) {
@@ -39,17 +44,33 @@ export class ChatService {
       };
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    // 1. DB(ai_model_config 테이블)에서 활성화된 Google 모델 및 API Key 우선 조회
+    let apiKey = process.env.GEMINI_API_KEY;
+    let rawModel = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
+
+    if (this.dataSource) {
+      try {
+        const rows = await this.dataSource.query(
+          `SELECT model_name, api_key FROM ai_model_config WHERE is_active = true AND provider = 'google' ORDER BY id DESC LIMIT 1`,
+        );
+        if (rows && rows.length > 0) {
+          if (rows[0].api_key) apiKey = String(rows[0].api_key).trim();
+          if (rows[0].model_name) rawModel = String(rows[0].model_name).trim();
+        }
+      } catch (dbErr: any) {
+        this.logger.warn(`ai_model_config DB 조회 실패: ${dbErr.message}. 환경변수 설정을 사용합니다.`);
+      }
+    }
+
     if (!apiKey) {
-      this.logger.warn('GEMINI_API_KEY is not configured in environment.');
+      this.logger.warn('GEMINI_API_KEY is not configured in DB or environment.');
       return {
-        reply: '안녕하세요! 현재 서버 환경변수에 GEMINI_API_KEY가 등록되지 않은 상태입니다. 서버의 .env 환경 설정을 확인해 주세요.',
+        reply: '안녕하세요! 현재 시스템에 GEMINI_API_KEY가 등록되지 않은 상태입니다. DB의 ai_model_config 테이블 또는 환경 설정을 확인해 주세요.',
         modelUsed: 'local-fallback',
       };
     }
 
-    // .env에 설정된 GEMINI_MODEL 사용 (대소문자/공백 정규화)
-    const rawModel = (process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite').trim();
+    // 모델명 공백 및 대소문자 정규화
     const modelName = rawModel.toLowerCase().replace(/\s+/g, '-');
 
     // 컨텍스트 및 시스템 프롬프트 조립
