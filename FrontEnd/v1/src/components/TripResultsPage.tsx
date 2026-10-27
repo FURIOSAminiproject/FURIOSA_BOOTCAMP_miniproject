@@ -260,12 +260,6 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
           active={state.active}
           focusedPlace={focusedPlace}
         />
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-stone-500">
-          <span className="text-sky-800">━ 권장 경로</span>
-          <span className="text-orange-800">┄ 최단 경로</span>
-          <span className="text-green-700">● 추천 장소</span>
-          <span>지도와 경로의 데이터 갱신 시점이 다를 수 있습니다.</span>
-        </div>
         {selected?.route?.warnings.length ? (
           <ul className="rounded-xl bg-amber-50 p-3 text-xs text-amber-900">
             {selected.route.warnings.map((warning, index) => (

@@ -7,10 +7,10 @@ import type {
   SearchPlace,
 } from "../services/route-explorer";
 
-export const ROUTE_COLORS = {
-  recommended: "#0369a1",
-  shortest: "#c2410c",
-} as const;
+import { RouteMapLegend } from "./RouteMapLegend";
+import { MAP_POINT_COLORS, ROUTE_COLORS } from "./route-map-palette";
+// 기존 결과 카드의 import 경로를 유지하면서 범례와 지도에 같은 색상을 적용한다.
+export { ROUTE_COLORS } from "./route-map-palette";
 
 /** 검색 좌표, 두 ORS 경로와 선택 경로의 추천 장소를 표시한다. 팝업은 textContent만 쓴다. */
 export function RouteExplorerMap({
@@ -100,10 +100,19 @@ export function RouteExplorerMap({
     }
     const selected = routes.find((item) => item.preference === active);
     for (const place of selected?.places ?? [])
-      markers.current.set(place.id, point(place, place.name, "#15803d", 6));
-    if (origin) point(origin, `출발 · ${origin.name}`, "#1d4ed8", 9);
+      markers.current.set(
+        place.id,
+        point(place, place.name, MAP_POINT_COLORS.place, 6),
+      );
+    if (origin)
+      point(origin, `출발 · ${origin.name}`, MAP_POINT_COLORS.origin, 9);
     if (destination)
-      point(destination, `도착 · ${destination.name}`, "#be123c", 9);
+      point(
+        destination,
+        `도착 · ${destination.name}`,
+        MAP_POINT_COLORS.destination,
+        9,
+      );
     if (bounds.isValid())
       instance.fitBounds(bounds, { padding: [35, 35], maxZoom: 15 });
     return () => {
@@ -122,10 +131,24 @@ export function RouteExplorerMap({
   }, [focusedPlace]);
 
   return (
-    <div
-      ref={container}
-      aria-label="출발·도착지와 권장·최단 경로 및 추천 장소 지도"
-      className={`${compact ? 'h-[220px]' : 'h-[420px] sm:h-[520px]'} w-full rounded-2xl border border-stone-200 z-0`}
-    />
+    <div className="space-y-3">
+      <div
+        ref={container}
+        aria-label="출발·도착지와 권장·최단 경로 및 추천 장소 지도"
+        className={`${compact ? "h-[220px]" : "h-[420px] sm:h-[520px]"} w-full rounded-2xl border border-stone-200 z-0`}
+      />
+      {/* 지도 위를 가리지 않도록 아래에 배치한다. 색만 바꿔 지물의 종류를 추정하지 않는다. */}
+      <RouteMapLegend
+        compact={compact}
+        routePreferences={routes.flatMap((item) =>
+          item.route ? [item.preference] : [],
+        )}
+        showOrigin={origin !== null}
+        showDestination={destination !== null}
+        showPlaces={routes.some(
+          (item) => item.preference === active && item.places.length > 0,
+        )}
+      />
+    </div>
   );
 }
