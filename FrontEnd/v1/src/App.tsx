@@ -24,6 +24,7 @@ import { TripResultsPage } from './components/TripResultsPage';
 import { TripWorkspaceProvider, useTripWorkspace } from './components/TripWorkspaceContext';
 import { AuthModal } from './components/auth/AuthModal';
 import { getCurrentUser, logoutUser, AuthUser } from './services/authService';
+import { AiTravelChatWidget } from './components/AiTravelChatWidget';
 import { CheckCircle2 } from 'lucide-react';
 
 export default function App() {
@@ -514,6 +515,9 @@ function AppContent() {
           setAuthModalOpen(false);
         }}
       />
+
+      {/* Gemini Flash-Lite 기반 실시간 AI 여행 상담 플로팅 챗봇 */}
+      <AiTravelChatWidget />
 
       {/* Footer - Exactly matching screenshot footer */}
       <footer className="mt-20 border-t border-[#e8e4dc] py-10 text-xs text-stone-500 bg-[#faf7f2] print:hidden">
