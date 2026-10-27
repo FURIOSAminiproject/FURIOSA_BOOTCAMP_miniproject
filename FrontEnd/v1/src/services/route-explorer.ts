@@ -131,7 +131,7 @@ async function requestJson(
   }
 }
 
-/** 자동완성 대신 검색 버튼/Enter에서만 호출한다. 검색 결과의 좌표는 선택 시 확정한다. */
+/** 자동완성의 입력 대기 후 호출한다. 검색 결과의 좌표는 목록에서 선택할 때만 확정한다. */
 export async function searchMapPlaces(
   query: string,
   signal?: AbortSignal,

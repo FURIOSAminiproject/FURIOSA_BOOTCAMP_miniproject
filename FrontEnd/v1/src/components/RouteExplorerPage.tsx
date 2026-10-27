@@ -25,6 +25,7 @@ import { TripFlowHeader } from "./TripFlowHeader";
 import { RouteAttribution } from "./RouteAttribution";
 import { RouteExplorerMap } from "./RouteExplorerMap";
 import { TripResultsPage } from "./TripResultsPage";
+import { TripRouteEstimate } from "./TripRouteEstimate";
 
 const EMPTY_ROUTES: ComparedRoute[] = [];
 export const formatRouteDistance = (meters: number) =>
@@ -164,8 +165,8 @@ export function TripRequestPage({
               출발지와 도착지
             </h2>
             <p className="text-xs leading-relaxed text-stone-500">
-              장소명이나 주소를 검색한 뒤 결과를 선택해 주세요. 검색 결과의
-              좌표로 경로를 계산합니다.
+              장소명이나 주소를 입력하고 아래 추천 목록에서 선택해 주세요.
+              선택한 위치로 경로와 예상시간을 계산합니다.
             </p>
             <div className="space-y-3">
               <MapPlaceSearch
@@ -403,6 +404,7 @@ export function TripRequestPage({
               <div className="ml-2 h-5 border-l border-dashed border-white/30" />
               <SummaryPoint label="도착" value={draft.destination?.name} />
             </div>
+            <TripRouteEstimate origin={draft.origin} destination={draft.destination} mode={draft.mode} />
             <div className="border-t border-white/15 pt-4 text-xs leading-relaxed text-emerald-50 space-y-2">
               <p>
                 {draft.mode === "driving" ? "자동차" : "도보"} · 권장 경로와
