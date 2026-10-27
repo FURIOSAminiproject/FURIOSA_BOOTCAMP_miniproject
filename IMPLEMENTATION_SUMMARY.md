@@ -320,3 +320,23 @@ POST /api/routes/timeline
    - `BackEnd/NestJS` 빌드: `npm run build` 성공 (컴파일 오류 0개)
    - 기존 전체 테스트: `npm test` 성공 (기존 24개 통합 테스트 + 8개 Jest 단위 테스트 전원 통과)
    - 기존 경로 비교 API(`POST /api/routes/compare`) 및 카테고리 API(`GET /api/routes/categories`) 하위 호환성 100% 유지.
+
+---
+
+## 7. Gemini Flash-Lite 기반 실시간 AI 여행 상담 챗봇 구현
+
+- **엔드포인트**: `POST /api/chat`
+- **백엔드 모듈**: `BackEnd/NestJS/src/chat/` (`ChatService`, `ChatController`, `ChatModule`)
+- **프론트엔드 컴포넌트**: `FrontEnd/v1/src/components/AiTravelChatWidget.tsx` (전체 화면 플로팅 위젯)
+- **사용 모델**: Google GenAI `gemini-3.5-flash-lite` / `gemini-2.5-flash-lite` (환경변수 `GEMINI_MODEL` 자동 정규화 및 폴백)
+
+### 7.1 주요 기능 및 워크플로우
+1. **플로팅 AI 챗봇 위젯**:
+   - 웹사이트 우측 하단에 상시 위치하며, 클릭 시 모던한 글래스모피즘 팝업 창이 열립니다.
+2. **여행 컨텍스트 자동 동기화**:
+   - 사용자가 `/trips/new`나 `/trips`에서 선택한 출발지, 도착지, 여행 일정, 출발 시각을 챗봇이 자동으로 인식하여 "서울 ➔ 부산 (1박 2일)" 기반으로 맞춤 상담을 제공합니다.
+3. **지능형 도로/타임라인 추천 연계**:
+   - "9시 30분 출발인데 12시 30분 점심 맛집 추천해줘"와 같은 질문에 대해 주행 경과 시간을 고려하여 대전/영동 인근의 맛집 및 휴게소를 정확하게 추천합니다.
+4. **빠른 질문 칩(Quick Prompts)**:
+   - 길목 맛집 추천, 도로변 휴게소/카페 추천, 운전 피로 최소화 팁 등 원클릭 질문 지원.
+
