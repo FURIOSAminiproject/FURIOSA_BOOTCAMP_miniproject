@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Bot,
   MessageSquare,
@@ -11,6 +11,7 @@ import {
   RotateCcw,
   Minimize2,
   ChevronDown,
+  Wand2,
 } from "lucide-react";
 import { useTripWorkspace } from "./TripWorkspaceContext";
 
@@ -22,18 +23,22 @@ interface ChatMessage {
 }
 
 const QUICK_PROMPTS = [
-  "🍽️ 12시 30분에 지나가는 길목 맛집 추천해줘",
-  "☕ 분위기 좋은 도로변 휴게소나 카페 알려줘",
-  "🚗 장거리 운전 덜 피곤한 휴식 타이밍 알려줘",
-  "✨ 이번 여행 경로에서 꼭 들러야 할 명소 3곳",
+  "🍽️ 점심 식사 장소를 다른 길목 맛집으로 바꿔줘",
+  "☕ 이동 길목에 뷰 좋은 카페 하나 더 추가해줘",
+  "⏰ 운전 피로를 줄이게 휴게소 정차 시간 늘려줘",
+  "🏞️ 도착지 인근에 꼭 가볼 만한 명소로 변경해줘",
+  "🔄 오후 일정을 1시간 늦춰서 여유롭게 재배치해줘",
+  "🌿 가족과 함께 가기 좋은 한적한 쉼터 추천해줘",
 ];
 
 export function AiTravelChatWidget() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { state } = useTripWorkspace();
   const { draft, result } = state;
 
-  const [isOpen, setIsOpen] = useState(true);
+  // 결과 화면에서 방해되지 않도록 닫힌 상태로 시작
+  const [isOpen, setIsOpen] = useState(false);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -42,7 +47,9 @@ export function AiTravelChatWidget() {
     {
       id: "welcome-msg",
       role: "model",
-      text: "안녕하세요! 계획형 여행 메이트 **'I like your J'**의 전속 AI 큐레이터입니다. 🚗✨\n\n출발지, 도착지, 여행 일정, 도로변 맛집, 휴게소 등 여행에 관한 어떤 질문이든 편하게 물어보세요!",
+      text:
+        "안녕하세요! 완성된 여행 계획의 **AI 일정 수정 & 코스 조율 플래너**입니다. 🚗✨\n\n" +
+        "현재 계획된 동선, 출발 시각, 식사 장소, 카페, 경유지 등을 변경하고 싶으시면 편하게 말씀해 주세요. 실시간으로 최적의 대안과 맞춤 수정을 도와드립니다!",
       timestamp: new Date().toLocaleTimeString("ko-KR", {
         hour: "2-digit",
         minute: "2-digit",
@@ -57,10 +64,20 @@ export function AiTravelChatWidget() {
     }
   }, [messages, isOpen]);
 
-  // 풀스크린 AI 채팅 플래너 화면에서는 중복 노출 방지를 위해 위젯 숨김 (모든 훅 호출 후 반환)
-  const isFullscreenChat =
-    location.pathname.includes("/trips") && location.search.includes("mode=chat");
-  if (isFullscreenChat) return null;
+  // 메인페이지('/', '/user') 및 신규 계획짜기('/trips/new', '/routes')에서는 숨기고,
+  // 이미 생성된 계획 결과 화면('/trips', '/trips/archive')에서만 수정용으로 노출
+  const isExcludedPage =
+    location.pathname === "/" ||
+    location.pathname === "/user" ||
+    location.pathname.startsWith("/trips/new") ||
+    location.pathname === "/routes";
+
+  const isTripResultPage =
+    !isExcludedPage &&
+    (location.pathname === "/trips" || location.pathname === "/trips/archive") &&
+    Boolean(result);
+
+  if (!isTripResultPage) return null;
 
   // 현재 사용자 여행 상태를 컨텍스트로 추출
   const originName = draft.origin?.name || result?.request?.points?.[0]?.name;
@@ -87,6 +104,28 @@ export function AiTravelChatWidget() {
     setIsLoading(true);
 
     try {
+      const timelineStops = result?.timeline?.stops || [];
+      const timelineSummary =
+        timelineStops.length > 0
+          ? timelineStops
+              .map(
+                (s) =>
+                  `${s.targetTime} [${s.label}]: 추천 ${s.places?.slice(0, 2).map((p) => p.name).join(", ") || "없음"}`,
+              )
+              .join(" | ")
+          : undefined;
+
+      const activeRoute =
+        result?.comparison?.routes?.find(
+          (r) => r.preference === state.active,
+        ) || result?.comparison?.routes?.[0];
+      const routeDistanceText = activeRoute?.route
+        ? `${(activeRoute.route.distance / 1000).toFixed(1)}km`
+        : undefined;
+      const routeDurationText = activeRoute?.route
+        ? `${Math.round(activeRoute.route.duration / 60)}분`
+        : undefined;
+
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -103,6 +142,10 @@ export function AiTravelChatWidget() {
             endDate: draft.endDate,
             departureTime: draft.departureTime,
             durationLabel: result?.durationLabel,
+            mode: draft.mode === "driving" ? "자동차" : "도보",
+            distanceText: routeDistanceText,
+            durationText: routeDurationText,
+            timelineSummary: timelineSummary,
           },
         }),
       });
@@ -148,7 +191,7 @@ export function AiTravelChatWidget() {
       {
         id: "welcome-msg-reset",
         role: "model",
-        text: "대화가 초기화되었습니다. 새로운 질문을 입력해 주세요! 😊",
+        text: "대화가 초기화되었습니다. 일정 수정에 대해 무엇이든 말씀해 주세요! 😊",
         timestamp: new Date().toLocaleTimeString("ko-KR", {
           hour: "2-digit",
           minute: "2-digit",
@@ -165,14 +208,14 @@ export function AiTravelChatWidget() {
           {hasTripContext && (
             <div className="absolute -top-10 right-0 whitespace-nowrap rounded-xl bg-stone-900/90 text-white text-[11px] font-medium px-3 py-1 shadow-lg backdrop-blur-xs flex items-center gap-1.5 animate-bounce">
               <Sparkles className="h-3 w-3 text-emerald-400" />
-              <span>AI 여행 플래너 대기 중</span>
+              <span>AI 일정 수정 플래너 대기 중</span>
             </div>
           )}
           <button
             type="button"
             onClick={() => setIsOpen(true)}
             className="flex items-center gap-2.5 rounded-full bg-gradient-to-r from-[#064e43] to-[#0d7363] px-5 py-3.5 text-white shadow-2xl hover:shadow-emerald-900/40 transition-all duration-300 hover:scale-105 active:scale-95 border-2 border-emerald-400/40"
-            aria-label="길벗 AI 여행 상담 열기"
+            aria-label="I like your J AI 일정 수정 플래너 열기"
           >
             <div className="relative">
               <Bot className="h-5 w-5" />
@@ -181,7 +224,7 @@ export function AiTravelChatWidget() {
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>
               </span>
             </div>
-            <span className="text-sm font-bold tracking-tight">AI 여행 상담</span>
+            <span className="text-sm font-bold tracking-tight">AI 일정 수정·조율</span>
           </button>
         </div>
       )}
@@ -197,13 +240,13 @@ export function AiTravelChatWidget() {
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
-                  <h3 className="font-bold text-sm">I like your J 플래너</h3>
+                  <h3 className="font-bold text-sm">I like your J 일정 수정 플래너</h3>
                   <span className="rounded-full bg-emerald-400/25 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-200">
                     Flash-Lite
                   </span>
                 </div>
                 <p className="text-[11px] text-emerald-200/90">
-                  실시간 경로 & 여행 상담 에이전트
+                  완성된 여행 일정 및 코스 실시간 수정·조율
                 </p>
               </div>
             </div>
@@ -228,14 +271,24 @@ export function AiTravelChatWidget() {
             </div>
           </div>
 
-          {/* 현재 선택된 여행 컨텍스트 배지 (있을 경우) */}
+          {/* 현재 선택된 여행 컨텍스트 배지 및 조건 직접 수정 링크 */}
           {hasTripContext && (
-            <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border-b border-emerald-100 text-[11px] text-emerald-900">
-              <MapPin className="h-3.5 w-3.5 shrink-0 text-emerald-700" />
-              <span className="font-medium truncate">
-                {originName} ➔ {destinationName}
-                {draft.startDate && ` (여행 기간: ${draft.startDate.slice(5)} ~ ${draft.endDate.slice(5)})`}
-              </span>
+            <div className="flex items-center justify-between px-4 py-2 bg-emerald-50 border-b border-emerald-100 text-[11px] text-emerald-900">
+              <div className="flex items-center gap-1.5 truncate">
+                <MapPin className="h-3.5 w-3.5 shrink-0 text-emerald-700" />
+                <span className="font-medium truncate">
+                  {originName} ➔ {destinationName}
+                  {draft.startDate && ` (${draft.startDate.slice(5)} ~ ${draft.endDate.slice(5)})`}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate("/trips/new?mode=planner")}
+                className="shrink-0 text-emerald-700 font-bold hover:text-emerald-900 hover:underline flex items-center gap-1 ml-2"
+                title="입력 폼에서 직접 일정 조건 수정하기"
+              >
+                직접 수정 ➔
+              </button>
             </div>
           )}
 
@@ -267,7 +320,7 @@ export function AiTravelChatWidget() {
             {isLoading && (
               <div className="flex items-center gap-2 text-xs text-stone-500 bg-white border border-stone-200/80 rounded-2xl px-4 py-3 w-fit shadow-xs">
                 <span className="h-2 w-2 rounded-full bg-emerald-600 animate-pulse" />
-                <span>길벗 AI가 답변을 작성하고 있어요…</span>
+                <span>AI 플래너가 최적의 수정안을 찾고 있어요…</span>
               </div>
             )}
             <div ref={messagesEndRef} />

@@ -18,6 +18,10 @@ export class ChatRequestDto {
     endDate?: string;
     departureTime?: string;
     durationLabel?: string;
+    mode?: string;
+    distanceText?: string;
+    durationText?: string;
+    timelineSummary?: string;
     places?: { name: string; category?: string; address?: string }[];
   };
 }
@@ -103,22 +107,33 @@ export class ChatService {
       if (dto.context.departureTime) {
         contextLines.push(`- 출발 시각: ${dto.context.departureTime}`);
       }
+      if (dto.context.mode) {
+        contextLines.push(`- 이동 수단: ${dto.context.mode}`);
+      }
+      if (dto.context.distanceText || dto.context.durationText) {
+        contextLines.push(`- 예상 거리 및 소요 시간: ${dto.context.distanceText || ''} (${dto.context.durationText || ''})`);
+      }
+      if (dto.context.timelineSummary) {
+        contextLines.push(`- 현재 타임라인 및 경유지: ${dto.context.timelineSummary}`);
+      }
     }
 
-    const systemInstruction = `당신은 대한민국 최고 수준의 지능형 여행 플랫폼 '길벗 AI 여행사'의 전속 여행 큐레이터 에이전트 '길벗(RoadFriend)'입니다.
+    const systemInstruction = `당신은 여행 플랫폼 'I like your J'의 [AI 일정 수정 & 코스 조율 전속 플래너]입니다.
+사용자는 이미 생성된 여행 계획(출발지, 도착지, 이동 경로, 타임라인 구간, 추천 장소 등)을 조회 중이며, 이를 수정·조율하고자 대화하고 있습니다.
 다음 원칙을 지켜 답변하세요:
-1. 사용자가 질문하는 여행지, 이동 경로, 도로변 맛집, 휴게소, 숙소, 여행 일정에 대해 매우 친절하고 전문적이며 위트 있게 답변하세요.
-2. 운전자의 이동 경로와 소요 시간을 현실적으로 고려하세요. (예: 9시 30분 출발 시 12시 30분쯤 통과하는 지역을 감안한 맛집 제안 등)
-3. 답변은 읽기 편하게 깔끔한 마크다운(강조, 불릿 포인트 등)을 사용하세요.
-4. 너무 장황하지 않게 핵심을 짚어 3~5문단 내외로 명확하게 작성하세요.
-${contextLines.length ? `\n[사용자의 현재 여행 계획 정보]\n${contextLines.join('\n')}` : ''}`;
+1. 사용자가 요구하는 일정 수정 사항(식당 교체, 카페 추가, 휴게소/경유지 시간 변경, 도착지 인근 명소 추천 등)을 정확히 파악하고, 전체 이동 동선과 현실적인 소요 시간을 고려하여 최적의 대안과 수정된 일정을 제시하세요.
+2. 현재 계획된 일정 정보(출발지, 도착지, 일정 기간, 타임라인)를 적극 참고하여, 앞뒤 일정과의 조화와 이동 피로도를 고려해 답변하세요.
+3. 친절하고 전문적이며 신뢰감 있는 어조(존댓말)로 답변하세요.
+4. 답변은 읽기 편하게 깔끔한 마크다운(강조, 불릿 포인트, 시간대별 일정 표기 등)을 사용하세요.
+5. 너무 장황하지 않게 핵심 수정안을 3~4문단 내외로 명확하게 작성하세요.
+${contextLines.length ? `\n[현재 생성된 여행 계획 정보]\n${contextLines.join('\n')}` : ''}`;
 
     const ai = new GoogleGenAI({ apiKey, httpOptions: { timeout: 30000 } });
 
     // 대화 내역(history) 구성
     const contents: any[] = [];
     contents.push({ role: 'user', parts: [{ text: systemInstruction }] });
-    contents.push({ role: 'model', parts: [{ text: '네, 길벗 AI 전속 큐레이터로서 고객님의 완벽한 여행을 위해 성심껏 안내해 드리겠습니다. 무엇이 궁금하신가요?' }] });
+    contents.push({ role: 'model', parts: [{ text: '네, I like your J 전속 플래너로서 고객님의 완벽한 여행을 위해 일정 수정 및 코스 조율을 성심껏 도와드리겠습니다. 어떤 부분을 변경하고 싶으신가요?' }] });
 
     if (dto.history && Array.isArray(dto.history)) {
       for (const h of dto.history.slice(-8)) { // 최근 8개 턴 유지
