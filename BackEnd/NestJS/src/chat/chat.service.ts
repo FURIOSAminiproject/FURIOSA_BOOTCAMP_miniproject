@@ -50,15 +50,33 @@ export class ChatService {
 
     if (this.dataSource) {
       try {
-        const rows = await this.dataSource.query(
-          `SELECT model_name, api_key FROM ai_model_config WHERE is_active = true AND provider = 'google' ORDER BY id DESC LIMIT 1`,
-        );
+        // app_model_config 또는 ai_model_config 테이블에서 활성 설정 조회
+        let rows: any[] | null = null;
+        try {
+          rows = await this.dataSource.query(
+            `SELECT model_name, api_key FROM app_model_config WHERE is_active = true AND provider = 'google' ORDER BY id DESC LIMIT 1`,
+          );
+        } catch {
+          rows = null;
+        }
+
+        if (!rows || rows.length === 0) {
+          try {
+            rows = await this.dataSource.query(
+              `SELECT model_name, api_key FROM ai_model_config WHERE is_active = true AND provider = 'google' ORDER BY id DESC LIMIT 1`,
+            );
+          } catch {
+            rows = null;
+          }
+        }
+
         if (rows && rows.length > 0) {
           if (rows[0].api_key) apiKey = String(rows[0].api_key).trim();
           if (rows[0].model_name) rawModel = String(rows[0].model_name).trim();
+          this.logger.log(`[DB 설정 로드 성공] Model: ${rawModel}, API Key 앞자리: ${apiKey?.slice(0, 10)}***`);
         }
       } catch (dbErr: any) {
-        this.logger.warn(`ai_model_config DB 조회 실패: ${dbErr.message}. 환경변수 설정을 사용합니다.`);
+        this.logger.warn(`DB 모델 설정 조회 실패: ${dbErr.message}. 환경변수 설정을 사용합니다.`);
       }
     }
 

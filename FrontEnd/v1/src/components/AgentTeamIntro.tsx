@@ -1,10 +1,18 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React from 'react';
-import { Send, Compass, Utensils, Hotel, Car, Calendar, ShieldCheck, Feather, ShieldAlert, Sparkles, ArrowRight, MapPin, Eye, CloudSun, LifeBuoy } from 'lucide-react';
+import {
+  Bot,
+  Compass,
+  Utensils,
+  Hotel,
+  Car,
+  Calendar,
+  Sparkles,
+  ArrowRight,
+  MapPin,
+  CloudSun,
+  ShieldCheck,
+  CheckCircle2,
+} from 'lucide-react';
 import { FullTravelPlan } from '../types/travel';
 import { PRESET_JEJU_PLAN, PRESET_GYEONGJU_PLAN } from '../data/presetData';
 import gyeongjuWoljiImg from '../assets/images/gyeongju_wolji_pond_1792364655793.jpg';
@@ -22,204 +30,214 @@ export const AgentTeamIntro: React.FC<AgentTeamIntroProps> = ({
   onSelectPlan,
   onSelectDestination,
   onOpenStudio,
-  onOpenWeatherStudio
+  onOpenWeatherStudio,
 }) => {
-  const agents = [
+  const features = [
     {
-      name: '총괄 협연자',
-      role: 'LEAD ORCHESTRATOR',
-      desc: '사용자의 여행 의뢰를 분석하고 다섯 전문 AI 에이전트의 결과를 통합해 최종 여행 계획을 조율합니다.',
-      icon: <ShieldAlert className="w-6 h-6" />,
-      badge: '총괄 에이전트',
-      highlight: true
+      title: 'Gemini 실시간 AI 큐레이션',
+      subtitle: 'INTELLIGENT AI AGENT',
+      desc: '복잡한 입력 없이 대화 한 번으로 일정, 맛집, 휴게소까지 고려한 1:1 맞춤 일정을 즉시 설계합니다.',
+      icon: Bot,
+      color: 'from-emerald-500/15 to-teal-500/5',
+      border: 'border-emerald-200/80',
+      tag: 'Gemini Flash-Lite',
+      badgeColor: 'bg-emerald-100 text-emerald-800',
     },
     {
-      name: '기상기후 관리관',
-      role: 'WEATHER & CLIMATE',
-      desc: '여행 날짜의 날씨와 기후 정보를 분석해 여행 일정과 준비물에 반영합니다.',
-      icon: <CloudSun className="w-5 h-5" />,
-      badge: '기상 분석'
+      title: '정밀 도로망 GIS 동선 엔진',
+      subtitle: 'GIS ROUTE EXPLORER',
+      desc: '국토교통부 표준 도로망과 한국관광공사 데이터를 결합하여 권장·최단 경로와 실제 주행시간을 정밀 연산합니다.',
+      icon: Compass,
+      color: 'from-sky-500/15 to-blue-500/5',
+      border: 'border-sky-200/80',
+      tag: '권장·최단 경로 비교',
+      badgeColor: 'bg-sky-100 text-sky-800',
     },
     {
-      name: '관광지 명소박사',
-      role: 'ATTRACTIONS & SIGHTSEEING',
-      desc: '여행 목적과 취향에 맞는 관광 명소와 숨은 여행지를 추천합니다.',
-      icon: <Compass className="w-5 h-5" />,
-      badge: '명소 추천'
+      title: '시간대별 도로변 맛집 & 쉼터',
+      subtitle: 'TIMELINE CURATION',
+      desc: '출발 시각 기준 12:30 점심, 10:15 휴게소 등 동선 반경 15km 도로변의 알짜 맛집과 명소를 타임라인으로 제공합니다.',
+      icon: Utensils,
+      color: 'from-amber-500/15 to-orange-500/5',
+      border: 'border-amber-200/80',
+      tag: '도로변 반경 15km 큐레이션',
+      badgeColor: 'bg-amber-100 text-amber-900',
     },
     {
-      name: '미식가 큐레이터',
-      role: 'FOOD & LOCAL GOURMET',
-      desc: '지역 맛집과 카페를 탐색하고 여행 동선에 어울리는 식사 장소를 제안합니다.',
-      icon: <Utensils className="w-5 h-5" />,
-      badge: '미식 추천'
+      title: '스마트 기상 & 안심 여행 가이드',
+      subtitle: 'CLIMATE & SAFETY CARE',
+      desc: '여행 일정의 시간대별 날씨 예보를 반영하여 우천 시 대체 명소와 추천 옷차림, 패킹 체크리스트를 제안합니다.',
+      icon: CloudSun,
+      color: 'from-purple-500/15 to-indigo-500/5',
+      border: 'border-purple-200/80',
+      tag: '실시간 날씨 연동',
+      badgeColor: 'bg-purple-100 text-purple-900',
     },
-    {
-      name: '숙소 안식처',
-      role: 'ACCOMMODATION',
-      desc: '여행 예산과 위치, 숙박 선호도에 맞는 숙소 선택을 지원합니다.',
-      icon: <Hotel className="w-5 h-5" />,
-      badge: '숙소 추천'
-    },
-    {
-      name: '일정 및 경비 설계사',
-      role: 'ITINERARY & BUDGET',
-      desc: '이동 순서와 시간대별 일정을 구성하고 예상 경비를 정리합니다.',
-      icon: <Calendar className="w-5 h-5" />,
-      badge: '일정·예산'
-    }
   ];
 
   const popularDestinations = [
     {
       id: 'jeju',
-      name: '제주',
-      sub: '바다와 오름의 섬',
-      description: '에메랄드빛 애월 해안과 천년 비자나무 숲, 성산일출봉의 비경',
+      name: '제주도',
+      sub: '바다와 오름의 에메랄드 섬',
+      description: '애월 한담해변 노을과 비자림 숲길, 감성 카페와 흑돼지 미식 투어',
       imageUrl: 'https://images.unsplash.com/photo-1548115184-bc6544d06a58?auto=format&fit=crop&w=1000&q=85',
       tag: '인기 1위 · 힐링 휴양',
       onClick: () => {
         if (onSelectDestination) onSelectDestination('제주도');
         onSelectPlan(PRESET_JEJU_PLAN);
-      }
+      },
     },
     {
       id: 'gyeongju',
       name: '경주',
-      sub: '천년의 달빛 서라벌',
-      description: '황금빛 동궁과 월지 야경과 대릉원의 고요한 능선, 황리단길 한옥',
+      sub: '천년의 달빛 서라벌 야경',
+      description: '동궁과 월지 야경과 대릉원의 고요한 능선, 황리단길 한옥 감성 카페',
       imageUrl: gyeongjuWoljiImg,
       tag: '유네스코 세계유산 · 야경',
       onClick: () => {
         if (onSelectDestination) onSelectDestination('경주');
         onSelectPlan(PRESET_GYEONGJU_PLAN);
-      }
+      },
     },
     {
       id: 'jeonju',
       name: '전주',
-      sub: '한옥마을과 한식의 본향',
-      description: '오목대에서 굽어보는 700채 기와 한옥마을과 정갈한 떡갈비 비빔밥 미식',
+      sub: '한옥마을과 한식 미식의 본향',
+      description: '오목대 기와마을 전경과 떡갈비·비빔밥, 한옥 골목길 산책',
       imageUrl: jeonjuHanokImg,
-      tag: '전주 한옥마을 · 로컬 미식',
+      tag: '로컬 미식 · 한옥 감성',
       onClick: () => {
         if (onSelectDestination) onSelectDestination('전주');
-      }
+      },
     },
     {
       id: 'busan',
       name: '부산',
-      sub: '해안 도시의 낭만',
-      description: '해운대 백사장 & 블루라인파크 해변열차, 광안대교 오션뷰 야경, 흰여울문화마을',
+      sub: '오션뷰와 해안 드라이브의 낭만',
+      description: '해운대 백사장 & 블루라인 해변열차, 광안대교 오션뷰 야경 투어',
       imageUrl: busanHaeundaeImg,
-      tag: '해운대 해변 · 야경 투어',
+      tag: '해안 드라이브 · 오션뷰',
       onClick: () => {
         if (onSelectDestination) onSelectDestination('부산');
-      }
-    }
+      },
+    },
   ];
 
   return (
     <div className="space-y-16">
-      {/* 다이어그램 */}
+      {/* 1. I like your J 핵심 스마트 기능 쇼케이스 */}
       <section className="space-y-8">
-        {/* AI 멀티 에이전트 구조 */}
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b border-[#e8e4dc] pb-4">
-              <div>
-                <span className="text-xs font-bold text-[#064e43] uppercase tracking-wider font-mono">
-                  MULTI AI AGENT SYSTEM
-                </span>
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b border-[#e8e4dc] pb-4">
+          <div>
+            <span className="text-xs font-bold text-[#064e43] uppercase tracking-wider font-mono">
+              WHY I LIKE YOUR J
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-stone-900 tracking-tight font-serif mt-1">
+              완벽한 여행을 설계하는 스마트 AI 엔진
+            </h2>
+            <p className="text-sm text-stone-500 mt-1.5">
+              생성형 AI와 고정밀 GIS 공간정보가 결합하여 가장 빈틈없고 여유로운 여행 로드맵을 선사합니다.
+            </p>
+          </div>
+        </div>
 
-                <h2 className="text-2xl sm:text-3xl font-extrabold text-stone-900 tracking-tight font-serif mt-1">
-                  우리 여행사의 AI 에이전트 팀
-                </h2>
-
-                <p className="text-sm text-stone-500 mt-2">
-                  총괄 협연자와 5명의 전문 AI 에이전트가 협업해 여행 계획을 완성합니다.
-                </p>
-              </div>
-            </div>
-
-            {/* 1. 총괄 에이전트 */}
-            <div className="flex flex-col items-center">
-              <div className="relative w-full max-w-md rounded-3xl border border-emerald-600 bg-gradient-to-br from-emerald-800 via-[#064e43] to-teal-900 p-6 sm:p-7 text-white shadow-xl shadow-emerald-950/15">
-                <div className="absolute right-5 top-5">
-                  <span className="rounded-full bg-white/15 px-3 py-1 text-[10px] font-bold tracking-wide text-emerald-50">
-                    LEAD AGENT
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-4">
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/20">
-                    {agents[0].icon}
+        {/* 4대 핵심 기술 Bento Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          {features.map((item, idx) => {
+            const Icon = item.icon;
+            return (
+              <div
+                key={idx}
+                className={`relative rounded-3xl border ${item.border} bg-gradient-to-b ${item.color} to-white p-6 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1.5 flex flex-col justify-between space-y-5`}
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-xs border border-stone-100 text-[#064e43]">
+                      <Icon className="h-6 w-6" />
+                    </div>
+                    <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${item.badgeColor}`}>
+                      {item.tag}
+                    </span>
                   </div>
 
                   <div>
-                    <p className="text-[10px] font-mono tracking-widest text-emerald-200">
-                      {agents[0].role}
-                    </p>
-
-                    <h3 className="mt-1 text-xl font-extrabold">
-                      {agents[0].name}
-                    </h3>
-
-                    <p className="mt-1 text-xs text-emerald-100">
-                      전체 의뢰 분석 · 전문 에이전트 조율 · 결과 통합
-                    </p>
-                  </div>
-                </div>
-
-                <p className="mt-4 border-t border-white/15 pt-4 text-sm leading-relaxed text-emerald-50">
-                  {agents[0].desc}
-                </p>
-              </div>
-
-              {/* 총괄 에이전트에서 전문 에이전트로 연결 */}
-              <div className="h-6 w-px bg-emerald-500" />
-
-              <div className="relative hidden h-5 w-[81.5%] lg:block">
-                <div className="absolute inset-x-0 top-0 h-px bg-emerald-400" />
-              </div>
-            </div>
-
-            {/* 2. 전문 AI 에이전트 5개 */}
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5 lg:pt-0">
-              {agents.slice(1).map((agent) => (
-                <div key={agent.name} className="relative">
-                  <div className="mx-auto h-13 w-px bg-emerald-400 lg:absolute lg:top-0 lg:left-1/2 lg:-translate-y-full" />
-
-                  <div className="h-full rounded-2xl border border-stone-200 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-emerald-400 hover:shadow-lg">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-[#064e43]">
-                      {agent.icon}
-                    </div>
-
-                    <p className="mt-4 text-[10px] font-mono font-semibold tracking-wider text-stone-400">
-                      {agent.role}
-                    </p>
-
-                    <h3 className="mt-1 text-base font-extrabold text-stone-900">
-                      {agent.name}
-                    </h3>
-
-                    <span className="mt-3 inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-800">
-                      {agent.badge}
+                    <span className="text-[10px] font-mono font-semibold tracking-wider text-stone-400 block">
+                      {item.subtitle}
                     </span>
-
-                    <p className="mt-3 text-xs leading-relaxed text-stone-600">
-                      {agent.desc}
-                    </p>
+                    <h3 className="mt-1 text-base font-bold text-stone-900 leading-snug">
+                      {item.title}
+                    </h3>
                   </div>
-                </div>
-              ))}
-            </div>
 
-            {/* 협업 구조 안내 */}
-            <div className="flex items-center justify-center gap-2 text-xs text-stone-500">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
-              <span>
-                1개 총괄 에이전트 + 5개 전문 에이전트 협업 구조
-              </span>
+                  <p className="text-xs text-stone-600 leading-relaxed">
+                    {item.desc}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* 2. J들이 사랑하는 대한민국 인기 여행지 큐레이션 */}
+      <section className="space-y-8">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b border-[#e8e4dc] pb-4">
+          <div>
+            <span className="text-xs font-bold text-[#e26a2c] uppercase tracking-wider font-mono">
+              CURATED DESTINATIONS
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-stone-900 tracking-tight font-serif mt-1">
+              J들이 사랑하는 인기 여행 코스
+            </h2>
+            <p className="text-sm text-stone-500 mt-1.5">
+              원하는 여행지를 선택하면 I like your J 플래너에서 바로 일정을 시작할 수 있습니다.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {popularDestinations.map((dest) => (
+            <div
+              key={dest.id}
+              onClick={dest.onClick}
+              className="group cursor-pointer rounded-3xl overflow-hidden bg-white border border-[#e8e4dc] shadow-sm hover:shadow-2xl transition-all duration-300 hover:-translate-y-1.5 flex flex-col justify-between"
+            >
+              <div className="relative h-48 overflow-hidden bg-stone-100">
+                <img
+                  src={dest.imageUrl}
+                  alt={dest.name}
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                <div className="absolute top-3 left-3">
+                  <span className="rounded-full bg-white/90 backdrop-blur-md px-3 py-1 text-[11px] font-bold text-stone-800 shadow-sm">
+                    {dest.tag}
+                  </span>
+                </div>
+                <div className="absolute bottom-3 left-3 text-white">
+                  <h3 className="text-xl font-extrabold tracking-tight drop-shadow-sm">
+                    {dest.name}
+                  </h3>
+                  <p className="text-xs text-stone-200/90 font-light mt-0.5">
+                    {dest.sub}
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                <p className="text-xs text-stone-600 leading-relaxed">
+                  {dest.description}
+                </p>
+
+                <div className="pt-2 border-t border-stone-100 flex items-center justify-between text-xs font-bold text-[#064e43] group-hover:text-[#e26a2c] transition-colors">
+                  <span>이 여행지로 계획하기</span>
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </div>
+              </div>
             </div>
+          ))}
+        </div>
       </section>
     </div>
   );
