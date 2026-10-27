@@ -10,6 +10,7 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
+from app.routers.weather import router as weather_router
 
 # 환경 변수 로드
 load_dotenv()
@@ -46,7 +47,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
+app.include_router(weather_router)
 
 # ------------------------------------------------------------------------------
 # 데이터 모델 정의 (Pydantic Models)
