@@ -179,20 +179,6 @@ export const UserHomePage: React.FC<UserHomePageProps> = ({
           </div>
         </div>
       </section>
-
-      {/* 2. 에이전트 팀 및 인기 여행지 */}
-      <AgentTeamIntro
-        onSelectPlan={onSelectPlan}
-        onSelectDestination={onSelectDestination}
-        onOpenStudio={onOpenStudio}
-        onOpenWeatherStudio={onOpenWeatherStudio}
-      />
-
-      {/* 3. 여행자 피드 */}
-      <TravelerSocialFeed
-        onLoadPresetPlan={onSelectPlan}
-        onExploreDestination={onSelectDestination}
-      />
     </div>
   );
 };

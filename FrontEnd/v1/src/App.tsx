@@ -393,8 +393,8 @@ function AppContent() {
         {currentTab === 'ROUTES' && <RouteExplorerPage />}
         {/* TAB 1: EXPLORE / MAIN PAGE */}
         {currentTab === 'EXPLORE' && (
-          <div className="space-y-12">
-            {/* 1. Hero Banner with Jeju Coast image & "이렇게 진행돼요" */}
+          <div className="w-full">
+            {/* Main Hero Banner with 2 Action Buttons */}
             <HeroBanner
               onStartRequest={() => startTrip()}
               onStartChat={() => {
@@ -402,19 +402,6 @@ function AppContent() {
                 handleSelectTab('REQUEST');
                 navigate('/trips/new?mode=chat');
               }}
-              onQuickExplore={startTrip}
-              onOpenStudio={() => handleSelectTab('STUDIO')}
-              onOpenWeatherStudio={() => handleSelectTab('WEATHER_STUDIO')}
-            />
-            <AgentTeamIntro
-              onSelectPlan={plan => startTrip(plan.request.destination)}
-              onSelectDestination={startTrip}
-              onOpenStudio={() => handleSelectTab('STUDIO')}
-              onOpenWeatherStudio={() => handleSelectTab('WEATHER_STUDIO')}
-            />
-            <TravelerSocialFeed
-              onLoadPresetPlan={plan => startTrip(plan.request.destination)}
-              onExploreDestination={startTrip}
             />
           </div>
         )}
