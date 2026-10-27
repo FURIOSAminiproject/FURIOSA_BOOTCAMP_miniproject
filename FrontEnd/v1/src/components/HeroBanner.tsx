@@ -33,20 +33,21 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
         {/* Center Main Editorial Copy & 2 Action Buttons */}
         <div className="relative z-10 max-w-2xl space-y-7 text-white">
           <div className="space-y-3">
-            <span className="inline-block text-xs sm:text-sm font-bold tracking-[0.25em] text-[#e87a41] uppercase font-mono">
-              PREMIUM DOMESTIC TRAVEL CONCIERGE · I LIKE YOUR J
+            <span className="inline-block text-xs sm:text-sm font-bold tracking-[0.2em] text-emerald-300 font-mono">
+              ROAD TRIP & TRAVEL PLANNER · I LIKE YOUR J
             </span>
-            <h1 className="text-3xl sm:text-5xl md:text-6xl font-extrabold tracking-tight leading-[1.15] text-white font-serif drop-shadow-md">
-              여행 계획은 AI 팀이,<br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-stone-100 via-emerald-200 to-amber-200">
-                I like your J.
+            <h1 className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tight leading-[1.2] text-white font-sans drop-shadow-md">
+              계획은 가볍게,<br />
+              여행은 완벽하게.<br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-200 to-amber-300">
+                I like your J
               </span>
             </h1>
           </div>
 
-          <p className="text-sm sm:text-base md:text-lg text-stone-200/90 leading-relaxed font-light">
-            당신의 완벽한 계획형(J) 여행 메이트.<br />
-            대화하듯 편하게 짜는 AI 채팅과 지도 위에서 비교하는 플래너로 나만의 맞춤 여행을 완성해보세요.
+          <p className="text-sm sm:text-base md:text-lg text-stone-200/90 leading-relaxed font-normal max-w-xl">
+            길 위의 숨은 맛집과 동선 비교부터 맞춤형 추천까지,<br className="hidden sm:inline" />
+            나에게 가장 편안한 방식으로 여행을 시작해 보세요.
           </p>
 
           {/* 2개의 메인 버튼: AI 채팅으로 계획 짜기 & 플래너로 계획 짜기 */}

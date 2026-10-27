@@ -38,11 +38,6 @@ export function AiTravelChatWidget() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // 풀스크린 AI 채팅 플래너 화면에서는 중복 노출 방지를 위해 위젯 숨김
-  const isFullscreenChat =
-    location.pathname.includes("/trips") && location.search.includes("mode=chat");
-  if (isFullscreenChat) return null;
-
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "welcome-msg",
@@ -61,6 +56,11 @@ export function AiTravelChatWidget() {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, isOpen]);
+
+  // 풀스크린 AI 채팅 플래너 화면에서는 중복 노출 방지를 위해 위젯 숨김 (모든 훅 호출 후 반환)
+  const isFullscreenChat =
+    location.pathname.includes("/trips") && location.search.includes("mode=chat");
+  if (isFullscreenChat) return null;
 
   // 현재 사용자 여행 상태를 컨텍스트로 추출
   const originName = draft.origin?.name || result?.request?.points?.[0]?.name;
