@@ -13,12 +13,6 @@ export interface SearchPlace {
   longitude: number;
 }
 
-/** 서버 기본 분류와 같은 TourAPI 콘텐츠 유형. 분류 API 실패 시에도 조건을 선택할 수 있다. */
-export const CONTENT_TYPE_OPTIONS = [
-  { id: 12, name: '관광지' }, { id: 14, name: '문화시설' },
-  { id: 15, name: '축제·공연·행사' }, { id: 28, name: '레포츠' },
-  { id: 32, name: '숙박' }, { id: 38, name: '쇼핑' }, { id: 39, name: '음식점' },
-];
 export interface PlaceCategory {
   id: string;
   name: string;
@@ -26,7 +20,6 @@ export interface PlaceCategory {
   parentId: string | null;
 }
 export interface CategoryOptions {
-  contentTypes: { id: number; name: string }[];
   categories: PlaceCategory[];
   warning: string | null;
 }
@@ -154,20 +147,10 @@ export async function getRouteCategories(
   const data = await requestJson("/api/routes/categories", {}, signal);
   if (
     !record(data) ||
-    !Array.isArray(data.contentTypes) ||
     !Array.isArray(data.categories) ||
     !optionalText(data.warning)
   )
     return malformed();
-  const contentTypes = data.contentTypes.map((value) => {
-    if (
-      !record(value) ||
-      ![12, 14, 15, 28, 32, 38, 39].includes(value.id as number) ||
-      typeof value.name !== "string"
-    )
-      return malformed();
-    return { id: value.id as number, name: value.name };
-  });
   const categories = data.categories.map((value) => {
     if (
       !record(value) ||
@@ -184,7 +167,13 @@ export async function getRouteCategories(
       parentId: value.parentId,
     };
   });
-  return { contentTypes, categories, warning: data.warning };
+  return {
+    categories,
+    warning:
+      data.warning === null
+        ? null
+        : "카테고리를 불러오지 못했습니다. 경로 비교는 계속 사용할 수 있습니다.",
+  };
 }
 
 export function parseComparison(

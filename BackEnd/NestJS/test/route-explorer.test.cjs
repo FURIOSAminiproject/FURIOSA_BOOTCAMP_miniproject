@@ -76,6 +76,29 @@ test('comparison validation rejects extra fields, invalid categories, radius and
     assert.throws(() => searchQuery(query));
 });
 
+test('DB hierarchy selections accept multiple UUIDs without content type constraints and keep a bounded payload', () => {
+  const other = '12345678-1234-1234-1234-123456789abd';
+  const request = explorerRequest({
+    ...body,
+    contentTypeIds: [],
+    categoryIds: [id, other, id.toUpperCase()],
+  });
+  assert.deepEqual(request.categoryIds, [id, other]);
+  assert.deepEqual(request.contentTypeIds, []);
+  const ids = Array.from(
+    { length: 200 },
+    (_, n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`,
+  );
+  assert.equal(
+    explorerRequest({ ...body, categoryIds: ids }).categoryIds.length,
+    200,
+  );
+  assert.throws(
+    () => explorerRequest({ ...body, categoryIds: [...ids, other] }),
+    (error) => error.getStatus() === 400,
+  );
+});
+
 test('hosted Pelias search sends server Authorization, Korean country filter, deduplicates and expires cache', async () => {
   let calls = 0,
     now = 0;

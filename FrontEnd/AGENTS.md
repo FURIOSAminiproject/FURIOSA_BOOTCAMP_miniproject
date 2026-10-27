@@ -8,6 +8,7 @@
 |---|---|
 | 현재 여행 입력·검색·요약 | components/RouteExplorerPage.tsx, MapPlaceSearch.tsx |
 | 입력 후 예상시간 미리보기 | components/TripRouteEstimate.tsx, services/location/route-client.ts |
+| DB LEVEL1·2·3 선택 | components/CategoryDetailModal.tsx, services/trip-categories.ts |
 | 현재 여행 결과·경로·장소 | components/TripResultsPage.tsx, RouteExplorerMap.tsx |
 | 두 화면 공유 상태·HTTP | components/TripWorkspaceContext.tsx, services/trip-workspace.ts, route-explorer.ts |
 | 탭·일정 목록·선택·승인/반려/재작성·통계 | src/App.tsx |
@@ -27,6 +28,7 @@
 
 - 현재 `/trips/new`·`/trips`는 검색·경로 비교·TourAPI DB 장소 추천이다. 공유 입력·결과는 React 메모리에 두며 새로고침 시 빈 상태로 돌아간다. 조건 변경·새 여행·로그아웃은 이전 결과를 지우고 진행 중 요청도 취소한다. `/trips/archive`는 현재 결과의 호환 주소이며 여러 여행을 저장하지 않는다. [화면 변경 문서](docs/TRIP_UI_CUSTOMIZATION.md)를 먼저 확인한다.
 - 장소 자동완성은 2자 이상 입력 후 600ms 대기하며 IME 조합 중에는 요청하지 않는다. 후보를 선택해야 좌표가 확정된다. 요약 예상시간은 두 좌표·이동 방식만으로 기존 단일 권장 경로 API를 호출한다. 카테고리·반경 변경으로 미리보기를 재조회하거나 실시간 교통 시간으로 설명하지 않는다.
+- 상위 카테고리는 DB LEVEL1 원문, 상세 모달은 해당 부모의 LEVEL2·3만 사용한다. 고정 콘텐츠 유형·분류명 추측·임의 기본 선택으로 대체하지 않는다. `selectedCategoryIds`와 `categorySelections`를 기존 `categoryIds`로 합치고 `contentTypeIds=[]`로 전송한다. 전체는 LEVEL1 UUID, 상세는 LEVEL2·3 UUID이며 모달 적용 전에는 공유 상태를 바꾸지 않는다.
 - 이전 AI 일정·통계·승인 컴포넌트도 소스에 남아 있다. App의 초기 프리셋·통계 주입은 제거했으며, 기존 생성·승인 화면은 새 두 여행 화면에서 사용하지 않는다. 인증 세션 및 관리자 페이지 진입 제어와 서버의 여행·관리자 API 권한 검사를 구분한다. 일정/승인 DB 저장은 미구현이다.
 - 8개 역할의 고정 진행 로그와 지연 후 NestJS `/api/travel/plans`를 호출한다. SSE/WebSocket·독립 7개 에이전트의 실시간 협업 로그가 아니다. 문구를 구현 근거로 사용하지 않는다.
 - 단일 리뷰는 `/api/travel/poetic-reviews`다. FastAPI는 현재 화면의 일정·리뷰 생성에서 호출하지 않는다.
@@ -62,6 +64,6 @@ npm run lint
 npm run build
 ```
 
-lint는 tsc --noEmit이다. Vite build만으로 타입 검사를 대신하지 않는다. `npm run test:trip`은 Node 22.18 이상인 22.x에서 실행하는 공유 상태 테스트 7개이며 브라우저 E2E를 대신하지 않는다. 현재 여행 흐름 변경은 검색·선택·두 화면 이동·경로 전환·조건 변경·취소·오류·새로고침을 확인한다. 이전 컴포넌트 변경에는 생성·재작성·승인/반려·예산·지도 필터·리뷰·공유/출력 중 관련 경로를 확인한다. 단순 문서 수정에 새 테스트 체계를 추가하지 않는다. 정적 검사·모킹·실제 브라우저·운영 API 검증 수준을 구분하고 README와 관련 REVIEW 항목을 함께 갱신한다.
+lint는 tsc --noEmit이다. Vite build만으로 타입 검사를 대신하지 않는다. `npm run test:trip`은 Node 22.18 이상인 22.x에서 실행하는 상태·DB 분류 테스트 11개이며 브라우저 E2E를 대신하지 않는다. 현재 여행 흐름 변경은 검색·선택·두 화면 이동·경로 전환·조건 변경·취소·오류·새로고침과 상세 모달 적용/취소를 확인한다. 이전 컴포넌트 변경에는 생성·재작성·승인/반려·예산·지도 필터·리뷰·공유/출력 중 관련 경로를 확인한다. 단순 문서 수정에 새 테스트 체계를 추가하지 않는다. 정적 검사·모킹·실제 브라우저·운영 API 검증 수준을 구분하고 README와 관련 REVIEW 항목을 함께 갱신한다.
 
 실행·빌드 작업 디렉토리는 `FrontEnd/v1/`이다. 위 표의 Vite·package·Docker/Nginx 파일도 v1 기준이다. `v2/v2`는 별도의 로그인 화면이며 현재 Compose 배포 대상과 구분한다. 서버에는 인증 기능이 있으나 v1 화면·여행 API에 권한 검사가 연결된 것은 아니다.

@@ -2,7 +2,7 @@ import { invalid, object } from '../routing-cache/routing.errors';
 import { routeRequest } from '../routing-cache/routing.validation';
 import { CONTENT_TYPES, type ExplorerRequest } from './explorer.types';
 
-/** 검색 버튼에서 보낸 검색어만 받는다. URL·인증키 등 임의 제공자 설정은 받지 않는다. */
+/** 자동완성의 검색어만 받는다. URL·인증키 등 임의 제공자 설정은 받지 않는다. */
 export function searchQuery(value: unknown): string {
   if (typeof value !== 'string') return invalid('q');
   const query = value.trim().replace(/\s+/g, ' ');
@@ -44,7 +44,7 @@ export function explorerRequest(value: unknown): ExplorerRequest {
   const categories = value.categoryIds ?? [];
   if (
     !Array.isArray(categories) ||
-    categories.length > 10 ||
+    categories.length > 200 ||
     categories.some(
       (id) =>
         typeof id !== 'string' ||

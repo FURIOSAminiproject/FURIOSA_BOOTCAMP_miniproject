@@ -84,7 +84,7 @@ test("changing a selected search term clears the old coordinate and route result
 test("mode/category edits invalidate the old response, while selected points stay available", () => {
   for (const patch of [
     { mode: "walking" },
-    { contentTypeIds: [39] },
+    { selectedCategoryIds: ["db-root"] },
     { radiusMeters: 5000 },
   ]) {
     const state = reduce(completed(), { type: "edit", patch });
@@ -113,12 +113,15 @@ test("new trip and region shortcuts clear prior results and never preselect a co
 test("comparison payload copies user choices and leaves display-only metadata out", () => {
   const state = selected();
   state.draft.title = "표시 전용 여행 제목";
+  state.draft.selectedCategoryIds = ["db-root"];
+  state.draft.categorySelections = { "db-root": ["db-child"] };
   const request = tripCompareRequest(state.draft);
   assert.equal(request.mode, "driving");
-  assert.deepEqual(request.contentTypeIds, [12, 39]);
+  assert.deepEqual(request.contentTypeIds, []);
+  assert.deepEqual(request.categoryIds, ["db-child"]);
   assert.equal("title" in request, false);
   request.points[0].latitude = 0;
-  request.contentTypeIds.push(32);
+  request.categoryIds.push("changed");
   assert.equal(state.draft.origin.latitude, 37);
-  assert.deepEqual(state.draft.contentTypeIds, [12, 39]);
+  assert.deepEqual(state.draft.categorySelections["db-root"], ["db-child"]);
 });

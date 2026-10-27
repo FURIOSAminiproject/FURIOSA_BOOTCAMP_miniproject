@@ -9,11 +9,7 @@ import {
   Route,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import {
-  CONTENT_TYPE_OPTIONS,
-  type Preference,
-  type SearchPlace,
-} from "../services/route-explorer";
+import { type Preference, type SearchPlace } from "../services/route-explorer";
 import { useTripWorkspace } from "./TripWorkspaceContext";
 import { TripFlowHeader } from "./TripFlowHeader";
 import { RouteExplorerMap, ROUTE_COLORS } from "./RouteExplorerMap";
@@ -107,13 +103,10 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
       </div>
     );
 
-  const { title, request, comparison } = state.result;
+  const { title, request, comparison, categoryGroups = [] } = state.result;
   const [origin, destination] = request.points;
   const selected = comparison.routes.find(
     (item) => item.preference === state.active,
-  );
-  const selectedCategories = CONTENT_TYPE_OPTIONS.filter((type) =>
-    request.contentTypeIds.includes(type.id),
   );
   const noRecommendation =
     !request.contentTypeIds.length && !request.categoryIds.length;
@@ -160,15 +153,16 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
           <span className="rounded-full bg-stone-100 px-3 py-1.5">
             주변 {distance(request.radiusMeters)}
           </span>
-          {selectedCategories.map((category) => (
+          {categoryGroups.map((category) => (
             <span
               className="rounded-full bg-emerald-50 px-3 py-1.5 text-emerald-900"
               key={category.id}
             >
-              {category.name}
+              {category.name}:{" "}
+              {category.details.length ? category.details.join(" · ") : "전체"}
             </span>
           ))}
-          {request.categoryIds.length > 0 && (
+          {request.categoryIds.length > 0 && !categoryGroups.length && (
             <span className="rounded-full bg-stone-100 px-3 py-1.5">
               상세 분류 적용
             </span>
@@ -333,11 +327,7 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-800">
-                      {place.categoryName ??
-                        CONTENT_TYPE_OPTIONS.find(
-                          (type) => type.id === place.contentTypeId,
-                        )?.name ??
-                        "관광 장소"}
+                      {place.categoryName ?? "관광 장소"}
                     </span>
                     <span className="font-mono text-xs text-stone-300">
                       {String(index + 1).padStart(2, "0")}

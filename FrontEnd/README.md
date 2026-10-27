@@ -7,6 +7,8 @@
 
 ## 모바일 웹 현재 위치와 길찾기
 
+여행 카테고리는 DB `place_categories`의 LEVEL1을 그대로 표시하고, 선택 시 해당 부모 아래의 LEVEL2·3을 복수 선택하는 모달을 엽니다. 이름은 모두 `category_name` 원문이며 별도 상위 목록을 코드에 정의하지 않습니다. ‘전체’는 LEVEL1 ID, 상세 선택은 LEVEL2·3 ID를 기존 API의 `categoryIds`로 전송합니다. 초기 선택은 비어 있고 DB 조회 실패 시 재시도를 제공하며 임의 카테고리로 대체하지 않습니다. 모달의 적용/취소·Escape·검색·재편집을 지원합니다.
+
 장소는 검색 버튼 없이 두 글자 이상 입력 후 600ms가 지나면 아래에 자동 추천됩니다. 한글 조합 중에는 요청을 보내지 않고, 방향키·Enter로도 장소를 선택할 수 있습니다. 출발·도착지를 모두 선택하면 **이번 여행의 시작**에 자동차/도보의 권장 경로 예상시간·거리를 자동 표시합니다. 위치나 이동 방식이 바뀌면 갱신하고, 추천 카테고리·반경 변경만으로는 시간을 다시 조회하지 않습니다. 예상시간은 기존 `POST /api/routes`와 서버 캐시를 사용하며 실시간 교통 정체는 반영하지 않습니다.
 
 **여행 계획하기**(`/trips/new`)에서 출발·도착지를 검색해 선택하고 자동차/도보, 장소 카테고리, 추천 반경을 고릅니다. **내 여행 결과**(`/trips`)에서는 실제 응답의 권장·최단 경로와 거리·예상시간, 경로별 TourAPI DB 장소·지도 팝업을 표시합니다. `/routes`는 같은 기능을 한 화면에서 쓰는 호환 주소입니다. [API·검증 안내](../BackEnd/NestJS/src/route-explorer/README.md)와 [화면 분석·변경 내역](docs/TRIP_UI_CUSTOMIZATION.md)을 참고합니다.
@@ -157,4 +159,4 @@ npm run start:local
 
 ## 여행 화면 검증
 
-`FrontEnd/v1`에서 `npm run lint`, `npm run build`, `npm run test:trip`을 실행합니다. `test:trip`은 Node 22.18 이상인 22.x의 TypeScript 타입 제거 기능을 사용하며, 7개 상태 테스트로 빈 초기 상태·좌표 선택·조건 변경 시 결과 폐기·부분 경로 실패·초기화·요청 스냅샷을 확인합니다. 브라우저 검증과 운영 DB 검증은 별개이며 [화면 변경 문서](docs/TRIP_UI_CUSTOMIZATION.md)에 구분했습니다.
+`FrontEnd/v1`에서 `npm run lint`, `npm run build`, `npm run test:trip`을 실행합니다. `test:trip`은 Node 22.18 이상인 22.x의 TypeScript 타입 제거 기능을 사용하며, 11개 테스트로 빈 초기 상태·좌표 선택·조건 변경 시 결과 폐기·부분 경로 실패·요청 스냅샷·DB 분류 계층·전체/상세 조합을 확인합니다. 브라우저 검증과 운영 DB 검증은 별개이며 [화면 변경 문서](docs/TRIP_UI_CUSTOMIZATION.md)에 구분했습니다.

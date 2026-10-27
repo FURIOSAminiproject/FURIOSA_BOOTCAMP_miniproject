@@ -3,7 +3,6 @@ import {
   ArrowRight,
   ArrowRightLeft,
   Check,
-  ChevronDown,
   Compass,
   MapPin,
   Route,
@@ -13,7 +12,6 @@ import { useNavigate } from "react-router-dom";
 import {
   compareRoutes,
   getRouteCategories,
-  CONTENT_TYPE_OPTIONS,
   type CategoryOptions,
   type SearchPlace,
   type ComparedRoute,
@@ -26,6 +24,12 @@ import { RouteAttribution } from "./RouteAttribution";
 import { RouteExplorerMap } from "./RouteExplorerMap";
 import { TripResultsPage } from "./TripResultsPage";
 import { TripRouteEstimate } from "./TripRouteEstimate";
+import { CategoryDetailModal } from "./CategoryDetailModal";
+import {
+  rootCategories,
+  categoryTrail,
+  MAX_CATEGORY_FILTERS,
+} from "../services/trip-categories";
 
 const EMPTY_ROUTES: ComparedRoute[] = [];
 export const formatRouteDistance = (meters: number) =>
@@ -43,16 +47,19 @@ export function TripRequestPage({
   const { draft } = state;
   const navigate = useNavigate();
   const [options, setOptions] = useState<CategoryOptions>({
-    contentTypes: CONTENT_TYPE_OPTIONS,
     categories: [],
     warning: null,
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoryRetry, setCategoryRetry] = useState(0);
   const request = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
+    setCategoriesLoading(true);
     void getRouteCategories(controller.signal)
       .then((data) => {
         if (!controller.signal.aborted) setOptions(data);
@@ -62,14 +69,17 @@ export function TripRequestPage({
           setOptions((current) => ({
             ...current,
             warning:
-              "상세 분류를 불러오지 못했습니다. 기본 카테고리를 선택할 수 있습니다.",
+              "카테고리를 불러오지 못했습니다. 다시 시도하거나 카테고리 없이 경로만 비교해 주세요.",
           }));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setCategoriesLoading(false);
       });
     return () => {
       controller.abort();
       request.current?.abort();
     };
-  }, []);
+  }, [categoryRetry]);
 
   // 다른 화면의 새 여행/로그아웃도 이전 요청을 취소한다. 이전 좌표의 응답을 새 초안에 붙이지 않는다.
   useEffect(() => {
@@ -112,6 +122,23 @@ export function TripRequestPage({
         result: {
           request: input,
           comparison,
+          categoryGroups: draft.selectedCategoryIds.map((id) => ({
+            id,
+            name:
+              options.categories.find((category) => category.id === id)?.name ??
+              "선택한 카테고리",
+            details: (draft.categorySelections[id] ?? []).map((detailId) => {
+              const detail = options.categories.find(
+                (category) => category.id === detailId,
+              );
+              return detail
+                ? categoryTrail(detail, options.categories)
+                    .slice(1)
+                    .map((category) => category.name)
+                    .join(" › ")
+                : "선택한 상세 분류";
+            }),
+          })),
           title:
             draft.title.trim() ||
             `${draft.origin!.name}에서 ${draft.destination!.name}까지`,
@@ -134,12 +161,25 @@ export function TripRequestPage({
     }
   }
 
-  const selectedNames = options.contentTypes
-    .filter((type) => draft.contentTypeIds.includes(type.id))
-    .map((type) => type.name);
-  const pickedCategory = options.categories.find(
-    (category) => category.id === draft.categoryId,
+  const roots = rootCategories(options.categories);
+  const selectedRoots = roots.filter((category) =>
+    draft.selectedCategoryIds.includes(category.id),
   );
+  const modalCategory = roots.find(
+    (category) => category.id === editingCategory,
+  );
+  function detailSummary(rootId: string) {
+    const ids = draft.categorySelections[rootId] ?? [];
+    return ids.length
+      ? ids
+          .map(
+            (id) =>
+              options.categories.find((category) => category.id === id)?.name ??
+              "선택한 상세 분류",
+          )
+          .join(" · ")
+      : "전체";
+  }
   const ready = Boolean(draft.origin && draft.destination);
   return (
     <div className="space-y-7">
@@ -257,30 +297,66 @@ export function TripRequestPage({
               어떤 곳에 들르고 싶으세요?
             </h2>
             <p className="text-xs text-stone-500">
-              여러 개를 선택할 수 있어요. 장소는 각 경로 주변에서 따로
-              추천합니다.
+              카테고리를 고르면 그 아래 상세 분류를 여러 개 선택할 수 있어요.
+              장소는 각 경로 주변에서 따로 추천합니다.
             </p>
-            <div className="flex flex-wrap gap-2">
-              {options.contentTypes.map((type) => (
-                <label
-                  key={type.id}
-                  className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3.5 py-2.5 text-sm ${draft.contentTypeIds.includes(type.id) ? "border-emerald-600 bg-emerald-50 text-emerald-900" : "border-stone-200 text-stone-600"}`}
+            <div className="grid gap-2 sm:grid-cols-2">
+              {roots.map((category) => (
+                <div
+                  key={category.id}
+                  className={`flex items-center gap-2 rounded-xl border p-3 text-sm ${draft.selectedCategoryIds.includes(category.id) ? "border-emerald-600 bg-emerald-50 text-emerald-900" : "border-stone-200 text-stone-600"}`}
                 >
-                  <input
-                    type="checkbox"
-                    checked={draft.contentTypeIds.includes(type.id)}
-                    onChange={() =>
-                      edit({
-                        contentTypeIds: draft.contentTypeIds.includes(type.id)
-                          ? draft.contentTypeIds.filter((id) => id !== type.id)
-                          : [...draft.contentTypeIds, type.id],
-                      })
-                    }
-                  />
-                  {type.name}
-                </label>
+                  <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-2">
+                    <input
+                      type="checkbox"
+                      aria-label={category.name}
+                      checked={draft.selectedCategoryIds.includes(category.id)}
+                      onChange={(event) => {
+                        if (event.target.checked)
+                          setEditingCategory(category.id);
+                        else
+                          edit({
+                            selectedCategoryIds:
+                              draft.selectedCategoryIds.filter(
+                                (id) => id !== category.id,
+                              ),
+                          });
+                      }}
+                      className="mt-0.5 accent-emerald-800"
+                    />
+                    <span className="min-w-0">
+                      <span className="block font-semibold">
+                        {category.name}
+                      </span>
+                      {draft.selectedCategoryIds.includes(category.id) && (
+                        <span className="mt-1 block break-words text-[11px] leading-relaxed text-stone-500">
+                          {detailSummary(category.id)}
+                        </span>
+                      )}
+                    </span>
+                  </label>
+                  <button
+                    type="button"
+                    aria-label={`${category.name} 상세 분류 선택`}
+                    onClick={() => setEditingCategory(category.id)}
+                    className="shrink-0 rounded-lg p-2 hover:bg-white"
+                  >
+                    <SlidersHorizontal className="h-4 w-4" />
+                  </button>
+                </div>
               ))}
             </div>
+            {categoriesLoading && (
+              <p role="status" className="text-xs text-stone-500">
+                카테고리를 불러오고 있어요…
+              </p>
+            )}
+            {!categoriesLoading && !roots.length && !options.warning && (
+              <p role="status" className="text-xs text-stone-500">
+                등록된 카테고리가 없습니다. 카테고리 없이 경로를 비교할 수
+                있어요.
+              </p>
+            )}
             <label className="block text-sm font-semibold">
               경로에서 얼마나 가까운 곳을 찾을까요?
               <select
@@ -298,41 +374,20 @@ export function TripRequestPage({
                 ))}
               </select>
             </label>
-            {options.categories.length > 0 && (
-              <details className="rounded-xl border border-stone-200 p-3.5">
-                <summary className="flex cursor-pointer list-none items-center justify-between text-sm text-stone-600">
-                  <span className="flex items-center gap-2">
-                    <SlidersHorizontal className="h-4 w-4" />
-                    상세 분류 선택
-                  </span>
-                  <ChevronDown className="h-4 w-4" />
-                </summary>
-                <select
-                  aria-label="장소 상세 분류"
-                  value={draft.categoryId}
-                  onChange={(event) => edit({ categoryId: event.target.value })}
-                  className="mt-3 block w-full rounded-xl border border-stone-300 p-3 text-sm"
-                >
-                  <option value="">선택한 카테고리 전체</option>
-                  {options.categories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {"　".repeat(category.level - 1)}
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-2 text-xs text-stone-500">
-                  위에서 고른 카테고리와 상세 분류를 모두 만족하는 장소를
-                  찾습니다.
-                </p>
-              </details>
-            )}
             {options.warning && (
               <p role="status" className="text-xs text-amber-800">
                 {options.warning}
+                <button
+                  type="button"
+                  disabled={categoriesLoading}
+                  onClick={() => setCategoryRetry((count) => count + 1)}
+                  className="ml-2 underline"
+                >
+                  카테고리 다시 불러오기
+                </button>
               </p>
             )}
-            {!draft.contentTypeIds.length && !draft.categoryId && (
+            {!draft.selectedCategoryIds.length && (
               <p className="text-xs text-stone-500">
                 카테고리를 선택하지 않으면 장소 추천 없이 경로만 비교합니다.
               </p>
@@ -404,20 +459,25 @@ export function TripRequestPage({
               <div className="ml-2 h-5 border-l border-dashed border-white/30" />
               <SummaryPoint label="도착" value={draft.destination?.name} />
             </div>
-            <TripRouteEstimate origin={draft.origin} destination={draft.destination} mode={draft.mode} />
+            <TripRouteEstimate
+              origin={draft.origin}
+              destination={draft.destination}
+              mode={draft.mode}
+            />
             <div className="border-t border-white/15 pt-4 text-xs leading-relaxed text-emerald-50 space-y-2">
               <p>
                 {draft.mode === "driving" ? "자동차" : "도보"} · 권장 경로와
                 최단 경로 비교
               </p>
-              <p>
-                {selectedNames.length
-                  ? selectedNames.join(" · ")
-                  : draft.categoryId
-                    ? "상세 분류 장소 추천"
-                    : "경로만 비교"}
-              </p>
-              {pickedCategory && <p>상세: {pickedCategory.name}</p>}
+              {selectedRoots.length ? (
+                selectedRoots.map((category) => (
+                  <p key={category.id} className="break-words">
+                    {category.name}: {detailSummary(category.id)}
+                  </p>
+                ))
+              ) : (
+                <p>경로만 비교</p>
+              )}
               <p>경로 주변 {formatRouteDistance(draft.radiusMeters)}</p>
             </div>
           </div>
@@ -454,6 +514,37 @@ export function TripRequestPage({
         </aside>
       </div>
       <RouteAttribution />
+      {modalCategory && (
+        <CategoryDetailModal
+          key={modalCategory.id}
+          rootId={modalCategory.id}
+          name={modalCategory.name}
+          categories={options.categories}
+          selectedIds={draft.categorySelections[modalCategory.id] ?? []}
+          onClose={() => setEditingCategory(null)}
+          onApply={(ids) => {
+            const rootIds = draft.selectedCategoryIds.includes(modalCategory.id)
+              ? draft.selectedCategoryIds
+              : [...draft.selectedCategoryIds, modalCategory.id];
+            const selections = {
+              ...draft.categorySelections,
+              [modalCategory.id]: ids,
+            };
+            if (
+              rootIds.reduce(
+                (count, id) => count + (selections[id]?.length || 1),
+                0,
+              ) > MAX_CATEGORY_FILTERS
+            )
+              return `전체 선택 분류가 ${MAX_CATEGORY_FILTERS}개를 넘었습니다. 일부 선택을 줄여 주세요.`;
+            edit({
+              selectedCategoryIds: rootIds,
+              categorySelections: selections,
+            });
+            setEditingCategory(null);
+          }}
+        />
+      )}
     </div>
   );
 }

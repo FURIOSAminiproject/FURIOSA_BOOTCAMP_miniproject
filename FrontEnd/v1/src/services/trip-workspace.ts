@@ -14,14 +14,16 @@ export interface TripDraft {
   origin: SearchPlace | null;
   destination: SearchPlace | null;
   mode: LocationRouteMode;
-  contentTypeIds: number[];
-  categoryId: string;
+  /** DB LEVEL1의 UUID와 그 아래 선택한 LEVEL2/3 UUID. 빈 상세 목록은 해당 LEVEL1 전체다. */
+  selectedCategoryIds: string[];
+  categorySelections: Record<string, string[]>;
   radiusMeters: number;
 }
 export interface TripResult {
   title: string;
   request: CompareRequest;
   comparison: Comparison;
+  categoryGroups?: { id: string; name: string; details: string[] }[];
 }
 export interface TripWorkspace {
   draft: TripDraft;
@@ -44,8 +46,8 @@ export function createTripWorkspace(destinationQuery = ""): TripWorkspace {
       origin: null,
       destination: null,
       mode: "driving",
-      contentTypeIds: [12, 39],
-      categoryId: "",
+      selectedCategoryIds: [],
+      categorySelections: {},
       radiusMeters: 1000,
     },
     result: null,
@@ -61,6 +63,12 @@ export function tripWorkspaceReducer(
   switch (action.type) {
     case "edit": {
       const draft = { ...state.draft, ...action.patch };
+      if ("selectedCategoryIds" in action.patch)
+        draft.categorySelections = Object.fromEntries(
+          Object.entries(draft.categorySelections).filter(([id]) =>
+            draft.selectedCategoryIds.includes(id),
+          ),
+        );
       // 검색어만 수정해도 이전 선택 좌표를 폐기한다. 새 결과를 선택한 경우의 명시 좌표는 유지한다.
       if (
         "originQuery" in action.patch &&
@@ -101,8 +109,17 @@ export function tripCompareRequest(draft: TripDraft): CompareRequest | null {
   return {
     mode: draft.mode,
     points: [{ ...draft.origin }, { ...draft.destination }],
-    contentTypeIds: [...draft.contentTypeIds],
-    categoryIds: draft.categoryId ? [draft.categoryId] : [],
+    // 화면 분류는 DB 계층만 사용한다. TourAPI 콘텐츠 유형으로 추천 범위를 추가 제한하지 않는다.
+    contentTypeIds: [],
+    categoryIds: [
+      ...new Set(
+        draft.selectedCategoryIds.flatMap((id) =>
+          draft.categorySelections[id]?.length
+            ? [...draft.categorySelections[id]]
+            : [id],
+        ),
+      ),
+    ],
     radiusMeters: draft.radiusMeters,
     limit: 10,
   };

@@ -22,7 +22,7 @@
 |---|---|---|
 | 두 글자 이상 입력 후 600ms 대기 | `GET /api/map/search` → 서버 Pelias | 자동완성 이름·주소 목록, 선택한 좌표만 확정 |
 | 출발·도착지/이동 방식 확정 | `POST /api/routes` → ORS·기존 DB 캐시 | 요약 카드에 권장 경로 예상시간·거리 자동 갱신 |
-| 분류 읽기 | `GET /api/routes/categories` | 기본 유형 7개와 DB 상세 분류, 실패 안내 |
+| 분류 읽기 | `GET /api/routes/categories` | DB LEVEL1과 그 자손 LEVEL2·3, 실패/재시도 안내 |
 | 경로 찾기 | `POST /api/routes/compare` → 외부 ORS·24시간 DB 캐시·TourAPI DB | `/trips`의 권장/최단 카드, 실제 경로 선, 경로별 장소 |
 | 경로 선택 | 반환된 결과 중 선택 | 지도 강조선·장소 목록·마커 교체 |
 | 장소 확인 | 반환된 장소 좌표 | 지도 팝업, 새 외부 예약/내비게이션 요청 없음 |
@@ -46,6 +46,7 @@
 | URL 진입·헤더·초기 가데이터 제거 | `App.tsx`, `components/Header.tsx` |
 | 입력·검색·요약 | `components/RouteExplorerPage.tsx`, `MapPlaceSearch.tsx` |
 | 예상시간 미리보기 | `components/TripRouteEstimate.tsx` |
+| DB 분류 선택 | `components/CategoryDetailModal.tsx`, `services/trip-categories.ts` |
 | 결과·지도·추천 카드 | `components/TripResultsPage.tsx`, `RouteExplorerMap.tsx` |
 | 공통 단계·출처 | `components/TripFlowHeader.tsx`, `RouteAttribution.tsx` |
 | 상태·HTTP | `services/trip-workspace.ts`, `components/TripWorkspaceContext.tsx`, `services/route-explorer.ts` |
@@ -75,6 +76,16 @@ npm run test:trip
 요약 카드의 예상시간은 선택한 두 좌표와 이동 방식의 권장 경로를 기준으로 한다. 350ms 대기 후 기존 단일 경로 API를 호출하고, 카테고리·반경·여행 이름 변경에는 요청하지 않는다. 위치 선택이 해제되면 숫자를 지우고, 이동 방식을 바꾸면 이전 시간이 아닌 계산 중 상태를 표시한다. 실패는 안내와 수동 재시도를 제공하며, 전체 경로·장소 조회 버튼은 계속 사용할 수 있다. 자동 폴링·실시간 교통 조회·장소 추천의 자동 실행은 추가하지 않았다. 클라이언트 취소가 이미 시작된 서버의 계산 중단까지 보장하지는 않는다.
 
 Node 22.23.3의 타입 검사·상태 테스트 7개·production 빌드를 통과했다. 브라우저에서 자동 추천, 방향키/Enter와 마우스 선택, 자동차/도보 예상시간, 입력 수정 시 이전 시간 제거, 검색 오류/키보드 재시도/정상 복구를 확인했다. 격리 API의 호출 기록은 연속 입력의 마지막 검색어만 받았고, 카테고리·여행 이름 수정은 예상시간 재요청을 만들지 않았다. 이전과 같은 실제 ORS 기록 응답을 재생했으며 운영 API·실제 휴대폰/OS 한글 IME 검증과 구분한다.
+
+## 2026-10-27: DB 분류 계층으로 카테고리 통일
+
+상위 카테고리는 `place_categories.category_level=1` 행의 ID·이름 그대로다. 상세 모달에는 해당 `parent_category_id` 계층의 LEVEL2·3만 표시하고 이름은 모두 `category_name` 원문을 사용한다. TourAPI 콘텐츠 유형 7개는 이 화면의 카테고리 기준에서 제거했으며 DB 조회 실패에도 그 목록으로 대체하지 않는다. 첫 진입은 카테고리 미선택 상태다.
+
+LEVEL1 선택 시 모달이 열리며 상세 복수 선택·검색·적용/취소·Escape·설정 버튼 재편집을 제공한다. 전체 선택은 LEVEL1 UUID 하나, 상세 선택은 LEVEL2·3 UUID들을 기존 `categoryIds`에 합쳐 OR 조건으로 조회한다. 서로 다른 대분류의 전체/상세 선택을 함께 사용할 수 있고, 상위 분류에 이미 포함되는 중복 하위 선택은 정리한다. 대분류 해제 시 그 상세 선택도 지운다. 모달당 최대 20개, 요청 전체 최대 200개이며 서버도 같은 전체 한도를 검사한다.
+
+새 화면은 `contentTypeIds=[]`로 보내고 별도 `categoryFilters`나 유형별 매핑을 만들지 않는다. 기존 재귀 SQL·테이블은 유지한다. 서버의 `contentTypes` 메타데이터는 이전 클라이언트 호환용으로 남지만 새 화면은 읽지 않는다. 새 서버는 `categoryIds` 한도를 10개에서 200개로 확장하므로 큰 선택 요청을 사용하려면 서버도 함께 반영해야 한다.
+
+프론트 11개·백엔드 27개 테스트와 타입 검사·빌드를 통과했다. 운영 공개 분류 API를 GET으로만 읽어 검증 당시 LEVEL1 10개·전체 315개를 확인했다. 이 실제 분류 응답을 격리 API에서 재생해 자연관광 LEVEL2/3와 음식 LEVEL1 전체 조합·취소·요약·결과·전송 ID를 확인했다. 지도는 실제 ORS 기록 응답, 장소는 검증용 데이터를 사용했다. 운영 장소 추천의 종단간 검증과 배포·실제 휴대폰 검증은 포함하지 않았다. 검증 자료는 제품 코드에 넣지 않는다.
 
 
 ## 2026-10-27: 지도 색상 범례

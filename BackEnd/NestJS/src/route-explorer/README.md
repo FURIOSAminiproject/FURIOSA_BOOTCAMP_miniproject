@@ -1,6 +1,6 @@
 # 출발·도착지 검색, 경로 비교와 장소 추천
 
-헤더의 **여행 계획하기**(`/trips/new`)에서 조건을 고르고 **내 여행 결과**(`/trips`)에서 비교한다. `/routes`는 두 기능을 한 화면에서 사용하는 호환 주소다. 별도 ORS 서버 없이 기존 서버의 `ORS_API_KEY`를 사용한다. 프론트엔드 번들·쿼리 문자열에 키를 넣지 않는다. 기본 유형은 관광지·문화시설·행사·레포츠·숙박·쇼핑·음식점이며, TourAPI DB의 상세 분류도 선택할 수 있다.
+헤더의 **여행 계획하기**(`/trips/new`)에서 조건을 고르고 **내 여행 결과**(`/trips`)에서 비교한다. `/routes`는 두 기능을 한 화면에서 사용하는 호환 주소다. 별도 ORS 서버 없이 기존 서버의 `ORS_API_KEY`를 사용한다. 프론트엔드 번들·쿼리 문자열에 키를 넣지 않는다. 화면의 상위 카테고리는 `place_categories`의 LEVEL1, 상세 분류는 그 아래 LEVEL2·3이며 이름은 모두 `category_name` 원문을 사용한다.
 
 ## 처리 흐름
 
@@ -27,7 +27,7 @@
     {"longitude": 126.9707, "latitude": 37.5547},
     {"longitude": 126.9784, "latitude": 37.5667}
   ],
-  "contentTypeIds": [12, 39],
+  "contentTypeIds": [],
   "categoryIds": [],
   "radiusMeters": 1000,
   "limit": 10
@@ -35,8 +35,9 @@
 ```
 
 - `mode`: `driving` 또는 `walking`. 지점은 출발/도착 2개로, 직접 좌표 또는 기존 DB `placeId` UUID를 사용한다. 화면에서는 지도 검색 결과의 숫자 좌표만 보낸다.
-- `contentTypeIds`: 12/14/15/28/32/38/39 중 선택. `categoryIds`: DB 분류 UUID 최대 10개. 둘을 함께 선택하면 교집합이며 상세 분류는 하위 분류까지 포함한다.
-- 분류 둘 다 빈 배열이면 장소 조회 없이 경로만 비교한다. 범위를 좁히려면 콘텐츠 유형을 유지하고 해당 유형의 상세 분류를 선택한다.
+- `categoryIds`: DB 분류 UUID 최대 200개. 선택한 분류들은 OR 조건이며 하위 분류를 포함한다. 화면에서 LEVEL1 전체를 고르면 그 UUID, 상세를 고르면 해당 LEVEL2·3 UUID들을 보낸다. ‘자연관광 일부 + 음식 전체’는 선택한 자연관광 상세 UUID들과 음식 LEVEL1 UUID를 함께 보낸다. 새 필터 필드·유형별 매핑은 필요하지 않다.
+- `contentTypeIds`: 기존 클라이언트의 콘텐츠 유형 필터(12/14/15/28/32/38/39)를 계속 지원한다. 새 여행 화면은 항상 빈 배열로 보내 DB 분류만으로 추천한다. 두 배열이 모두 비면 장소 조회 없이 경로만 비교한다. 위 예시는 카테고리 미선택 상태다.
+- 분류 조회 응답의 `contentTypes`는 이전 클라이언트 호환용 메타데이터이며 새 화면에서 상위 카테고리로 사용하지 않는다. `categories`의 `level`·`parentId`로 대·중·소 계층을 구성하고 DB 조회 실패 시 임의 상위 목록으로 대체하지 않는다.
 - `radiusMeters`: 기본 1,000, 허용 100~5,000m. `limit`: 경로별 기본 10개, 허용 1~20개.
 - `routes[]`: `preference`, 기존 [경로 응답](../routing-cache/README.md)의 `route`, `places`, `routeError`, `recommendationError`, `candidateLimitReached`.
 - 장소는 ID·이름·주소·좌표·유형·분류명과 `distanceToRouteMeters`를 포함한다. 경로 선까지의 **지역 평면 투영에 의한 근사 직선거리**이며, 실제 진입로·도보 접근 가능 여부·우회거리·우회시간을 계산한 결과가 아니다.

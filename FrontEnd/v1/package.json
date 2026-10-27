@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "test:trip": "node --test test/trip-workspace.test.cjs",
+    "test:trip": "node --test test/*.test.cjs",
     "dev": "vite --mode development --port=80 --host=0.0.0.0",
     "build": "vite build --mode production",
     "preview": "vite preview --mode production --port=80 --host=0.0.0.0",

@@ -41,7 +41,7 @@ export class ExplorerController {
         contentTypes: CONTENT_TYPES,
         categories: [],
         warning:
-          '상세 분류를 불러오지 못했습니다. 기본 카테고리를 선택할 수 있습니다.',
+          '카테고리를 불러오지 못했습니다. 경로 비교는 계속 사용할 수 있습니다.',
       };
     }
   }
