@@ -219,7 +219,7 @@ export function AiTravelChatWidget() {
               <MapPin className="h-3.5 w-3.5 shrink-0 text-emerald-700" />
               <span className="font-medium truncate">
                 {originName} ➔ {destinationName}
-                {draft.startDate && ` (${draft.startDate.slice(5)})`}
+                {draft.startDate && ` (여행 기간: ${draft.startDate.slice(5)} ~ ${draft.endDate.slice(5)})`}
               </span>
             </div>
           )}

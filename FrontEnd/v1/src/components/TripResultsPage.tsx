@@ -166,7 +166,7 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
           {startDate && endDate && (
             <span className="rounded-full bg-emerald-100 font-semibold px-3 py-1.5 text-emerald-950 flex items-center gap-1.5 border border-emerald-200">
               <Calendar className="h-3.5 w-3.5 text-emerald-800" />
-              {durationLabel || "일정"} ({startDate} ~ {endDate})
+              여행 기간: {durationLabel || "일정"} ({startDate} ~ {endDate})
               {departureTime ? ` · 출발 ${departureTime}` : ""}
             </span>
           )}

@@ -317,31 +317,31 @@ export function TripRequestPage({
               />
             </div>
           </section>
-          {/* Step 2: 언제 떠나시나요? (여행 날짜 & 시간대) */}
+          {/* Step 2: 여행 기간 및 시간대 */}
           <section className="space-y-4 border-t border-stone-100 pt-6">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="flex items-center gap-2.5 text-base font-bold">
                 <StepNumber number="2" />
-                언제 떠나시나요?
+                여행 기간 및 출발 시각
               </h2>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100/80 px-3 py-1 text-xs font-bold text-emerald-900 border border-emerald-200">
                 <Calendar className="h-3.5 w-3.5 text-emerald-800" />
-                {calculateTripDuration(draft.startDate, draft.endDate).label}
+                여행 기간: {calculateTripDuration(draft.startDate, draft.endDate).label}
               </span>
             </div>
             <p className="text-xs leading-relaxed text-stone-500">
-              출발일과 도착일을 선택해 주세요. 당일치기부터 장기 여행까지 일정을 자유롭게 지정할 수 있어요.
+              여행 기간(시작일과 종료일)을 선택해 주세요. 당일치기부터 장기 여행까지 일정을 자유롭게 지정할 수 있어요.
             </p>
 
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-stone-600 mb-1">
-                    출발 날짜
+                    여행 시작일
                   </label>
                   <input
                     type="date"
-                    aria-label="출발 날짜"
+                    aria-label="여행 시작일"
                     value={draft.startDate}
                     onChange={(e) => {
                       const newStart = e.target.value;
@@ -353,11 +353,11 @@ export function TripRequestPage({
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-stone-600 mb-1">
-                    도착 날짜
+                    여행 종료일
                   </label>
                   <input
                     type="date"
-                    aria-label="도착 날짜"
+                    aria-label="여행 종료일"
                     min={draft.startDate}
                     value={draft.endDate}
                     onChange={(e) => edit({ endDate: e.target.value })}
@@ -681,7 +681,7 @@ export function TripRequestPage({
             <div className="border-t border-white/15 pt-4 text-xs leading-relaxed text-emerald-50 space-y-2">
               <p className="flex items-center gap-1.5 font-semibold text-white">
                 <Calendar className="h-3.5 w-3.5 text-emerald-300" />
-                {calculateTripDuration(draft.startDate, draft.endDate).label} ({draft.startDate} ~ {draft.endDate})
+                여행 기간: {calculateTripDuration(draft.startDate, draft.endDate).label} ({draft.startDate} ~ {draft.endDate})
               </p>
               <p className="flex items-center gap-1.5 text-emerald-100">
                 <Clock className="h-3.5 w-3.5 text-emerald-300" />
