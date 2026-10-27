@@ -339,7 +339,10 @@ export function TripRequestPage({
       </div>
 
       {planMode === "chat" ? (
-        <FullScreenAiChatPlanner onSwitchToPlanner={() => setPlanMode("planner")} />
+        <FullScreenAiChatPlanner
+          onSwitchToPlanner={() => setPlanMode("planner")}
+          onComplete={onComplete}
+        />
       ) : (
         <>
           <header className="space-y-3">

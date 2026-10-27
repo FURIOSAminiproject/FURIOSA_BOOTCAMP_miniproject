@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Bot,
   Send,
@@ -13,59 +14,139 @@ import {
   Coffee,
   Utensils,
   Camera,
+  CheckCircle2,
+  Check,
+  Loader2,
+  CheckCircle,
 } from "lucide-react";
 import { useTripWorkspace } from "./TripWorkspaceContext";
+import {
+  searchMapPlaces,
+  compareRoutes,
+  getRouteTimeline,
+  type SearchPlace,
+  type TimelineStopRequest,
+} from "../services/route-explorer";
+import {
+  calculateTripDuration,
+  tripCompareRequest,
+  type TripDraft,
+} from "../services/trip-workspace";
+import type { LocationRouteMode } from "../types/location";
 
 interface ChatMessage {
   id: string;
   role: "user" | "model";
   text: string;
   timestamp: string;
+  step?: number;
+  isSummaryCard?: boolean;
 }
 
 interface FullScreenAiChatPlannerProps {
   onSwitchToPlanner: () => void;
+  onComplete?: () => void;
 }
 
-const CATEGORY_PROMPTS = [
-  {
-    icon: Car,
-    title: "1박 2일 로드트립",
-    prompt: "서울에서 부산까지 1박 2일 운전해서 갈 건데, 고속도로 휴게소와 점심 맛집, 꼭 들러야 할 포토스팟 포함해서 완벽한 일정 짜줘!",
-  },
-  {
-    icon: Coffee,
-    title: "동해 바다뷰 힐링",
-    prompt: "강릉과 속초 2박 3일 힐링 여행 일정 추천해줘. 바다가 보이는 오션뷰 카페와 현지인 생선구이 맛집 중심으로 부탁해.",
-  },
-  {
-    icon: Camera,
-    title: "경주 역사·야경",
-    prompt: "아이와 함께 가는 경주 당일치기 코스 추천해줘. 불국사와 대릉원, 첨성대 야경까지 무리하지 않는 동선으로 부탁해.",
-  },
-  {
-    icon: Utensils,
-    title: "전라도 미식 로드",
-    prompt: "전주 한옥마을과 여수 밤바다를 잇는 2박 3일 식도락 드라이브 코스 짜줘. 각 지역 대표 별미 맛집 추천도 꼭 포함해줘!",
-  },
+const STORAGE_KEY = "roadfriend_chat_planner_data_v2";
+
+interface StepOption {
+  label: string;
+  value: string;
+}
+
+// 4단계 순차 질문별 빠른 선택 칩
+const STEP_CHIPS: Record<number, StepOption[]> = {
+  1: [
+    { label: "서울 ➔ 부산", value: "서울에서 부산으로 가고 싶어요" },
+    { label: "서울 ➔ 강릉", value: "서울에서 강릉으로 가고 싶어요" },
+    { label: "수원 ➔ 경주", value: "수원에서 경주로 가고 싶어요" },
+    { label: "인천 ➔ 전주", value: "인천에서 전주로 가고 싶어요" },
+    { label: "대전 ➔ 여수", value: "대전에서 여수로 가고 싶어요" },
+  ],
+  2: [
+    { label: "당일치기 · 오전 9시 출발", value: "당일치기 일정이고, 오전 9시 정각에 출발할게요" },
+    { label: "1박 2일 · 오전 9시 30분 출발", value: "1박 2일 일정이고, 오전 9시 30분에 출발할게요" },
+    { label: "2박 3일 · 오전 8시 30분 출발", value: "2박 3일 일정이고, 오전 8시 30분에 일찍 출발할게요" },
+    { label: "1박 2일 · 오전 10시 출발", value: "1박 2일 일정이고, 오전 10시쯤 여유롭게 출발할게요" },
+  ],
+  3: [
+    { label: "🚗 자동차 운전 (권장/최단 비교)", value: "자동차로 직접 운전해서 갈게요. 권장 경로와 최단 경로를 비교해 주세요" },
+    { label: "🚆 대중교통 + 도보 연계", value: "대중교통과 도보를 연계해서 이동할게요" },
+    { label: "🚶 도보 / 산책 중심", value: "도보 산책 위주로 편안하게 걷고 싶어요" },
+  ],
+  4: [
+    { label: "🍽️ 길목 맛집 & 휴게소 별미", value: "이동 경로 주변의 길목 맛집과 고속도로 휴게소 맛있는 곳 위주로 추천해줘" },
+    { label: "☕ 뷰 좋은 카페 & 디저트", value: "바다나 산 전망이 탁 트인 분위기 좋은 카페 위주로 추천해줘" },
+    { label: "🏞️ 필수 관광명소 & 문화재", value: "이동하는 길목의 대표적인 역사 유적지와 관광 명소 위주로 들르고 싶어" },
+    { label: "💆 힐링 쉼터 & 자연휴양림", value: "사람 많지 않고 조용히 쉴 수 있는 힐링 자연 쉼터 위주로 추천해줘" },
+    { label: "✨ 맛집 + 카페 + 명소 골고루", value: "맛집, 전망 좋은 카페, 대표 명소까지 골고루 균형 있게 추천해줘" },
+  ],
+};
+
+const STEP_LABELS = [
+  "출발·도착지",
+  "기간 & 출발시각",
+  "이동 수단",
+  "선호 장소",
+  "완성 및 경로 생성",
 ];
 
-export function FullScreenAiChatPlanner({ onSwitchToPlanner }: FullScreenAiChatPlannerProps) {
-  const { state } = useTripWorkspace();
-  const { draft } = state;
+export function FullScreenAiChatPlanner({
+  onSwitchToPlanner,
+  onComplete,
+}: FullScreenAiChatPlannerProps) {
+  const navigate = useNavigate();
+  const { state, dispatch: workspaceDispatch } = useTripWorkspace();
+  const { draft: currentWorkspaceDraft } = state;
 
+  const [currentStep, setCurrentStep] = useState<number>(1);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [lastSavedTime, setLastSavedTime] = useState<string>("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // 로컬 상태로 보관하는 수집 데이터
+  const [chatDraft, setChatDraft] = useState<{
+    originName: string;
+    destinationName: string;
+    originPlace: SearchPlace | null;
+    destinationPlace: SearchPlace | null;
+    durationLabel: string;
+    departureTime: string;
+    startDate: string;
+    endDate: string;
+    mode: LocationRouteMode;
+    preferences: string;
+  }>(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    return {
+      originName: currentWorkspaceDraft.origin?.name || "서울",
+      destinationName: currentWorkspaceDraft.destination?.name || "부산",
+      originPlace: currentWorkspaceDraft.origin,
+      destinationPlace: currentWorkspaceDraft.destination,
+      durationLabel: "1박 2일",
+      departureTime: "09:30",
+      startDate: today,
+      endDate: tomorrow,
+      mode: "driving",
+      preferences: "맛집, 카페, 명소",
+    };
+  });
 
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
-      id: "welcome-planner",
+      id: "step-1-prompt",
       role: "model",
+      step: 1,
       text:
-        "안녕하세요! 당신의 완벽한 계획형 여행 메이트 **'I like your J'**의 전속 AI 큐레이터입니다. 🚗✨\n\n" +
-        "어디로 떠나고 싶으신지, 며칠 일정인지, 혹은 특별히 원하시는 테마(맛집, 힐링, 카페, 아이 동반 등)를 편하게 말씀해 주세요.\n" +
-        "출발부터 도착까지 실제 운전 경로와 식사 시간대를 고려한 **최적의 1:1 맞춤형 여행 코스**를 즉시 설계해 드립니다!",
+        "안녕하세요! 당신의 완벽한 계획형 여행 메이트 **'I like your J'**의 AI 큐레이터입니다. 🚗✨\n\n" +
+        "최적의 여행 경로와 식사 시간대별 추천 일정을 완성하기 위해 **4가지 질문**을 순서대로 드릴게요.\n\n" +
+        "📍 **1단계: 어디에서 출발하여 어디로 떠나시나요?**\n" +
+        "출발지와 도착지를 편하게 말씀해 주세요. (예: '서울에서 부산으로', '수원에서 경주 등')",
       timestamp: new Date().toLocaleTimeString("ko-KR", {
         hour: "2-digit",
         minute: "2-digit",
@@ -73,166 +154,501 @@ export function FullScreenAiChatPlanner({ onSwitchToPlanner }: FullScreenAiChatP
     },
   ]);
 
+  // 브라우저 로컬 캐시(localStorage) 복원
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.currentStep) setCurrentStep(parsed.currentStep);
+        if (parsed.chatDraft) setChatDraft(parsed.chatDraft);
+        if (parsed.messages && Array.isArray(parsed.messages) && parsed.messages.length > 0) {
+          setMessages(parsed.messages);
+        }
+        if (parsed.savedAt) setLastSavedTime(parsed.savedAt);
+      }
+    } catch (e) {
+      console.warn("로컬 캐시 복원 실패:", e);
+    }
+  }, []);
+
+  // 브라우저 로컬 캐시 자동 동기화 (비로그인 사용자 지원)
+  const saveToLocalStorage = (stepNum: number, draftData: typeof chatDraft, msgList: ChatMessage[]) => {
+    try {
+      const timeStr = new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+      const payload = {
+        currentStep: stepNum,
+        chatDraft: draftData,
+        messages: msgList,
+        savedAt: timeStr,
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      setLastSavedTime(timeStr);
+    } catch (e) {
+      console.warn("로컬 캐시 저장 오류:", e);
+    }
+  };
+
   // 스크롤 맨 아래로 이동
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isLoading]);
+  }, [messages, isLoading, isGeneratingPlan]);
 
-  const handleSend = async (textToSend?: string) => {
-    const text = (textToSend || inputText).trim();
-    if (!text || isLoading) return;
+  // 1단계 파싱: 출발지 및 도착지 추출
+  const parseOriginAndDest = (text: string) => {
+    let origin = "서울";
+    let destination = "부산";
+
+    if (text.includes("에서") && (text.includes("으로") || text.includes("로") || text.includes("까지"))) {
+      const parts = text.split("에서");
+      origin = parts[0].trim().replace(/^.*?(출발지[:\s]*)?/, "");
+      const destPart = parts[1] || "";
+      const match = destPart.match(/^(.*?)(?:으로|로|까지|\s+가고|\s+떠나|\s+향해|$)/);
+      if (match && match[1]) {
+        destination = match[1].trim();
+      }
+    } else if (text.includes("➔") || text.includes("->") || text.includes("~")) {
+      const sep = text.includes("➔") ? "➔" : text.includes("->") ? "->" : "~";
+      const parts = text.split(sep);
+      origin = parts[0].trim();
+      destination = parts[1]?.trim() || "부산";
+    } else {
+      const tokens = text.split(/[\s,]+/);
+      if (tokens.length >= 2) {
+        origin = tokens[0];
+        destination = tokens[1];
+      }
+    }
+
+    return {
+      origin: origin.replace(/[^가-힣a-zA-Z0-9\s]/g, "").trim() || "서울",
+      destination: destination.replace(/[^가-힣a-zA-Z0-9\s]/g, "").trim() || "부산",
+    };
+  };
+
+  // 2단계 파싱: 기간 및 출발 시각 추출
+  const parseDurationAndTime = (text: string) => {
+    let durationLabel = "1박 2일";
+    let daysCount = 2;
+    let departureTime = "09:30";
+
+    if (text.includes("당일")) {
+      durationLabel = "당일치기";
+      daysCount = 1;
+    } else if (text.includes("2박 3일") || text.includes("2박3일")) {
+      durationLabel = "2박 3일";
+      daysCount = 3;
+    } else if (text.includes("3박 4일") || text.includes("3박4일")) {
+      durationLabel = "3박 4일";
+      daysCount = 4;
+    } else if (text.includes("1박 2일") || text.includes("1박2일")) {
+      durationLabel = "1박 2일";
+      daysCount = 2;
+    }
+
+    const timeMatch = text.match(/(\d{1,2})시(?:\s*(\d{1,2})분)?/);
+    if (timeMatch) {
+      let hour = parseInt(timeMatch[1], 10);
+      const min = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
+      if (text.includes("오후") && hour < 12) hour += 12;
+      departureTime = `${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+    }
+
+    const today = new Date();
+    const end = new Date(today.getTime() + (daysCount - 1) * 86400000);
+    const startDate = today.toISOString().slice(0, 10);
+    const endDate = end.toISOString().slice(0, 10);
+
+    return { durationLabel, departureTime, startDate, endDate };
+  };
+
+  // 3단계 파싱: 이동 수단
+  const parseMode = (text: string): LocationRouteMode => {
+    if (text.includes("대중교통") || text.includes("버스") || text.includes("기차") || text.includes("지하철")) {
+      return "transit";
+    }
+    if (text.includes("도보") || text.includes("걸어") || text.includes("산책")) {
+      return "walking";
+    }
+    return "driving";
+  };
+
+  // 사용자 답변 처리
+  const handleUserResponse = async (userText: string) => {
+    if (!userText.trim() || isLoading) return;
 
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
       role: "user",
-      text,
+      text: userText,
+      step: currentStep,
       timestamp: new Date().toLocaleTimeString("ko-KR", {
         hour: "2-digit",
         minute: "2-digit",
       }),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    const nextMessages = [...messages, userMessage];
+    setMessages(nextMessages);
     setInputText("");
     setIsLoading(true);
 
-    try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: text,
-          history: messages.slice(-8).map((m) => ({
-            role: m.role,
-            content: m.text,
-          })),
-          context: {
-            origin: draft.origin?.name,
-            destination: draft.destination?.name,
-            startDate: draft.startDate,
-            endDate: draft.endDate,
-            departureTime: draft.departureTime,
-          },
-        }),
-      });
+    let updatedDraft = { ...chatDraft };
+    let nextStep = currentStep + 1;
+    let aiReply = "";
 
-      if (!response.ok) {
-        throw new Error(`서버 응답 오류 (${response.status})`);
+    try {
+      if (currentStep === 1) {
+        // Step 1: 출발지/도착지
+        const parsed = parseOriginAndDest(userText);
+        updatedDraft.originName = parsed.origin;
+        updatedDraft.destinationName = parsed.destination;
+
+        // 배경에서 좌표 자동 검색
+        try {
+          const originResults = await searchMapPlaces(parsed.origin);
+          if (originResults && originResults.length > 0) {
+            updatedDraft.originPlace = originResults[0];
+          }
+          const destResults = await searchMapPlaces(parsed.destination);
+          if (destResults && destResults.length > 0) {
+            updatedDraft.destinationPlace = destResults[0];
+          }
+        } catch (e) {
+          console.warn("좌표 검색 실패 (기본값 활용):", e);
+        }
+
+        aiReply =
+          `네! **${parsed.origin}**에서 출발하여 **${parsed.destination}**(으)로 떠나는 여정으로 확인했습니다. 🛣️\n\n` +
+          `📅 **2단계: 여행 기간은 며칠이고, 몇 시에 출발하시나요?**\n` +
+          `시간대에 맞춰 점심 식사와 휴게소 경유지를 추천해 드립니다. (예: '1박 2일 오전 9시 30분 출발')`;
+      } else if (currentStep === 2) {
+        // Step 2: 기간 및 시각
+        const parsed = parseDurationAndTime(userText);
+        updatedDraft.durationLabel = parsed.durationLabel;
+        updatedDraft.departureTime = parsed.departureTime;
+        updatedDraft.startDate = parsed.startDate;
+        updatedDraft.endDate = parsed.endDate;
+
+        aiReply =
+          `**${parsed.durationLabel}** 일정, **${parsed.departureTime} 출발**로 저장했습니다. ⏰\n\n` +
+          `🚗 **3단계: 어떻게 이동할까요?**\n` +
+          `직접 운전하시나요, 대중교통을 이용하시나요? 자동차 경로 시 권장 경로와 최단 경로를 함께 비교해 드립니다.`;
+      } else if (currentStep === 3) {
+        // Step 3: 이동 수단
+        const mode = parseMode(userText);
+        updatedDraft.mode = mode;
+        const modeLabel = mode === "driving" ? "자동차 운전" : mode === "transit" ? "대중교통" : "도보";
+
+        aiReply =
+          `이동 수단은 **${modeLabel}**(으)로 설정했습니다. 🚙\n\n` +
+          `🎯 **4단계: 길목에서 어떤 곳에 들르고 싶으세요?**\n` +
+          `도로변 맛집, 오션뷰 카페, 힐링 명소 등 마음에 드는 여행 테마를 편하게 말씀해 주세요.`;
+      } else if (currentStep === 4) {
+        // Step 4: 선호 장소
+        updatedDraft.preferences = userText;
+
+        aiReply =
+          `선호하시는 테마(**${userText}**)까지 모든 설정이 완벽하게 정리되었습니다! 🎉\n\n` +
+          `수집된 모든 여행 조건을 바탕으로 우리 서버의 경로 탐색 엔진과 1:1 매핑할 준비가 끝났습니다. 아래 요약을 확인해 주세요.`;
+
+        nextStep = 5;
       }
 
-      const data = await response.json();
-      const aiReply =
-        data.reply || "답변을 생성하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+      setChatDraft(updatedDraft);
+      setCurrentStep(nextStep);
 
       const aiMessage: ChatMessage = {
         id: `model-${Date.now()}`,
         role: "model",
         text: aiReply,
+        step: nextStep,
+        isSummaryCard: nextStep === 5,
         timestamp: new Date().toLocaleTimeString("ko-KR", {
           hour: "2-digit",
           minute: "2-digit",
         }),
       };
 
-      setMessages((prev) => [...prev, aiMessage]);
+      const finalMessages = [...nextMessages, aiMessage];
+      setMessages(finalMessages);
+      saveToLocalStorage(nextStep, updatedDraft, finalMessages);
     } catch (err: any) {
-      const errorMessage: ChatMessage = {
-        id: `err-${Date.now()}`,
-        role: "model",
-        text: `네트워크 오류가 발생했습니다: ${err.message || "연결 상태를 확인해 주세요."}`,
-        timestamp: new Date().toLocaleTimeString("ko-KR", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+      console.error("챗봇 단계 처리 오류:", err);
     } finally {
       setIsLoading(false);
     }
   };
 
+  // 대화 초기화
   const handleResetChat = () => {
-    setMessages([
-      {
-        id: `welcome-${Date.now()}`,
-        role: "model",
-        text: "대화가 새로 시작되었습니다! 이번엔 어떤 여행을 계획해 볼까요? 원하시는 목적지나 일정을 편하게 말씀해 주세요. 😊",
-        timestamp: new Date().toLocaleTimeString("ko-KR", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      },
-    ]);
+    localStorage.removeItem(STORAGE_KEY);
+    setCurrentStep(1);
+    setGenerationError(null);
+    const today = new Date().toISOString().slice(0, 10);
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+
+    const initialDraft = {
+      originName: "서울",
+      destinationName: "부산",
+      originPlace: null,
+      destinationPlace: null,
+      durationLabel: "1박 2일",
+      departureTime: "09:30",
+      startDate: today,
+      endDate: tomorrow,
+      mode: "driving" as LocationRouteMode,
+      preferences: "맛집, 카페, 명소",
+    };
+    setChatDraft(initialDraft);
+
+    const initialMsg: ChatMessage = {
+      id: "step-1-prompt-reset",
+      role: "model",
+      step: 1,
+      text:
+        "새로운 대화가 시작되었습니다! 🚗✨\n\n" +
+        "📍 **1단계: 어디에서 출발하여 어디로 떠나시나요?**\n" +
+        "출발지와 도착지를 편하게 말씀해 주세요. (예: '서울에서 부산으로')",
+      timestamp: new Date().toLocaleTimeString("ko-KR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
+
+    setMessages([initialMsg]);
+    setLastSavedTime("");
+  };
+
+  // 최종 서버 API 호출하여 경로 & 타임라인 생성
+  const handleGenerateFinalPlan = async () => {
+    setIsGeneratingPlan(true);
+    setGenerationError(null);
+
+    try {
+      // 1. 출발지 & 도착지 좌표가 없으면 자동 검색으로 보충
+      let originPlace = chatDraft.originPlace;
+      if (!originPlace) {
+        const originSearch = await searchMapPlaces(chatDraft.originName || "서울");
+        if (originSearch && originSearch.length > 0) {
+          originPlace = originSearch[0];
+        } else {
+          originPlace = {
+            id: "origin-fallback",
+            name: chatDraft.originName || "서울",
+            address: "서울특별시 중구 세종대로 110",
+            latitude: 37.5665,
+            longitude: 126.978,
+          };
+        }
+      }
+
+      let destPlace = chatDraft.destinationPlace;
+      if (!destPlace) {
+        const destSearch = await searchMapPlaces(chatDraft.destinationName || "부산");
+        if (destSearch && destSearch.length > 0) {
+          destPlace = destSearch[0];
+        } else {
+          destPlace = {
+            id: "dest-fallback",
+            name: chatDraft.destinationName || "부산",
+            address: "부산광역시 연제구 중앙대로 1001",
+            latitude: 35.1796,
+            longitude: 129.0756,
+          };
+        }
+      }
+
+      // 2. Draft 구성
+      const duration = calculateTripDuration(chatDraft.startDate, chatDraft.endDate);
+      const updatedDraft: TripDraft = {
+        ...currentWorkspaceDraft,
+        title: `${originPlace.name}에서 ${destPlace.name}까지 (${duration.label})`,
+        originQuery: originPlace.name,
+        destinationQuery: destPlace.name,
+        origin: originPlace,
+        destination: destPlace,
+        mode: chatDraft.mode,
+        startDate: chatDraft.startDate,
+        endDate: chatDraft.endDate,
+        departureTime: chatDraft.departureTime,
+        radiusMeters: 15000,
+        selectedCategoryIds: [],
+        categorySelections: {},
+      };
+
+      workspaceDispatch({ type: "edit", patch: updatedDraft });
+
+      // 3. 서버 API 호출: 경로 비교 (/api/routes/compare)
+      const input = tripCompareRequest(updatedDraft);
+      if (!input) throw new Error("경로 비교 요청 파라미터가 유효하지 않습니다.");
+
+      const comparison = await compareRoutes(input);
+
+      // 4. 서버 API 호출: 타임라인 구간 추천 (/api/routes/timeline)
+      const depTime = chatDraft.departureTime || "09:30";
+      const addMinutes = (timeStr: string, mins: number) => {
+        const [hStr, mStr] = (timeStr || "09:30").split(":");
+        const total = (((Number(hStr) || 9) * 60 + (Number(mStr) || 30) + mins) % (24 * 60) + 24 * 60) % (24 * 60);
+        return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+      };
+
+      const stops: TimelineStopRequest[] = [
+        {
+          label: "1구간 · 출발지 인근 쉼터 & 명소",
+          targetTime: addMinutes(depTime, 45),
+          contentTypeIds: [12, 14, 38, 39],
+          radiusMeters: 15000,
+          limit: 5,
+        },
+        {
+          label: "2구간 · 점심 식사 & 길목 맛집",
+          targetTime: "12:30",
+          contentTypeIds: [39],
+          radiusMeters: 15000,
+          limit: 5,
+        },
+        {
+          label: "3구간 · 오후 힐링 여행지 & 관광 명소",
+          targetTime: addMinutes("12:30", 120),
+          contentTypeIds: [12, 14, 28],
+          radiusMeters: 15000,
+          limit: 5,
+        },
+        {
+          label: "4구간 · 도착지 인근 저녁 식사 및 숙소",
+          targetTime: "18:30",
+          contentTypeIds: [39, 32],
+          radiusMeters: 15000,
+          limit: 5,
+        },
+      ];
+
+      let timeline = null;
+      try {
+        timeline = await getRouteTimeline({
+          mode: chatDraft.mode,
+          points: [
+            { longitude: originPlace.longitude, latitude: originPlace.latitude },
+            { longitude: destPlace.longitude, latitude: destPlace.latitude },
+          ],
+          departureTime: depTime,
+          stops,
+        });
+      } catch (timelineErr) {
+        console.warn("Timeline fetch error:", timelineErr);
+      }
+
+      // 5. 완료 결과 저장
+      workspaceDispatch({
+        type: "complete",
+        result: {
+          request: input,
+          comparison,
+          startDate: chatDraft.startDate,
+          endDate: chatDraft.endDate,
+          departureTime: chatDraft.departureTime,
+          durationLabel: duration.label,
+          timeline,
+          categoryGroups: [],
+          title: updatedDraft.title,
+        },
+      });
+
+      // 6. 결과 페이지(/trips)로 이동
+      if (onComplete) {
+        onComplete();
+      } else {
+        navigate("/trips");
+      }
+    } catch (err: any) {
+      console.error("일정 자동 생성 에러:", err);
+      setGenerationError(err.message || "경로 탐색 서버 응답에 실패했습니다. 다시 시도해 주세요.");
+    } finally {
+      setIsGeneratingPlan(false);
+    }
   };
 
   return (
-    <div className="flex flex-col h-[750px] max-h-[82vh] rounded-3xl border border-stone-200 bg-white shadow-xl overflow-hidden animate-in fade-in duration-300">
-      {/* 1. 상단 헤더 */}
-      <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-4 bg-gradient-to-r from-[#064e43] via-[#085a4e] to-[#0a6659] text-white shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-xs border border-white/20">
-            <Bot className="h-6 w-6 text-emerald-300" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="font-bold text-base sm:text-lg tracking-tight">
-                I like your J 전속 AI 큐레이터 대화형 여행 플래너
-              </h2>
-              <span className="rounded-full bg-emerald-400/25 px-2 py-0.5 text-[11px] font-semibold text-emerald-200">
-                Gemini Flash-Lite
-              </span>
+    <div className="flex flex-col h-[780px] max-h-[85vh] rounded-3xl border border-stone-200 bg-white shadow-xl overflow-hidden animate-in fade-in duration-300">
+      {/* 1. 상단 헤더 & 진행 단계 인디케이터 */}
+      <div className="flex flex-col gap-3 px-6 py-4 bg-gradient-to-r from-[#064e43] via-[#085a4e] to-[#0a6659] text-white shrink-0">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-xs border border-white/20">
+              <Bot className="h-5 w-5 text-emerald-300" />
             </div>
-            <p className="text-xs text-emerald-100/80">
-              말하듯 자연스럽게 질문하시면 소요 시간과 경로를 감안한 완벽한 코스를 설계해 드립니다.
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="font-bold text-sm sm:text-base tracking-tight">
+                  대화형 AI 여행 플래너
+                </h2>
+                <span className="rounded-full bg-emerald-400/25 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">
+                  4단계 순차 문답 모드
+                </span>
+              </div>
+              <p className="text-[11px] text-emerald-100/80">
+                출발·도착 ➔ 기간·출발시각 ➔ 이동수단 ➔ 선호장소를 차례대로 묻고 최적 코스를 완성합니다.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {lastSavedTime && (
+              <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-emerald-200/90 bg-white/10 px-2.5 py-1 rounded-full">
+                <Check className="h-3 w-3 text-emerald-300" />
+                <span>브라우저 자동 저장 ({lastSavedTime})</span>
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={handleResetChat}
+              className="flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/20 transition cursor-pointer"
+              title="새로 시작하기"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              <span>처음부터 다시</span>
+            </button>
+            <button
+              type="button"
+              onClick={onSwitchToPlanner}
+              className="flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-1.5 text-xs font-bold text-[#064e43] hover:bg-emerald-50 transition shadow-sm cursor-pointer"
+            >
+              <Compass className="h-3.5 w-3.5" />
+              <span>지도 화면 플래너</span>
+            </button>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleResetChat}
-            className="flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs font-medium text-white hover:bg-white/20 transition"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-            <span>대화 초기화</span>
-          </button>
-          <button
-            type="button"
-            onClick={onSwitchToPlanner}
-            className="flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-xs font-bold text-[#064e43] hover:bg-emerald-50 transition shadow-sm"
-          >
-            <Compass className="h-3.5 w-3.5" />
-            <span>지도 플래너로 가기</span>
-          </button>
+        {/* 4단계 순차 프로그레스 바 */}
+        <div className="flex items-center justify-between gap-1 pt-1 border-t border-white/15">
+          {STEP_LABELS.map((label, idx) => {
+            const stepNum = idx + 1;
+            const isDone = currentStep > stepNum;
+            const isCurrent = currentStep === stepNum;
+            return (
+              <div
+                key={idx}
+                className={`flex-1 flex items-center justify-center gap-1 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                  isCurrent
+                    ? "bg-white/25 text-amber-300 font-bold border border-white/30"
+                    : isDone
+                    ? "text-emerald-200"
+                    : "text-white/40"
+                }`}
+              >
+                <span className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] bg-white/20">
+                  {isDone ? "✓" : stepNum}
+                </span>
+                <span className="hidden sm:inline">{label}</span>
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* 2. 추천 빠른 질문 칩 바 */}
-      <div className="px-6 py-3 bg-[#fbf9f5] border-b border-stone-200/80 flex items-center gap-2.5 overflow-x-auto no-scrollbar shrink-0">
-        <span className="text-xs font-bold text-stone-500 shrink-0 flex items-center gap-1">
-          <Sparkles className="h-3.5 w-3.5 text-emerald-700" />
-          추천 코스:
-        </span>
-        {CATEGORY_PROMPTS.map((cat, idx) => {
-          const Icon = cat.icon;
-          return (
-            <button
-              key={idx}
-              type="button"
-              disabled={isLoading}
-              onClick={() => void handleSend(cat.prompt)}
-              className="shrink-0 flex items-center gap-1.5 rounded-full border border-stone-200 bg-white px-3.5 py-1.5 text-xs text-stone-700 hover:border-emerald-600 hover:bg-emerald-50 hover:text-emerald-950 transition shadow-2xs disabled:opacity-40"
-            >
-              <Icon className="h-3.5 w-3.5 text-emerald-800" />
-              <span>{cat.title}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* 3. 대화 메시지 영역 */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-stone-50/40">
+      {/* 2. 대화 메시지 영역 */}
+      <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5 bg-stone-50/50">
         {messages.map((msg) => (
           <div
             key={msg.id}
@@ -240,13 +656,14 @@ export function FullScreenAiChatPlanner({ onSwitchToPlanner }: FullScreenAiChatP
               msg.role === "user" ? "items-end" : "items-start"
             }`}
           >
-            <div className="flex items-start gap-2.5 max-w-[90%] sm:max-w-[82%]">
+            <div className="flex items-start gap-3 max-w-[92%] sm:max-w-[85%]">
               {msg.role === "model" && (
                 <div className="shrink-0 flex h-8 w-8 items-center justify-center rounded-xl bg-[#064e43] text-white shadow-xs">
                   <Bot className="h-4 w-4 text-emerald-300" />
                 </div>
               )}
-              <div>
+
+              <div className="space-y-2">
                 <div
                   className={`rounded-2xl px-5 py-3.5 text-sm sm:text-base leading-relaxed whitespace-pre-wrap break-words shadow-xs ${
                     msg.role === "user"
@@ -256,6 +673,106 @@ export function FullScreenAiChatPlanner({ onSwitchToPlanner }: FullScreenAiChatP
                 >
                   {msg.text}
                 </div>
+
+                {/* 5단계 요약 카드 & 최종 생성 버튼 */}
+                {msg.isSummaryCard && (
+                  <div className="mt-4 rounded-2xl bg-gradient-to-br from-emerald-950 via-[#064e43] to-[#04332c] text-white p-5 sm:p-6 shadow-xl border border-emerald-600/40 space-y-4 animate-in fade-in zoom-in-95 duration-300">
+                    <div className="flex items-center justify-between border-b border-white/20 pb-3">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-5 w-5 text-amber-300" />
+                        <h4 className="font-bold text-base text-white">
+                          수집 완료된 여행 계획 프로필
+                        </h4>
+                      </div>
+                      <span className="text-[11px] bg-white/15 px-2 py-0.5 rounded-full text-emerald-200">
+                        브라우저 저장됨
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs sm:text-sm text-emerald-100/90">
+                      <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white/10">
+                        <MapPin className="h-4 w-4 text-amber-300 shrink-0" />
+                        <div>
+                          <span className="text-white/60 text-[11px] block">경로</span>
+                          <span className="font-bold text-white">
+                            {chatDraft.originName} ➔ {chatDraft.destinationName}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white/10">
+                        <Clock className="h-4 w-4 text-emerald-300 shrink-0" />
+                        <div>
+                          <span className="text-white/60 text-[11px] block">기간 및 출발시각</span>
+                          <span className="font-bold text-white">
+                            {chatDraft.durationLabel} ({chatDraft.departureTime} 출발)
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white/10">
+                        <Car className="h-4 w-4 text-emerald-300 shrink-0" />
+                        <div>
+                          <span className="text-white/60 text-[11px] block">이동 수단</span>
+                          <span className="font-bold text-white">
+                            {chatDraft.mode === "driving"
+                              ? "자동차 운전 (권장/최단 비교)"
+                              : chatDraft.mode === "transit"
+                              ? "대중교통 + 도보"
+                              : "도보 산책"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white/10">
+                        <Sparkles className="h-4 w-4 text-amber-300 shrink-0" />
+                        <div>
+                          <span className="text-white/60 text-[11px] block">취향 테마</span>
+                          <span className="font-bold text-white truncate max-w-[180px] block">
+                            {chatDraft.preferences}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {generationError && (
+                      <div className="rounded-xl bg-red-500/20 border border-red-400/40 p-3 text-xs text-red-200">
+                        {generationError}
+                      </div>
+                    )}
+
+                    <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                      <button
+                        type="button"
+                        disabled={isGeneratingPlan}
+                        onClick={handleGenerateFinalPlan}
+                        className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-stone-950 font-bold px-5 py-3.5 text-sm shadow-lg hover:shadow-xl transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        {isGeneratingPlan ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>서버 API 최적 경로 & 타임라인 계산 중...</span>
+                          </>
+                        ) : (
+                          <>
+                            <ArrowRight className="h-4 w-4" />
+                            <span>최적 경로 & 4구간 타임라인 생성하기</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={onSwitchToPlanner}
+                        className="flex items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/10 hover:bg-white/20 text-white font-semibold px-4 py-3.5 text-xs transition cursor-pointer"
+                      >
+                        <Compass className="h-4 w-4 text-emerald-300" />
+                        <span>지도 플래너에서 수정</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <span className="mt-1 block px-1 text-[11px] text-stone-400 font-mono">
                   {msg.timestamp}
                 </span>
@@ -265,34 +782,65 @@ export function FullScreenAiChatPlanner({ onSwitchToPlanner }: FullScreenAiChatP
         ))}
 
         {isLoading && (
-          <div className="flex items-center gap-3 text-xs sm:text-sm text-stone-600 bg-white border border-stone-200/90 rounded-2xl px-5 py-4 w-fit shadow-xs animate-pulse">
+          <div className="flex items-center gap-2.5 text-xs sm:text-sm text-stone-600 bg-white border border-stone-200/90 rounded-2xl px-5 py-3.5 w-fit shadow-xs animate-pulse">
             <div className="h-2.5 w-2.5 rounded-full bg-emerald-600 animate-ping" />
-            <span>길벗 AI가 경로와 식사 시간대를 고려하여 최적의 여행 일정을 구성하고 있습니다…</span>
+            <span>AI 플래너가 다음 질문을 준비하고 있습니다…</span>
           </div>
         )}
         <div ref={messagesEndRef} />
       </div>
 
+      {/* 3. 단계별 빠른 선택 칩 바 */}
+      {currentStep <= 4 && STEP_CHIPS[currentStep] && (
+        <div className="px-5 py-2.5 bg-[#fbf9f5] border-t border-stone-200/80 flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
+          <span className="text-[11px] font-bold text-stone-500 shrink-0 flex items-center gap-1">
+            <Sparkles className="h-3 w-3 text-emerald-700" />
+            빠른 답변:
+          </span>
+          {STEP_CHIPS[currentStep].map((chip, idx) => (
+            <button
+              key={idx}
+              type="button"
+              disabled={isLoading}
+              onClick={() => void handleUserResponse(chip.value)}
+              className="shrink-0 flex items-center gap-1 rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs text-stone-700 hover:border-emerald-600 hover:bg-emerald-50 hover:text-emerald-950 transition shadow-2xs disabled:opacity-40 cursor-pointer"
+            >
+              <span>{chip.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* 4. 메시지 입력 영역 */}
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          void handleSend();
+          void handleUserResponse(inputText);
         }}
         className="flex items-center gap-3 p-4 bg-white border-t border-stone-200 shrink-0"
       >
         <input
           type="text"
           value={inputText}
-          disabled={isLoading}
+          disabled={isLoading || currentStep > 4}
           onChange={(e) => setInputText(e.target.value)}
-          placeholder="원하시는 여행지나 코스를 편하게 물어보세요… (예: '서울에서 부산 갈 때 12시 30분쯤 맛집 추천해줘')"
+          placeholder={
+            currentStep === 1
+              ? "출발지와 도착지를 입력하세요 (예: 서울에서 부산으로)"
+              : currentStep === 2
+              ? "여행 기간과 출발 시각을 입력하세요 (예: 1박 2일 오전 9시 30분)"
+              : currentStep === 3
+              ? "이동 수단을 입력하세요 (예: 자동차 운전)"
+              : currentStep === 4
+              ? "들르고 싶은 곳이나 취향을 입력하세요 (예: 길목 맛집과 카페)"
+              : "모든 질문이 완료되었습니다. 위의 생성 버튼을 눌러주세요!"
+          }
           className="flex-1 rounded-2xl border border-stone-300 bg-stone-50/60 px-5 py-3.5 text-sm sm:text-base text-stone-900 placeholder-stone-400 focus:border-emerald-600 focus:bg-white focus:outline-none transition disabled:opacity-50"
         />
         <button
           type="submit"
-          disabled={!inputText.trim() || isLoading}
-          className="flex items-center gap-2 rounded-2xl bg-[#064e43] px-6 py-3.5 text-sm sm:text-base font-bold text-white transition hover:bg-[#085a4e] shadow-md hover:shadow-lg disabled:opacity-40"
+          disabled={!inputText.trim() || isLoading || currentStep > 4}
+          className="flex items-center gap-2 rounded-2xl bg-[#064e43] px-6 py-3.5 text-sm sm:text-base font-bold text-white transition hover:bg-[#085a4e] shadow-md hover:shadow-lg disabled:opacity-40 cursor-pointer"
         >
           <span>보내기</span>
           <Send className="h-4 w-4" />
