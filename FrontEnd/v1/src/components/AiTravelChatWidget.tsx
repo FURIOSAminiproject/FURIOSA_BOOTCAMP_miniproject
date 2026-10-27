@@ -151,24 +151,32 @@ export function AiTravelChatWidget() {
   };
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 print:hidden font-sans">
+    <div className="fixed bottom-6 right-6 z-[99999] print:hidden font-sans pointer-events-auto">
       {/* 1. 플로팅 트리거 버튼 (창이 닫혀 있을 때) */}
       {!isOpen && (
-        <button
-          type="button"
-          onClick={() => setIsOpen(true)}
-          className="group flex items-center gap-2.5 rounded-full bg-gradient-to-r from-[#064e43] to-[#0d7363] px-5 py-3.5 text-white shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 active:scale-95"
-          aria-label="길벗 AI 여행 상담 열기"
-        >
-          <div className="relative">
-            <Bot className="h-5 w-5" />
-            <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>
-            </span>
-          </div>
-          <span className="text-sm font-bold tracking-tight">AI 여행 상담</span>
-        </button>
+        <div className="relative group">
+          {hasTripContext && (
+            <div className="absolute -top-10 right-0 whitespace-nowrap rounded-xl bg-stone-900/90 text-white text-[11px] font-medium px-3 py-1 shadow-lg backdrop-blur-xs flex items-center gap-1.5 animate-bounce">
+              <Sparkles className="h-3 w-3 text-emerald-400" />
+              <span>AI 여행 플래너 대기 중</span>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => setIsOpen(true)}
+            className="flex items-center gap-2.5 rounded-full bg-gradient-to-r from-[#064e43] to-[#0d7363] px-5 py-3.5 text-white shadow-2xl hover:shadow-emerald-900/40 transition-all duration-300 hover:scale-105 active:scale-95 border-2 border-emerald-400/40"
+            aria-label="길벗 AI 여행 상담 열기"
+          >
+            <div className="relative">
+              <Bot className="h-5 w-5" />
+              <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>
+              </span>
+            </div>
+            <span className="text-sm font-bold tracking-tight">AI 여행 상담</span>
+          </button>
+        </div>
       )}
 
       {/* 2. 채팅 팝업 윈도우 */}

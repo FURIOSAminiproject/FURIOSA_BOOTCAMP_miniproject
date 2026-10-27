@@ -136,29 +136,56 @@ export function TripRequestPage({
     try {
       const comparisonPromise = compareRoutes(input, controller.signal);
 
-      // 타임라인 식사 스팟 요청 구성
-      const stops: TimelineStopRequest[] = [];
-      if (draft.includeLunch && draft.lunchTime) {
-        stops.push({
-          label: "점심 식사",
-          targetTime: draft.lunchTime,
-          contentTypeIds: [39],
-          radiusMeters: draft.radiusMeters,
+      // 경로 구간별 맞춤 추천 스팟(타임라인) 요청 구성
+      const depTime = draft.departureTime || "09:30";
+      const addMinutes = (timeStr: string, mins: number) => {
+        const [hStr, mStr] = (timeStr || "09:30").split(":");
+        const total = (((Number(hStr) || 9) * 60 + (Number(mStr) || 30) + mins) % (24 * 60) + 24 * 60) % (24 * 60);
+        return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+      };
+
+      const userSelectedCatIds = Object.values(draft.categorySelections).flat();
+      const stops: TimelineStopRequest[] = [
+        {
+          label: "1구간 · 출발지 인근 쉼터 & 명소",
+          targetTime: addMinutes(depTime, 45),
+          contentTypeIds: [12, 14, 38, 39], // 관광지, 문화시설, 쇼핑, 카페
+          categoryIds: userSelectedCatIds,
+          radiusMeters: 15000,
           limit: 5,
-        });
-      }
-      if (draft.includeDinner && draft.dinnerTime) {
-        stops.push({
-          label: "저녁 식사",
-          targetTime: draft.dinnerTime,
+        },
+        {
+          label: "2구간 · 점심 식사 & 길목 맛집",
+          targetTime: draft.lunchTime || "12:30",
           contentTypeIds: [39],
-          radiusMeters: draft.radiusMeters,
+          categoryIds: userSelectedCatIds,
+          radiusMeters: 15000,
           limit: 5,
-        });
-      }
+        },
+        {
+          label: "3구간 · 오후 힐링 여행지 & 관광 명소",
+          targetTime: addMinutes(draft.lunchTime || "12:30", 120),
+          contentTypeIds: [12, 14, 28],
+          categoryIds: userSelectedCatIds,
+          radiusMeters: 15000,
+          limit: 5,
+        },
+        {
+          label: draft.includeDinner
+            ? "4구간 · 저녁 식사 & 길목 맛집"
+            : "4구간 · 도착지 인근 추천 명소",
+          targetTime: draft.includeDinner
+            ? draft.dinnerTime || "18:30"
+            : addMinutes(draft.lunchTime || "12:30", 240),
+          contentTypeIds: draft.includeDinner ? [39] : [12, 14, 39],
+          categoryIds: userSelectedCatIds,
+          radiusMeters: 15000,
+          limit: 5,
+        },
+      ];
 
       let timeline = null;
-      if (stops.length > 0 && draft.origin && draft.destination) {
+      if (draft.origin && draft.destination) {
         try {
           timeline = await getRouteTimeline(
             {
@@ -167,7 +194,7 @@ export function TripRequestPage({
                 { longitude: draft.origin.longitude, latitude: draft.origin.latitude },
                 { longitude: draft.destination.longitude, latitude: draft.destination.latitude },
               ],
-              departureTime: draft.departureTime || "09:30",
+              departureTime: depTime,
               stops,
             },
             controller.signal,

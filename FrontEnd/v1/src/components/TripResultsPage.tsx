@@ -2,13 +2,19 @@ import React, { useRef, useState } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
+  Bot,
   Calendar,
   Clock,
+  Coffee,
   Compass,
+  Flag,
   MapPin,
   Pencil,
   Plus,
+  RotateCcw,
   Route,
+  Send,
+  Sparkles,
   Utensils,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -289,80 +295,121 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
         ) : null}
       </section>
 
+      {/* 경로 구간별 맞춤 여행지 & 맛집 추천 로드맵 */}
       {timeline && timeline.stops && timeline.stops.length > 0 && (
-        <section aria-label="시간대별 식사 및 경유 스팟" className="space-y-4">
+        <section aria-label="경로 구간별 맞춤 여행지 및 맛집" className="space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
               <p className="text-xs font-semibold text-emerald-800 flex items-center gap-1.5">
                 <Clock className="h-4 w-4" />
-                출발 {timeline.departureTime} 기준 주행 타임라인
+                출발 {timeline.departureTime} 기준 주행 타임라인 로드맵
               </p>
-              <h2 className="mt-1 text-xl font-bold">시간대별 길목 맛집 추천</h2>
+              <h2 className="mt-1 text-xl font-bold">📍 경로 구간별 맞춤 여행지 & 맛집 추천</h2>
             </div>
-            <span className="text-xs text-stone-500">
-              도착 예정 시각: {timeline.estimatedArrivalTime}
-            </span>
+            <div className="flex items-center gap-3 text-xs text-stone-500">
+              <span>도착 예정: <strong className="text-stone-800">{timeline.estimatedArrivalTime}</strong></span>
+              {timeline.totalDistanceMeters && (
+                <span>총 거리: <strong className="text-stone-800">{distance(timeline.totalDistanceMeters)}</strong></span>
+              )}
+            </div>
           </div>
+          <p className="text-xs text-stone-500">
+            출발 시각부터 도착 예정 시각까지의 주행 시간에 맞춰 통과하는 도로변 반경 15km 이내의 주요 관광 명소와 맛집을 구간별로 큐레이션했습니다.
+          </p>
+
           <div className="grid gap-4 sm:grid-cols-2">
-            {timeline.stops.map((stop, sIndex) => (
-              <div
-                key={sIndex}
-                className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-5 space-y-3"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-2 font-bold text-sm text-emerald-950">
-                    <Utensils className="h-4 w-4 text-emerald-800" />
-                    {stop.label} ({stop.targetTime})
-                  </span>
-                  <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
-                    {stop.isAtDestination
-                      ? "목적지 도착"
-                      : `출발 후 약 ${Math.round(stop.elapsedSeconds / 60)}분`}
-                  </span>
-                </div>
-                {stop.places && stop.places.length > 0 ? (
-                  <ul className="space-y-2">
-                    {stop.places.slice(0, 3).map((place) => (
-                      <li
-                        key={place.id}
-                        className="flex items-center justify-between rounded-xl border border-stone-200 bg-white p-3 text-xs"
-                      >
-                        <div className="min-w-0 pr-2">
-                          <span className="font-bold text-stone-900 block truncate">
-                            {place.name}
-                          </span>
-                          <span className="text-stone-500 block truncate">
-                            {place.address}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setFocusedPlace({ ...place });
-                            mapSection.current?.scrollIntoView({
-                              behavior: "smooth",
-                              block: "start",
-                            });
-                          }}
-                          className="shrink-0 flex items-center gap-1 font-semibold text-emerald-800 hover:underline"
+            {timeline.stops.map((stop, sIndex) => {
+              const isDining = stop.label.includes("식사") || stop.label.includes("맛집");
+              const isCafe = stop.label.includes("쉼터") || stop.label.includes("카페");
+              const isDest = stop.isAtDestination || stop.label.includes("도착");
+
+              return (
+                <div
+                  key={sIndex}
+                  className={`rounded-2xl border p-5 space-y-3 transition shadow-xs ${
+                    isDining
+                      ? "border-amber-200 bg-amber-50/40"
+                      : isCafe
+                      ? "border-emerald-200 bg-emerald-50/40"
+                      : "border-sky-200 bg-sky-50/40"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-2 font-bold text-sm text-stone-900">
+                      {isDining ? (
+                        <Utensils className="h-4 w-4 text-amber-700" />
+                      ) : isCafe ? (
+                        <Coffee className="h-4 w-4 text-emerald-700" />
+                      ) : isDest ? (
+                        <Flag className="h-4 w-4 text-rose-700" />
+                      ) : (
+                        <Sparkles className="h-4 w-4 text-sky-700" />
+                      )}
+                      {stop.label}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="rounded-full bg-white font-mono text-[11px] px-2 py-0.5 font-bold text-stone-800 border border-stone-200 shadow-2xs">
+                        {stop.targetTime}
+                      </span>
+                      <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-semibold text-stone-600 border border-stone-200">
+                        {stop.isAtDestination
+                          ? "목적지 도착"
+                          : `출발 후 ${Math.round(stop.elapsedSeconds / 60)}분`}
+                      </span>
+                    </div>
+                  </div>
+
+                  {stop.places && stop.places.length > 0 ? (
+                    <ul className="space-y-2">
+                      {stop.places.map((place) => (
+                        <li
+                          key={place.id}
+                          className="flex items-center justify-between rounded-xl border border-stone-200/90 bg-white p-3 text-xs hover:border-emerald-300 transition shadow-2xs"
                         >
-                          {distance(
-                            (place as any).distanceMeters ??
-                              place.distanceToRouteMeters ??
-                              0,
-                          )}
-                          <ArrowUpRight className="h-3 w-3" />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-xs text-stone-500 py-2">
-                    해당 시간대 도로 주변 5km 이내에 추천 장소가 없습니다.
-                  </p>
-                )}
-              </div>
-            ))}
+                          <div className="min-w-0 pr-2">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-stone-900 truncate">
+                                {place.name}
+                              </span>
+                              {place.categoryName && (
+                                <span className="shrink-0 rounded bg-stone-100 px-1.5 py-0.5 text-[10px] text-stone-600 font-medium">
+                                  {place.categoryName}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-stone-500 block truncate mt-0.5">
+                              {place.address || "주소 정보 제공"}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFocusedPlace({ ...place });
+                              mapSection.current?.scrollIntoView({
+                                behavior: "smooth",
+                                block: "start",
+                              });
+                            }}
+                            className="shrink-0 flex items-center gap-1 font-semibold text-emerald-800 hover:text-emerald-950 hover:underline"
+                          >
+                            {distance(
+                              (place as any).distanceMeters ??
+                                place.distanceToRouteMeters ??
+                                0,
+                            )}
+                            <ArrowUpRight className="h-3 w-3" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-stone-400 py-3 text-center bg-white/60 rounded-xl border border-dashed border-stone-200">
+                      해당 구간 도로 주변에 등록된 장소가 적습니다. 다른 구간의 명소를 함께 둘러보세요.
+                    </p>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </section>
       )}
@@ -507,3 +554,5 @@ function Endpoint({ label, place }: { label: string; place: SearchPlace }) {
     </div>
   );
 }
+
+

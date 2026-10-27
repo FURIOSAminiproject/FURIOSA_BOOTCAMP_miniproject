@@ -156,7 +156,7 @@ export class ExplorerService {
         };
 
         try {
-          const found = await this.places.placesAroundSpot(
+          let found = await this.places.placesAroundSpot(
             { latitude: waypointCoord[1], longitude: waypointCoord[0] },
             {
               categoryIds: stop.categoryIds,
@@ -165,6 +165,22 @@ export class ExplorerService {
               limit: stop.limit,
             },
           );
+          // 주변 장소가 0건인 경우 고속도로 및 국도 특성을 감안해 최대 20km까지 반경을 단계적으로 확장 검색
+          if (found.places.length === 0 && stop.radiusMeters < 20000) {
+            const fallbackRadius = Math.min(20000, Math.max(15000, stop.radiusMeters * 2));
+            const retry = await this.places.placesAroundSpot(
+              { latitude: waypointCoord[1], longitude: waypointCoord[0] },
+              {
+                categoryIds: stop.categoryIds,
+                contentTypeIds: stop.contentTypeIds,
+                radiusMeters: fallbackRadius,
+                limit: stop.limit,
+              },
+            );
+            if (retry.places.length > 0) {
+              found = retry;
+            }
+          }
           result.places = found.places;
           result.candidateLimitReached = found.limited;
         } catch (err) {

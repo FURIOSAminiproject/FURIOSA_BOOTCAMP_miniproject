@@ -43,23 +43,14 @@ export class ChatService {
     if (!apiKey) {
       this.logger.warn('GEMINI_API_KEY is not configured in environment.');
       return {
-        reply: `반갑습니다! 길벗 AI 여행사 큐레이터입니다. 현재 AI 서비스 점검 중으로, 문의하신 "${userMessage}"에 대해 곧 정상 안내해 드리겠습니다.`,
+        reply: '안녕하세요! 현재 서버 환경변수에 GEMINI_API_KEY가 등록되지 않은 상태입니다. 서버의 .env 환경 설정을 확인해 주세요.',
         modelUsed: 'local-fallback',
       };
     }
 
-    // 모델명 정규화 (사용자가 .env에 "Gemini 2.5 Flash-Lite" 등으로 적어도 대응)
-    const envModel = (process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite').trim();
-    const candidateModels = [
-      envModel.toLowerCase().replace(/\s+/g, '-'),
-      'gemini-3.5-flash-lite',
-      'gemini-2.5-flash-lite',
-      'gemini-2.0-flash-lite',
-      'gemini-1.5-flash',
-    ];
-
-    // 중복 제거
-    const modelsToTry = Array.from(new Set(candidateModels));
+    // .env에 설정된 GEMINI_MODEL 사용 (대소문자/공백 정규화)
+    const rawModel = (process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite').trim();
+    const modelName = rawModel.toLowerCase().replace(/\s+/g, '-');
 
     // 컨텍스트 및 시스템 프롬프트 조립
     const contextLines: string[] = [];
@@ -104,31 +95,29 @@ ${contextLines.length ? `\n[사용자의 현재 여행 계획 정보]\n${context
       parts: [{ text: userMessage }],
     });
 
-    let lastError: any = null;
-    for (const modelName of modelsToTry) {
-      try {
-        const response = await ai.models.generateContent({
-          model: modelName,
-          contents,
-        });
+    try {
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents,
+      });
 
-        const replyText = response.text?.trim();
-        if (replyText) {
-          return {
-            reply: replyText,
-            modelUsed: modelName,
-          };
-        }
-      } catch (err: any) {
-        lastError = err;
-        this.logger.debug(`Failed generating with model ${modelName}: ${err.message}`);
+      const replyText = response.text?.trim();
+      if (replyText) {
+        return {
+          reply: replyText,
+          modelUsed: modelName,
+        };
       }
+      return {
+        reply: '답변을 생성하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+        modelUsed: modelName,
+      };
+    } catch (err: any) {
+      this.logger.error(`Gemini (${modelName}) API Error:`, err?.message);
+      return {
+        reply: `답변 생성 중 오류가 발생했습니다. (${err?.message || '잠시 후 다시 시도해 주세요'})`,
+        modelUsed: modelName,
+      };
     }
-
-    this.logger.error('All Gemini candidate models failed:', lastError?.message);
-    return {
-      reply: `답변 생성 중 일시적인 오류가 발생했습니다. (${lastError?.message || '잠시 후 다시 시도해 주세요'})`,
-      modelUsed: 'error-fallback',
-    };
   }
 }

@@ -159,8 +159,8 @@ export function tripCompareRequest(draft: TripDraft): CompareRequest | null {
   return {
     mode: draft.mode,
     points: [{ ...draft.origin }, { ...draft.destination }],
-    // 화면 분류는 DB 계층만 사용한다. TourAPI 콘텐츠 유형으로 추천 범위를 추가 제한하지 않는다.
-    contentTypeIds: [],
+    // 카테고리를 명시하지 않은 경우 관광지, 문화시설, 쇼핑, 음식점을 기본 추천으로 탐색
+    contentTypeIds: draft.selectedCategoryIds.length === 0 ? [12, 14, 38, 39] : [],
     categoryIds: [
       ...new Set(
         draft.selectedCategoryIds.flatMap((id) =>
@@ -170,7 +170,7 @@ export function tripCompareRequest(draft: TripDraft): CompareRequest | null {
         ),
       ),
     ],
-    radiusMeters: draft.radiusMeters,
-    limit: 10,
+    radiusMeters: Math.max(draft.radiusMeters, 3000),
+    limit: 12,
   };
 }
