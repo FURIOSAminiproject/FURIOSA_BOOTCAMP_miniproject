@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, MapPin, ClipboardCheck, ArrowRight, Compass, Calendar, Users, ChevronRight, Award, CloudSun } from 'lucide-react';
+import { Bot, Sparkles, MapPin, ClipboardCheck, ArrowRight, Compass, Calendar, Users, ChevronRight, Award, CloudSun } from 'lucide-react';
 import pebbleBeachImg from '../assets/images/pebble_beach_hero_1792222360356.jpg';
 
 interface HeroBannerProps {
@@ -8,6 +8,7 @@ interface HeroBannerProps {
   onQuickExplore?: (destination: string) => void;
   onOpenStudio?: () => void;
   onOpenWeatherStudio?: () => void;
+  onStartChat?: () => void;
 }
 
 export const HeroBanner: React.FC<HeroBannerProps> = ({
@@ -15,7 +16,8 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
   onOpenTripArchive,
   onQuickExplore,
   onOpenStudio,
-  onOpenWeatherStudio
+  onOpenWeatherStudio,
+  onStartChat,
 }) => {
   const [selectedDestination, setSelectedDestination] = useState('제주도');
   const [travelTheme, setTravelTheme] = useState('힐링/휴양');
@@ -68,36 +70,52 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
           </p>
         </div>
 
-        {/* 우측 하단 여행 의뢰 CTA */}
-        <div className="absolute bottom-[30px] right-5 sm:right-8 z-20 flex flex-col items-end gap-3">
+        {/* 우측 하단 여행 의뢰 CTA (2가지 선택: AI 채팅 VS 플래너) */}
+        <div className="absolute bottom-[24px] right-5 sm:right-8 z-20 flex flex-wrap items-center justify-end gap-2.5">
           {onOpenTripArchive && (
             <button
               onClick={onOpenTripArchive}
               className="group/archive flex items-center gap-2 rounded-full
-                bg-white/95 px-5 py-3 sm:px-6 sm:py-3.5
-                text-[#064e43] text-sm sm:text-base font-semibold
+                bg-white/95 px-4 py-2.5 sm:px-5 sm:py-3
+                text-[#064e43] text-xs sm:text-sm font-semibold
                 shadow-xl transition-all duration-300 ease-out
                 hover:bg-white hover:scale-105 hover:shadow-2xl
                 active:scale-95"
             >
               <span>내 여행 보관함</span>
-              <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover/archive:translate-x-1.5" />
+              <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover/archive:translate-x-1" />
             </button>
           )}
+
+          {onStartChat && (
+            <button
+              onClick={onStartChat}
+              className="group/chat flex items-center gap-2 rounded-full
+                bg-[#064e43] border border-emerald-400/40 px-4 py-2.5 sm:px-5 sm:py-3
+                text-white text-xs sm:text-sm font-semibold
+                shadow-xl shadow-emerald-950/30
+                transition-all duration-300 ease-out
+                hover:bg-[#085a4e] hover:scale-105 hover:shadow-2xl
+                active:scale-95"
+            >
+              <Bot className="h-4 w-4 text-emerald-300" />
+              <span>AI 채팅으로 계획 짜기</span>
+            </button>
+          )}
+
           <button
             onClick={onStartRequest}
             className="group/cta flex items-center gap-2 rounded-full
-              bg-[#e26a2c] px-5 py-3 sm:px-6 sm:py-3.5
-              text-white text-sm sm:text-base font-medium
+              bg-[#e26a2c] px-4 py-2.5 sm:px-5 sm:py-3
+              text-white text-xs sm:text-sm font-semibold
               shadow-xl shadow-orange-950/25
               transition-all duration-300 ease-out
               hover:bg-[#c95720] hover:scale-105 hover:shadow-2xl
               active:scale-95"
           >
-            <span className="transition-all duration-300 group-hover/cta:font-extrabold group-hover/cta:tracking-wide">
-              여행 의뢰하기
-            </span>
-            <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover/cta:translate-x-1.5" />
+            <Compass className="h-4 w-4" />
+            <span>플래너로 계획 짜기</span>
+            <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover/cta:translate-x-1" />
           </button>
         </div>
       </div>

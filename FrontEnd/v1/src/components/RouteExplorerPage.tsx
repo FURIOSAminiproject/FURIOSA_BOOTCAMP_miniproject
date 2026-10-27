@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   ArrowRightLeft,
+  Bot,
   Calendar,
   Check,
   Clock,
@@ -9,9 +10,10 @@ import {
   MapPin,
   Route,
   SlidersHorizontal,
+  Sparkles,
   Utensils,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   compareRoutes,
   getRouteCategories,
@@ -34,6 +36,7 @@ import { RouteExplorerMap } from "./RouteExplorerMap";
 import { TripResultsPage } from "./TripResultsPage";
 import { TripRouteEstimate } from "./TripRouteEstimate";
 import { CategoryDetailModal } from "./CategoryDetailModal";
+import { FullScreenAiChatPlanner } from "./FullScreenAiChatPlanner";
 import {
   rootCategories,
   categoryTrail,
@@ -65,6 +68,17 @@ export function TripRequestPage({
   const { state, dispatch } = useTripWorkspace();
   const { draft } = state;
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const planMode = searchParams.get("mode") === "chat" ? "chat" : "planner";
+
+  const setPlanMode = (mode: "planner" | "chat") => {
+    if (mode === "chat") {
+      setSearchParams({ mode: "chat" });
+    } else {
+      setSearchParams({});
+    }
+  };
+
   const [options, setOptions] = useState<CategoryOptions>({
     categories: [],
     warning: null,
@@ -281,7 +295,54 @@ export function TripRequestPage({
   return (
     <div className="space-y-7">
       {!embedded && <TripFlowHeader step="request" />}
-      <header className="space-y-3">
+
+      {/* 2가지 계획 방식 선택 탭: AI 채팅으로 계획 짜기 VS 플래너로 계획 짜기 */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 p-2 bg-[#f4f1eb] rounded-2xl border border-stone-200 shadow-2xs">
+        <div className="grid grid-cols-2 gap-2 flex-1 sm:max-w-xl">
+          <button
+            type="button"
+            onClick={() => setPlanMode("planner")}
+            className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-bold text-xs sm:text-sm transition-all shadow-xs ${
+              planMode === "planner"
+                ? "bg-[#064e43] text-white shadow-md scale-[1.01]"
+                : "bg-white text-stone-700 hover:bg-stone-50 border border-stone-200"
+            }`}
+          >
+            <Compass className="h-4 w-4" />
+            <span>플래너로 계획 짜기</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setPlanMode("chat")}
+            className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-bold text-xs sm:text-sm transition-all shadow-xs ${
+              planMode === "chat"
+                ? "bg-[#064e43] text-white shadow-md scale-[1.01]"
+                : "bg-white text-stone-700 hover:bg-stone-50 border border-stone-200"
+            }`}
+          >
+            <Bot className="h-4 w-4 text-emerald-400" />
+            <div className="flex items-center gap-1.5">
+              <span>AI 채팅으로 계획 짜기</span>
+              <span className="rounded-full bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.5 font-semibold">
+                Flash
+              </span>
+            </div>
+          </button>
+        </div>
+
+        <p className="text-xs text-stone-500 px-3 sm:px-0 text-center sm:text-right font-medium">
+          {planMode === "planner"
+            ? "지도에서 경로와 주변 명소를 직접 선택하고 설계합니다."
+            : "AI 여행 비서 길벗과 실시간으로 대화하며 추천 코스를 완성합니다."}
+        </p>
+      </div>
+
+      {planMode === "chat" ? (
+        <FullScreenAiChatPlanner onSwitchToPlanner={() => setPlanMode("planner")} />
+      ) : (
+        <>
+          <header className="space-y-3">
         <p className="text-xs font-bold tracking-widest text-emerald-800">
           나의 동선에서 시작하는 국내 여행
         </p>
@@ -765,6 +826,8 @@ export function TripRequestPage({
         </aside>
       </div>
       <RouteAttribution />
+      </>
+    )}
       {modalCategory && (
         <CategoryDetailModal
           key={modalCategory.id}

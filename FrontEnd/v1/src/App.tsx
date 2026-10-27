@@ -397,6 +397,11 @@ function AppContent() {
             {/* 1. Hero Banner with Jeju Coast image & "이렇게 진행돼요" */}
             <HeroBanner
               onStartRequest={() => startTrip()}
+              onStartChat={() => {
+                tripDispatch({ type: 'new' });
+                handleSelectTab('REQUEST');
+                navigate('/trips/new?mode=chat');
+              }}
               onQuickExplore={startTrip}
               onOpenStudio={() => handleSelectTab('STUDIO')}
               onOpenWeatherStudio={() => handleSelectTab('WEATHER_STUDIO')}

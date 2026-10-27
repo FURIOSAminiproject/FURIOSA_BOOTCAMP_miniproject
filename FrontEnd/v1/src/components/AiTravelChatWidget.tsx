@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Bot,
   MessageSquare,
@@ -28,6 +29,7 @@ const QUICK_PROMPTS = [
 ];
 
 export function AiTravelChatWidget() {
+  const location = useLocation();
   const { state } = useTripWorkspace();
   const { draft, result } = state;
 
@@ -35,6 +37,11 @@ export function AiTravelChatWidget() {
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // 풀스크린 AI 채팅 플래너 화면에서는 중복 노출 방지를 위해 위젯 숨김
+  const isFullscreenChat =
+    location.pathname.includes("/trips") && location.search.includes("mode=chat");
+  if (isFullscreenChat) return null;
 
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
