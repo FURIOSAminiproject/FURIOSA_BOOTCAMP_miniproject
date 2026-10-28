@@ -2,6 +2,20 @@
 
 NestJS 12, TypeScript 6, TypeORM, PostgreSQL 드라이버와 `@google/genai`를 사용합니다. 컨테이너 및 CI 런타임은 Node.js 22입니다.
 
+## 대화형 플래너와 도착 후 일정 (2026-10-28)
+
+`POST /api/chat/planner`는 출발·도착지 → 날짜·기간·출발 시각 → 이동 수단 → 취향 순서로 질문합니다. `currentDraft.modeConfirmed=true`와 유효한 자동차/도보 선택이 있어야 이동 수단 확인을 완료합니다. 기본값·모델의 isReady·요청 단계 번호만으로 질문을 생략하지 않습니다. 모호한 답변·대중교통은 자동차로 바꾸지 않고 다시 묻습니다. 기간 답변을 취향으로 저장하지 않습니다. 날짜 계산은 운영체제 시간대와 무관한 달력 날짜를 사용합니다.
+
+`POST /api/travel/destination-itinerary`는 기존 ORS 도착 예상시간과 도착지 주변 TourAPI DB 후보로 **도착 후 날짜별 여행 일정**을 만듭니다. 필수 입력은 `mode`, 직접 좌표 두 개의 `points`, `startDate`, `endDate`, `departureTime`이며 `preference`, `categoryIds`, `includeLunch`, `includeDinner`, `lunchTime`, `dinnerTime`은 선택입니다. 기간은 1~10일입니다. `days`, `arrivalDate/arrivalTime`, `stayOptions`, `warnings`를 반환합니다.
+
+- 관광·문화, 식당·카페, 선택 취향, 숙박을 따로 조회하며 같은 장소 ID를 여러 날 반복 배정하지 않습니다.
+- 첫날 도착 이후와 둘째 날 이후를 구분하고 식사·관광·휴식 체류 시간을 배정합니다. 늦은 도착을 첫날 오전 일정으로 표시하지 않습니다.
+- 자동차는 도착지 10km, 도보는 3km에서 찾고 후보가 없으면 각각 20km/5km까지 확장합니다. 도보 일정에서 약 45분보다 먼 다음 장소는 배정하지 않습니다.
+- 장소 부족·일부 DB 조회 실패는 빈 시간과 안내로 남깁니다. 가상의 명소·식당·숙소를 만들지 않습니다. 숙박 후보는 예약 결과가 아닙니다.
+- 장소 사이 시간은 직선거리 기반 추정입니다. 영업시간·휴무·실제 도로 이동시간·귀가 경로는 별도 확인 대상입니다. 새 테이블·자동 DDL·FastAPI 호출은 추가하지 않습니다.
+
+구현은 `src/chat/planner-survey.ts`, `src/route-explorer/destination-itinerary.ts`, `ExplorerService.destinationItinerary`를 참고합니다. 기존 `/api/travel/plans`의 B01~B03 문제를 모두 수정한 기능은 아닙니다.
+
 수정 전에는 [작업 지침](AGENTS.md)과 [백엔드 구현 검토 기록](../REVIEW.md)을 확인합니다. 검토 기록의 개선 항목은 현재 미수정입니다.
 
 장소 수집의 모듈 구성·테스트 결과·현재 장소가 2건인 이유는 [장소 모듈 README](src/places/README.md)에 정리했습니다. ORS와 장소 수집의 책임·의존성·SOLID 적용 근거와 확장 방법은 [유지보수 안내](docs/ORS_PLACE_MAINTENANCE.md)를 따릅니다. ORS의 장소 SQL/좌표 해석/응답 변환/유지관리 SQL을 분리하고, 장소 수집 전략·상세 요청·수동 입력 정책을 주입할 수 있게 정리했습니다.

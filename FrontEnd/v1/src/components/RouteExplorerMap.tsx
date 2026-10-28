@@ -127,8 +127,29 @@ export function RouteExplorerMap({
       [focusedPlace.latitude, focusedPlace.longitude],
       Math.max(14, map.current.getZoom()),
     );
-    markers.current.get(focusedPlace.id)?.openPopup();
-  }, [focusedPlace]);
+    const existing = markers.current.get(focusedPlace.id);
+    if (existing) {
+      existing.openPopup();
+      return;
+    }
+    // 도착 후 날짜별 일정의 장소는 경로 주변 추천 목록에 없을 수 있다.
+    const content = document.createElement("div");
+    const name = document.createElement("strong");
+    name.textContent = focusedPlace.name;
+    const address = document.createElement("p");
+    address.textContent = focusedPlace.address;
+    content.append(name, address);
+    const marker = L.circleMarker(
+      [focusedPlace.latitude, focusedPlace.longitude],
+      { color: MAP_POINT_COLORS.place, radius: 8, fillOpacity: 0.9 },
+    )
+      .addTo(map.current)
+      .bindPopup(content)
+      .openPopup();
+    return () => {
+      marker.remove();
+    };
+  }, [focusedPlace, active, routes]);
 
   return (
     <div className="space-y-3">

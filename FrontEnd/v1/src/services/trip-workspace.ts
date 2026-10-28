@@ -6,13 +6,15 @@ import type {
   TimelineResponse,
 } from "./route-explorer";
 import type { LocationRouteMode } from "../types/location";
+import type { DestinationItinerary } from "../types/destination-itinerary";
 
 /** 출발일과 도착일로 몇박 몇일을 계산한다. */
 export function calculateTripDuration(
   startDate: string,
   endDate: string,
 ): { nights: number; days: number; label: string } {
-  if (!startDate || !endDate) return { nights: 0, days: 1, label: "당일치기 (1일)" };
+  if (!startDate || !endDate)
+    return { nights: 0, days: 1, label: "당일치기 (1일)" };
   const s = new Date(startDate);
   const e = new Date(endDate);
   const diffTime = e.getTime() - s.getTime();
@@ -62,6 +64,8 @@ export interface TripResult {
   departureTime?: string;
   durationLabel?: string;
   timeline?: TimelineResponse | null;
+  destinationItinerary?: DestinationItinerary | null;
+  destinationItineraryError?: string | null;
 }
 export interface TripWorkspace {
   draft: TripDraft;
@@ -94,7 +98,7 @@ export function createTripWorkspace(destinationQuery = ""): TripWorkspace {
       departureTime: "09:30",
       includeLunch: true,
       lunchTime: "12:30",
-      includeDinner: false,
+      includeDinner: true,
       dinnerTime: "18:30",
       selectedCategoryIds: [],
       categorySelections: {},
@@ -159,18 +163,21 @@ export function tripCompareRequest(draft: TripDraft): CompareRequest | null {
 
   const rawRadius = Number(draft.radiusMeters);
   const radiusMeters = Math.min(
-    Math.max(Number.isFinite(rawRadius) && rawRadius > 0 ? Math.round(rawRadius) : 3000, 100),
+    Math.max(
+      Number.isFinite(rawRadius) && rawRadius > 0
+        ? Math.round(rawRadius)
+        : 3000,
+      100,
+    ),
     5000,
   );
 
   return {
     mode: draft.mode === "walking" ? "walking" : "driving",
-    points: [
-      { latitude: draft.origin.latitude, longitude: draft.origin.longitude },
-      { latitude: draft.destination.latitude, longitude: draft.destination.longitude },
-    ],
+    points: [{ ...draft.origin }, { ...draft.destination }],
     // 카테고리를 명시하지 않은 경우 관광지, 문화시설, 쇼핑, 음식점을 기본 추천으로 탐색
-    contentTypeIds: draft.selectedCategoryIds.length === 0 ? [12, 14, 38, 39] : [],
+    contentTypeIds:
+      draft.selectedCategoryIds.length === 0 ? [12, 14, 38, 39] : [],
     categoryIds: [
       ...new Set(
         draft.selectedCategoryIds.flatMap((id) =>

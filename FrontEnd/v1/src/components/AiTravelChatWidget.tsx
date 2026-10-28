@@ -74,7 +74,8 @@ export function AiTravelChatWidget() {
 
   const isTripResultPage =
     !isExcludedPage &&
-    (location.pathname === "/trips" || location.pathname === "/trips/archive") &&
+    (location.pathname === "/trips" ||
+      location.pathname === "/trips/archive") &&
     Boolean(result);
 
   if (!isTripResultPage) return null;
@@ -110,7 +111,12 @@ export function AiTravelChatWidget() {
           ? timelineStops
               .map(
                 (s) =>
-                  `${s.targetTime} [${s.label}]: 추천 ${s.places?.slice(0, 2).map((p) => p.name).join(", ") || "없음"}`,
+                  `${s.targetTime} [${s.label}]: 추천 ${
+                    s.places
+                      ?.slice(0, 2)
+                      .map((p) => p.name)
+                      .join(", ") || "없음"
+                  }`,
               )
               .join(" | ")
           : undefined;
@@ -120,10 +126,10 @@ export function AiTravelChatWidget() {
           (r) => r.preference === state.active,
         ) || result?.comparison?.routes?.[0];
       const routeDistanceText = activeRoute?.route
-        ? `${(activeRoute.route.distance / 1000).toFixed(1)}km`
+        ? `${(activeRoute.route.distanceMeters / 1000).toFixed(1)}km`
         : undefined;
       const routeDurationText = activeRoute?.route
-        ? `${Math.round(activeRoute.route.duration / 60)}분`
+        ? `${Math.round(activeRoute.route.durationSeconds / 60)}분`
         : undefined;
 
       const response = await fetch("/api/chat", {
@@ -224,7 +230,9 @@ export function AiTravelChatWidget() {
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>
               </span>
             </div>
-            <span className="text-sm font-bold tracking-tight">AI 일정 수정·조율</span>
+            <span className="text-sm font-bold tracking-tight">
+              AI 일정 수정·조율
+            </span>
           </button>
         </div>
       )}
@@ -240,7 +248,9 @@ export function AiTravelChatWidget() {
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
-                  <h3 className="font-bold text-sm">I am your J 일정 수정 플래너</h3>
+                  <h3 className="font-bold text-sm">
+                    I am your J 일정 수정 플래너
+                  </h3>
                   <span className="rounded-full bg-emerald-400/25 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-200">
                     Flash-Lite
                   </span>
@@ -278,7 +288,8 @@ export function AiTravelChatWidget() {
                 <MapPin className="h-3.5 w-3.5 shrink-0 text-emerald-700" />
                 <span className="font-medium truncate">
                   {originName} ➔ {destinationName}
-                  {draft.startDate && ` (${draft.startDate.slice(5)} ~ ${draft.endDate.slice(5)})`}
+                  {draft.startDate &&
+                    ` (${draft.startDate.slice(5)} ~ ${draft.endDate.slice(5)})`}
                 </span>
               </div>
               <button

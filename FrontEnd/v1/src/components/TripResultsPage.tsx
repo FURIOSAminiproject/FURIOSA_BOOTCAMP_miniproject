@@ -20,6 +20,7 @@ import { useTripWorkspace } from "./TripWorkspaceContext";
 import { TripFlowHeader } from "./TripFlowHeader";
 import { RouteExplorerMap, ROUTE_COLORS } from "./RouteExplorerMap";
 import { RouteAttribution } from "./RouteAttribution";
+import { DestinationItineraryView } from "./DestinationItineraryView";
 
 const LABELS: Record<Preference, string> = {
   recommended: "권장 경로",
@@ -292,33 +293,73 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
         ) : null}
       </section>
 
+      {state.result.destinationItinerary && (
+        <DestinationItineraryView
+          itinerary={state.result.destinationItinerary}
+          onFocusPlace={(place) => {
+            setFocusedPlace(place);
+            mapSection.current?.scrollIntoView({
+              behavior: "smooth",
+              block: "start",
+            });
+          }}
+        />
+      )}
+      {state.result.destinationItineraryError && (
+        <div
+          role="status"
+          className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900"
+        >
+          {state.result.destinationItineraryError}
+        </div>
+      )}
+
       {/* 경로 구간별 맞춤 여행지 & 맛집 추천 로드맵 */}
       {timeline && timeline.stops && timeline.stops.length > 0 && (
-        <section aria-label="경로 구간별 맞춤 여행지 및 맛집" className="space-y-4">
+        <section
+          aria-label="경로 구간별 맞춤 여행지 및 맛집"
+          className="space-y-4"
+        >
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
               <p className="text-xs font-semibold text-emerald-800 flex items-center gap-1.5">
                 <Clock className="h-4 w-4" />
                 출발 {timeline.departureTime} 기준 주행 타임라인 로드맵
               </p>
-              <h2 className="mt-1 text-xl font-bold">📍 경로 구간별 맞춤 여행지 & 맛집 추천</h2>
+              <h2 className="mt-1 text-xl font-bold">
+                📍 경로 구간별 맞춤 여행지 & 맛집 추천
+              </h2>
             </div>
             <div className="flex items-center gap-3 text-xs text-stone-500">
-              <span>도착 예정: <strong className="text-stone-800">{timeline.estimatedArrivalTime}</strong></span>
+              <span>
+                도착 예정:{" "}
+                <strong className="text-stone-800">
+                  {timeline.estimatedArrivalTime}
+                </strong>
+              </span>
               {timeline.totalDistanceMeters && (
-                <span>총 거리: <strong className="text-stone-800">{distance(timeline.totalDistanceMeters)}</strong></span>
+                <span>
+                  총 거리:{" "}
+                  <strong className="text-stone-800">
+                    {distance(timeline.totalDistanceMeters)}
+                  </strong>
+                </span>
               )}
             </div>
           </div>
           <p className="text-xs text-stone-500">
-            출발 시각부터 도착 예정 시각까지의 주행 시간에 맞춰 통과하는 도로변 반경 15km 이내의 주요 관광 명소와 맛집을 구간별로 큐레이션했습니다.
+            이동 중 잠시 들를 수 있는 장소 후보입니다. 위의 도착 후 날짜별
+            일정과 구분해 확인해 주세요.
           </p>
 
           <div className="grid gap-4 sm:grid-cols-2">
             {timeline.stops.map((stop, sIndex) => {
-              const isDining = stop.label.includes("식사") || stop.label.includes("맛집");
-              const isCafe = stop.label.includes("쉼터") || stop.label.includes("카페");
-              const isDest = stop.isAtDestination || stop.label.includes("도착");
+              const isDining =
+                stop.label.includes("식사") || stop.label.includes("맛집");
+              const isCafe =
+                stop.label.includes("쉼터") || stop.label.includes("카페");
+              const isDest =
+                stop.isAtDestination || stop.label.includes("도착");
 
               return (
                 <div
@@ -327,8 +368,8 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
                     isDining
                       ? "border-amber-200 bg-amber-50/40"
                       : isCafe
-                      ? "border-emerald-200 bg-emerald-50/40"
-                      : "border-sky-200 bg-sky-50/40"
+                        ? "border-emerald-200 bg-emerald-50/40"
+                        : "border-sky-200 bg-sky-50/40"
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -401,7 +442,8 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
                     </ul>
                   ) : (
                     <p className="text-xs text-stone-400 py-3 text-center bg-white/60 rounded-xl border border-dashed border-stone-200">
-                      해당 구간 도로 주변에 등록된 장소가 적습니다. 다른 구간의 명소를 함께 둘러보세요.
+                      해당 구간 도로 주변에 등록된 장소가 적습니다. 다른 구간의
+                      명소를 함께 둘러보세요.
                     </p>
                   )}
                 </div>
@@ -551,5 +593,3 @@ function Endpoint({ label, place }: { label: string; place: SearchPlace }) {
     </div>
   );
 }
-
-

@@ -15,6 +15,7 @@ import {
   explorerRequest,
   nearbyPlacesRequest,
   timelineRequest,
+  destinationItineraryRequest,
 } from './explorer.validation';
 
 /** 지도 검색·경로 비교·타임라인 추천 API. 검색어/키/원본 제공자 오류를 로그에 출력하지 않는다. */
@@ -64,6 +65,14 @@ export class ExplorerController {
   @HttpCode(200)
   timeline(@Body() body: unknown) {
     return this.explorer.timeline(timelineRequest(body));
+  }
+
+  @Post('travel/destination-itinerary')
+  @HttpCode(200)
+  destinationItinerary(@Body() body: unknown) {
+    return this.explorer.destinationItinerary(
+      destinationItineraryRequest(body),
+    );
   }
 
   /**
@@ -119,4 +128,3 @@ export class ExplorerController {
     );
   }
 }
-

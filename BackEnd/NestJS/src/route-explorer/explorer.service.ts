@@ -3,6 +3,10 @@ import { RoutingError } from '../routing-cache/routing.errors';
 import type { ExplorerRepository } from './explorer.repository';
 import { RouteProximity } from './route-proximity';
 import {
+  buildDestinationItinerary,
+  type DestinationItineraryRequest,
+} from './destination-itinerary';
+import {
   findCoordinateAtElapsedSeconds,
   formatSecondsToTime,
   parseTimeToSeconds,
@@ -27,6 +31,61 @@ export class ExplorerService {
       'candidates' | 'placesAroundSpot'
     >,
   ) {}
+
+  /** 경로 위 후보와 별도로 도착지 주변 관광·식사·숙박 후보를 수집한다. */
+  async destinationItinerary(request: DestinationItineraryRequest) {
+    const route = await this.planner.route({
+      mode: request.mode,
+      preference: request.preference,
+      points: request.points,
+    });
+    const center = request.points[request.points.length - 1];
+    const warnings: string[] = [];
+    const find = async (
+      label: string,
+      contentTypeIds: number[],
+      categoryIds: string[] = [],
+    ) => {
+      try {
+        const filter = {
+          contentTypeIds,
+          categoryIds,
+          radiusMeters: request.mode === 'walking' ? 3000 : 10000,
+          limit: 20,
+        };
+        let result = await this.places.placesAroundSpot(center, filter);
+        if (!result.places.length)
+          result = await this.places.placesAroundSpot(center, {
+            ...filter,
+            radiusMeters: request.mode === 'walking' ? 5000 : 20000,
+          });
+        if (!result.places.length)
+          warnings.push(`${label}에 해당하는 등록 장소가 부족합니다.`);
+        return result.places;
+      } catch {
+        warnings.push(
+          `${label} 후보를 조회하지 못했습니다. 해당 항목은 재조회가 필요합니다.`,
+        );
+        return [];
+      }
+    };
+    const [sights, food, themed, stays] = await Promise.all([
+      find('관광·문화', [12, 14, 28, 38]),
+      find('맛집·카페', [39]),
+      request.categoryIds.length
+        ? find('선호 장소', [], request.categoryIds)
+        : Promise.resolve([]),
+      request.startDate !== request.endDate
+        ? find('숙박', [32])
+        : Promise.resolve([]),
+    ]);
+    return buildDestinationItinerary(
+      request,
+      route,
+      { sights, food, themed, stays },
+      warnings,
+    );
+  }
 
   async compare(request: ExplorerRequest): Promise<ExplorerResponse> {
     const errors: unknown[] = [];
@@ -167,7 +226,10 @@ export class ExplorerService {
           );
           // 주변 장소가 0건인 경우 고속도로 및 국도 특성을 감안해 최대 20km까지 반경을 단계적으로 확장 검색
           if (found.places.length === 0 && stop.radiusMeters < 20000) {
-            const fallbackRadius = Math.min(20000, Math.max(15000, stop.radiusMeters * 2));
+            const fallbackRadius = Math.min(
+              20000,
+              Math.max(15000, stop.radiusMeters * 2),
+            );
             const retry = await this.places.placesAroundSpot(
               { latitude: waypointCoord[1], longitude: waypointCoord[0] },
               {
@@ -229,7 +291,6 @@ export class ExplorerService {
     };
   }
 }
-
 
 function safeMessage(error: unknown, fallback: string): string {
   if (error instanceof RoutingError) {

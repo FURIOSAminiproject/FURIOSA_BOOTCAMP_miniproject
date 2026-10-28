@@ -120,6 +120,8 @@ test("comparison payload copies user choices and leaves display-only metadata ou
   assert.deepEqual(request.contentTypeIds, []);
   assert.deepEqual(request.categoryIds, ["db-child"]);
   assert.equal("title" in request, false);
+  assert.equal(request.points[0].name, origin.name);
+  assert.equal(request.points[1].address, destination.address);
   request.points[0].latitude = 0;
   request.categoryIds.push("changed");
   assert.equal(state.draft.origin.latitude, 37);

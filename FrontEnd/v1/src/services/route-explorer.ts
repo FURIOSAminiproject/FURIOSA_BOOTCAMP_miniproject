@@ -4,6 +4,10 @@ import type {
   LocationRouteMode,
   LocationRouteResponse,
 } from "../types/location";
+import type {
+  DestinationItinerary,
+  DestinationPlace,
+} from "../types/destination-itinerary";
 
 export interface SearchPlace {
   id: string;
@@ -337,3 +341,124 @@ export async function getRouteTimeline(
   return data as TimelineResponse;
 }
 
+/** 도착지 일정은 외부 JSON을 검사한 뒤 화면에 전달한다. */
+export function parseDestinationItinerary(data: unknown): DestinationItinerary {
+  const time = (v: unknown) =>
+    typeof v === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
+  const date = (v: unknown) =>
+    typeof v === "string" &&
+    /^\d{4}-\d{2}-\d{2}$/.test(v) &&
+    Number.isFinite(Date.parse(v)) &&
+    new Date(v).toISOString().slice(0, 10) === v;
+  const texts = (v: unknown): v is string[] =>
+    Array.isArray(v) && v.every((x) => typeof x === "string");
+  const nonnegative = (v: unknown) =>
+    typeof v === "number" && Number.isFinite(v) && v >= 0;
+  const place = (v: unknown): DestinationPlace => {
+    const base = parseSearchPlace(v);
+    if (
+      !record(v) ||
+      !Number.isInteger(v.contentTypeId) ||
+      !optionalText(v.categoryName) ||
+      !nonnegative(v.distanceMeters)
+    )
+      return malformed();
+    return {
+      ...base,
+      contentTypeId: v.contentTypeId as number,
+      categoryName: v.categoryName,
+      distanceMeters: v.distanceMeters as number,
+    };
+  };
+  if (
+    !record(data) ||
+    !date(data.arrivalDate) ||
+    !time(data.arrivalTime) ||
+    !["recommended", "shortest"].includes(data.routePreference as string) ||
+    !Array.isArray(data.days) ||
+    data.days.length < 1 ||
+    data.days.length > 10 ||
+    !Array.isArray(data.stayOptions) ||
+    !texts(data.warnings)
+  )
+    return malformed();
+  const days = data.days.map((day, index) => {
+    if (
+      !record(day) ||
+      !date(day.date) ||
+      day.dayNumber !== index + 1 ||
+      typeof day.title !== "string" ||
+      !Array.isArray(day.visits) ||
+      day.visits.length > 6 ||
+      !texts(day.notes)
+    )
+      return malformed();
+    const visits = day.visits.map((v) => {
+      if (
+        !record(v) ||
+        !["sightseeing", "lunch", "cafe", "dinner"].includes(
+          v.kind as string,
+        ) ||
+        !time(v.time) ||
+        !time(v.endTime) ||
+        !nonnegative(v.travelMinutes) ||
+        !nonnegative(v.durationMinutes)
+      )
+        return malformed();
+      return {
+        kind: v.kind,
+        time: v.time,
+        endTime: v.endTime,
+        place: place(v.place),
+        travelMinutes: v.travelMinutes,
+        durationMinutes: v.durationMinutes,
+      };
+    });
+    return {
+      date: day.date,
+      dayNumber: day.dayNumber,
+      title: day.title,
+      visits,
+      notes: day.notes,
+    };
+  });
+  return {
+    arrivalDate: data.arrivalDate,
+    arrivalTime: data.arrivalTime,
+    routePreference: data.routePreference,
+    days,
+    stayOptions: data.stayOptions.map(place),
+    warnings: data.warnings,
+  } as DestinationItinerary;
+}
+
+export async function getDestinationItinerary(
+  request: {
+    mode: LocationRouteMode;
+    points: { latitude: number; longitude: number }[];
+    preference: Preference;
+    startDate: string;
+    endDate: string;
+    departureTime: string;
+    categoryIds: string[];
+    includeLunch?: boolean;
+    includeDinner?: boolean;
+    lunchTime?: string;
+    dinnerTime?: string;
+  },
+  signal?: AbortSignal,
+  transport: typeof fetch = fetch,
+): Promise<DestinationItinerary> {
+  return parseDestinationItinerary(
+    await requestJson(
+      "/api/travel/destination-itinerary",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(request),
+      },
+      signal,
+      transport,
+    ),
+  );
+}

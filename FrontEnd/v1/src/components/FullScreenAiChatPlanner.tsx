@@ -20,18 +20,15 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { useTripWorkspace } from "./TripWorkspaceContext";
+import { searchMapPlaces, type SearchPlace } from "../services/route-explorer";
+import type { TripDraft } from "../services/trip-workspace";
 import {
-  searchMapPlaces,
-  compareRoutes,
-  getRouteTimeline,
-  type SearchPlace,
-  type TimelineStopRequest,
-} from "../services/route-explorer";
-import {
-  calculateTripDuration,
-  tripCompareRequest,
-  type TripDraft,
-} from "../services/trip-workspace";
+  explicitTravelMode,
+  scheduleFromText,
+  surveyStep,
+  surveyPrompt,
+} from "../services/planner-survey";
+import { planTrip } from "../services/trip-planning";
 import type { LocationRouteMode } from "../types/location";
 
 interface ChatMessage {
@@ -48,7 +45,7 @@ interface FullScreenAiChatPlannerProps {
   onComplete?: () => void;
 }
 
-const STORAGE_KEY = "roadfriend_chat_planner_data_v2";
+const STORAGE_KEY = "roadfriend_chat_planner_data_v3";
 
 interface StepOption {
   label: string;
@@ -65,21 +62,55 @@ const STEP_CHIPS: Record<number, StepOption[]> = {
     { label: "대전 ➔ 여수", value: "대전에서 여수로 가고 싶어요" },
   ],
   2: [
-    { label: "당일치기 · 오전 9시 출발", value: "당일치기 일정이고, 오전 9시 정각에 출발할게요" },
-    { label: "1박 2일 · 오전 9시 30분 출발", value: "1박 2일 일정이고, 오전 9시 30분에 출발할게요" },
-    { label: "2박 3일 · 오전 8시 30분 출발", value: "2박 3일 일정이고, 오전 8시 30분에 일찍 출발할게요" },
-    { label: "1박 2일 · 오전 10시 출발", value: "1박 2일 일정이고, 오전 10시쯤 여유롭게 출발할게요" },
+    {
+      label: "당일치기 · 오전 9시 출발",
+      value: "당일치기 일정이고, 오전 9시 정각에 출발할게요",
+    },
+    {
+      label: "1박 2일 · 오전 9시 30분 출발",
+      value: "1박 2일 일정이고, 오전 9시 30분에 출발할게요",
+    },
+    {
+      label: "2박 3일 · 오전 8시 30분 출발",
+      value: "2박 3일 일정이고, 오전 8시 30분에 일찍 출발할게요",
+    },
+    {
+      label: "1박 2일 · 오전 10시 출발",
+      value: "1박 2일 일정이고, 오전 10시쯤 여유롭게 출발할게요",
+    },
   ],
   3: [
-    { label: "🚗 자동차 운전 (권장/최단 비교)", value: "자동차로 직접 운전해서 갈게요. 권장 경로와 최단 경로를 비교해 주세요" },
-    { label: "🚶 도보 / 산책 중심", value: "도보 산책 위주로 편안하게 걷고 싶어요" },
+    {
+      label: "🚗 자동차 운전 (권장/최단 비교)",
+      value:
+        "자동차로 직접 운전해서 갈게요. 권장 경로와 최단 경로를 비교해 주세요",
+    },
+    {
+      label: "🚶 도보 / 산책 중심",
+      value: "도보 산책 위주로 편안하게 걷고 싶어요",
+    },
   ],
   4: [
-    { label: "🍽️ 길목 맛집 & 휴게소 별미", value: "이동 경로 주변의 길목 맛집과 고속도로 휴게소 맛있는 곳 위주로 추천해줘" },
-    { label: "☕ 뷰 좋은 카페 & 디저트", value: "바다나 산 전망이 탁 트인 분위기 좋은 카페 위주로 추천해줘" },
-    { label: "🏞️ 필수 관광명소 & 문화재", value: "이동하는 길목의 대표적인 역사 유적지와 관광 명소 위주로 들르고 싶어" },
-    { label: "💆 힐링 쉼터 & 자연휴양림", value: "사람 많지 않고 조용히 쉴 수 있는 힐링 자연 쉼터 위주로 추천해줘" },
-    { label: "✨ 맛집 + 카페 + 명소 골고루", value: "맛집, 전망 좋은 카페, 대표 명소까지 골고루 균형 있게 추천해줘" },
+    {
+      label: "🍽️ 도착지 로컬 맛집",
+      value: "도착한 뒤 지역 대표 맛집과 향토 음식 위주로 여행하고 싶어요",
+    },
+    {
+      label: "☕ 뷰 좋은 카페 & 디저트",
+      value: "바다나 산 전망이 탁 트인 분위기 좋은 카페 위주로 추천해줘",
+    },
+    {
+      label: "🏞️ 필수 관광명소 & 문화재",
+      value: "도착지의 대표적인 역사 유적지와 관광 명소 위주로 둘러보고 싶어요",
+    },
+    {
+      label: "💆 힐링 쉼터 & 자연휴양림",
+      value: "사람 많지 않고 조용히 쉴 수 있는 힐링 자연 쉼터 위주로 추천해줘",
+    },
+    {
+      label: "✨ 맛집 + 카페 + 명소 골고루",
+      value: "맛집, 전망 좋은 카페, 대표 명소까지 골고루 균형 있게 추천해줘",
+    },
   ],
 };
 
@@ -90,48 +121,6 @@ const STEP_LABELS = [
   "선호 장소",
   "완성 및 경로 생성",
 ];
-
-const KOREA_CITY_COORDINATES: Record<string, { lat: number; lng: number; address: string }> = {
-  "서울": { lat: 37.5665, lng: 126.9780, address: "서울특별시 중구 세종대로 110" },
-  "춘천": { lat: 37.8813, lng: 127.7298, address: "강원특별자치도 춘천시 시청길 11" },
-  "부산": { lat: 35.1796, lng: 129.0756, address: "부산광역시 연제구 중앙대로 1001" },
-  "강릉": { lat: 37.7519, lng: 128.8761, address: "강원특별자치도 강릉시 강릉대로 33" },
-  "속초": { lat: 38.2070, lng: 128.5918, address: "강원특별자치도 속초시 중앙로 183" },
-  "가평": { lat: 37.8315, lng: 127.5097, address: "경기도 가평군 가평읍 석봉로 181" },
-  "수원": { lat: 37.2636, lng: 127.0286, address: "경기도 수원시 팔달구 효원로 241" },
-  "인천": { lat: 37.4563, lng: 126.7052, address: "인천광역시 남동구 정각로 29" },
-  "대전": { lat: 36.3504, lng: 127.3845, address: "대전광역시 서구 둔산로 100" },
-  "대구": { lat: 35.8714, lng: 128.6014, address: "대구광역시 중구 공평로 88" },
-  "광주": { lat: 35.1595, lng: 126.8526, address: "광주광역시 서구 내방로 111" },
-  "전주": { lat: 35.8242, lng: 127.1480, address: "전북특별자치도 전주시 완산구 노송광장로 10" },
-  "경주": { lat: 35.8562, lng: 129.2247, address: "경상북도 경주시 양정로 260" },
-  "여수": { lat: 34.7604, lng: 127.6622, address: "전라남도 여수시 시청로 1" },
-  "제주": { lat: 33.4996, lng: 126.5312, address: "제주특별자치도 제주시 문연로 6" },
-  "포항": { lat: 36.0190, lng: 129.3435, address: "경상북도 포항시 남구 시청로 1" },
-  "안동": { lat: 36.5684, lng: 128.7294, address: "경상북도 안동시 퇴계로 115" },
-  "통영": { lat: 34.8544, lng: 128.4332, address: "경상남도 통영시 통영해안로 515" },
-  "남해": { lat: 34.8377, lng: 127.8924, address: "경상남도 남해군 남해읍 망운로 9" },
-  "단양": { lat: 36.9845, lng: 128.3656, address: "충청북도 단양군 단양읍 중앙1로 10" },
-  "군산": { lat: 35.9676, lng: 126.7366, address: "전북특별자치도 군산시 시청로 17" },
-  "원주": { lat: 37.3422, lng: 127.9202, address: "강원특별자치도 원주시 시청로 1" },
-  "성남": { lat: 37.4200, lng: 127.1265, address: "경기도 성남시 중원구 성남대로 997" },
-};
-
-function findFallbackCity(query: string): SearchPlace | null {
-  const q = query.trim();
-  for (const [cityName, coord] of Object.entries(KOREA_CITY_COORDINATES)) {
-    if (q.includes(cityName) || cityName.includes(q)) {
-      return {
-        id: `fallback-city-${cityName}`,
-        name: q,
-        latitude: coord.lat,
-        longitude: coord.lng,
-        address: coord.address,
-      };
-    }
-  }
-  return null;
-}
 
 export function FullScreenAiChatPlanner({
   onSwitchToPlanner,
@@ -147,9 +136,12 @@ export function FullScreenAiChatPlanner({
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [lastSavedTime, setLastSavedTime] = useState<string>("");
-  const [step2SelectedDuration, setStep2SelectedDuration] = useState<string>("1박 2일");
+  const [step2SelectedDuration, setStep2SelectedDuration] =
+    useState<string>("1박 2일");
   const [step2SelectedTime, setStep2SelectedTime] = useState<string>("09:30");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const activeOperation = useRef<AbortController | null>(null);
+  useEffect(() => () => activeOperation.current?.abort(), []);
 
   // 로컬 상태로 보관하는 수집 데이터
   const [chatDraft, setChatDraft] = useState<{
@@ -161,7 +153,8 @@ export function FullScreenAiChatPlanner({
     departureTime: string;
     startDate: string;
     endDate: string;
-    mode: LocationRouteMode;
+    mode: LocationRouteMode | null;
+    modeConfirmed: boolean;
     preferences: string;
     selectedCategoryIds?: string[];
     categorySelections?: Record<string, string[]>;
@@ -174,9 +167,10 @@ export function FullScreenAiChatPlanner({
       destinationPlace: currentWorkspaceDraft.destination,
       durationLabel: "",
       departureTime: "",
-      startDate: currentWorkspaceDraft.startDate || "",
-      endDate: currentWorkspaceDraft.endDate || "",
-      mode: currentWorkspaceDraft.mode || "driving",
+      startDate: "",
+      endDate: "",
+      mode: null,
+      modeConfirmed: false,
       preferences: "",
       selectedCategoryIds: currentWorkspaceDraft.selectedCategoryIds || [],
       categorySelections: currentWorkspaceDraft.categorySelections || {},
@@ -191,7 +185,7 @@ export function FullScreenAiChatPlanner({
       step: 1,
       text:
         "안녕하세요! 당신의 완벽한 계획형 여행 메이트 **'I am your J'**의 AI 큐레이터입니다. 🚗✨\n\n" +
-        "사용자 맞춤형 경로와 식사 시간대별 추천 일정을 완성하기 위해 **4가지 질문**을 순서대로 드릴게요.\n\n" +
+        "이동 경로와 도착 후 날짜별 여행 일정을 완성하기 위해 **4가지 질문**을 순서대로 드릴게요.\n\n" +
         "📍 **1단계: 어디에서 출발하여 어디로 떠나시나요?**\n" +
         "출발지와 도착지를 편하게 말씀해 주세요. (예: '서울에서 춘천으로', '수원에서 부산 등')",
       timestamp: new Date().toLocaleTimeString("ko-KR", {
@@ -207,33 +201,19 @@ export function FullScreenAiChatPlanner({
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        let restoredStep = parsed.currentStep || 1;
-        const restoredDraft = parsed.chatDraft || {};
-        let restoredMessages: ChatMessage[] = parsed.messages || [];
-
-        // 4단계 선호 장소까지 답변되었거나 "모든 조건이 완벽하게 준비되었습니다" 안내 후 멈춘 경우 즉시 5단계로 복원
-        const isSurveyReady =
-          Boolean(restoredDraft.originName && restoredDraft.destinationName && (restoredDraft.preferences || restoredStep >= 4));
-        const lastMsgReady = restoredMessages.some(
-          (m) =>
-            m.role === "model" &&
-            (m.text.includes("완벽하게 준비") ||
-              m.text.includes("최적의") ||
-              m.text.includes("타임라인을 안내")),
-        );
-
-        if (restoredStep === 4 && (isSurveyReady || lastMsgReady)) {
-          restoredStep = 5;
-          restoredMessages = restoredMessages.map((m, idx) =>
-            idx === restoredMessages.length - 1 && m.role === "model"
-              ? { ...m, isSummaryCard: true, step: 5 }
-              : m,
+        if (!parsed.chatDraft || !Array.isArray(parsed.messages)) return;
+        const restoredDraft = { ...chatDraft, ...parsed.chatDraft };
+        if (restoredDraft.modeConfirmed !== true) restoredDraft.mode = null;
+        const restoredStep = surveyStep(restoredDraft);
+        setCurrentStep(restoredStep);
+        setChatDraft(restoredDraft);
+        if (parsed.messages.length)
+          setMessages(
+            parsed.messages.map((message: ChatMessage) => ({
+              ...message,
+              isSummaryCard: restoredStep === 5 && message.isSummaryCard,
+            })),
           );
-        }
-
-        if (restoredStep) setCurrentStep(restoredStep);
-        if (parsed.chatDraft) setChatDraft(restoredDraft);
-        if (restoredMessages.length > 0) setMessages(restoredMessages);
         if (parsed.savedAt) setLastSavedTime(parsed.savedAt);
       }
     } catch (e) {
@@ -242,9 +222,16 @@ export function FullScreenAiChatPlanner({
   }, []);
 
   // 브라우저 로컬 캐시 자동 동기화 (비로그인 사용자 지원)
-  const saveToLocalStorage = (stepNum: number, draftData: typeof chatDraft, msgList: ChatMessage[]) => {
+  const saveToLocalStorage = (
+    stepNum: number,
+    draftData: typeof chatDraft,
+    msgList: ChatMessage[],
+  ) => {
     try {
-      const timeStr = new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+      const timeStr = new Date().toLocaleTimeString("ko-KR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
       const payload = {
         currentStep: stepNum,
         chatDraft: draftData,
@@ -266,8 +253,14 @@ export function FullScreenAiChatPlanner({
   const cleanPlaceName = (str: string): string => {
     if (!str) return "";
     let s = str.trim();
-    s = s.replace(/^(?:출발지?|도착지?|출발은|도착은|출발|도착|여기서|거기서|장소)[:\s]*/i, "");
-    s = s.replace(/(?:에서부터|부터|에서|으로|로|까지|행|쪽으로|방면|가고|떠나|향해|가자|갈래|가려고|갈거야|갈거|갑니다|가요|이야|야|입니다|으로의|로의)+$/i, "");
+    s = s.replace(
+      /^(?:출발지?|도착지?|출발은|도착은|출발|도착|여기서|거기서|장소)[:\s]*/i,
+      "",
+    );
+    s = s.replace(
+      /(?:에서부터|부터|에서|으로|로|까지|행|쪽으로|방면|가고|떠나|향해|가자|갈래|가려고|갈거야|갈거|갑니다|가요|이야|야|입니다|으로의|로의)+$/i,
+      "",
+    );
     s = s.replace(/[.,!?~]+$/g, "");
     return s.trim();
   };
@@ -280,8 +273,12 @@ export function FullScreenAiChatPlanner({
     const raw = text.trim();
 
     // 1. 출발 / 도착 명시 패턴
-    const depMatch = raw.match(/출발(?:지|은|:)?\s*([가-힣a-zA-Z0-9\s]+?)(?=\s*도착|\s*,|\s*$)/);
-    const arrMatch = raw.match(/도착(?:지|은|:)?\s*([가-힣a-zA-Z0-9\s]+?)(?=\s*출발|\s*,|\s*$)/);
+    const depMatch = raw.match(
+      /출발(?:지|은|:)?\s*([가-힣a-zA-Z0-9\s]+?)(?=\s*도착|\s*,|\s*$)/,
+    );
+    const arrMatch = raw.match(
+      /도착(?:지|은|:)?\s*([가-힣a-zA-Z0-9\s]+?)(?=\s*출발|\s*,|\s*$)/,
+    );
     if (depMatch && arrMatch) {
       origin = cleanPlaceName(depMatch[1]);
       destination = cleanPlaceName(arrMatch[1]);
@@ -289,8 +286,19 @@ export function FullScreenAiChatPlanner({
     }
 
     // 2. 구분자 (➔, ->, ~, -)
-    if (raw.includes("➔") || raw.includes("->") || raw.includes("~") || (raw.includes("-") && !raw.match(/\d+-\d+/))) {
-      const sep = raw.includes("➔") ? "➔" : raw.includes("->") ? "->" : raw.includes("~") ? "~" : "-";
+    if (
+      raw.includes("➔") ||
+      raw.includes("->") ||
+      raw.includes("~") ||
+      (raw.includes("-") && !raw.match(/\d+-\d+/))
+    ) {
+      const sep = raw.includes("➔")
+        ? "➔"
+        : raw.includes("->")
+          ? "->"
+          : raw.includes("~")
+            ? "~"
+            : "-";
       const parts = raw.split(sep);
       if (parts.length >= 2) {
         origin = cleanPlaceName(parts[0]);
@@ -353,93 +361,14 @@ export function FullScreenAiChatPlanner({
     };
   };
 
-  // 2단계 로컬 파싱 (폴백용): 기간, 출발 날짜, 출발 시각 추출
-  const parseDurationAndTime = (text: string) => {
-    let durationLabel = "";
-    let daysCount = 0;
-    let departureTime = "";
-    let startDate = "";
-    let endDate = "";
-
-    if (text.includes("당일")) {
-      durationLabel = "당일치기";
-      daysCount = 1;
-    } else if (text.includes("2박 3일") || text.includes("2박3일")) {
-      durationLabel = "2박 3일";
-      daysCount = 3;
-    } else if (text.includes("3박 4일") || text.includes("3박4일")) {
-      durationLabel = "3박 4일";
-      daysCount = 4;
-    } else if (text.includes("1박 2일") || text.includes("1박2일")) {
-      durationLabel = "1박 2일";
-      daysCount = 2;
-    } else {
-      const ndMatch = text.match(/(\d+)\s*박\s*(\d+)\s*일/);
-      if (ndMatch) {
-        durationLabel = `${ndMatch[1]}박 ${ndMatch[2]}일`;
-        daysCount = parseInt(ndMatch[2], 10);
-      }
-    }
-
-    const timeMatch = text.match(/(오전|오후|아침|새벽|저녁|낮|밤)?\s*(\d{1,2})시(?:\s*(\d{1,2})분)?/);
-    if (timeMatch) {
-      const meridiem = timeMatch[1] || "";
-      let hour = parseInt(timeMatch[2], 10);
-      const min = timeMatch[3] ? parseInt(timeMatch[3], 10) : 0;
-      if ((meridiem.includes("오후") || meridiem.includes("저녁") || meridiem.includes("밤")) && hour < 12) {
-        hour += 12;
-      } else if ((meridiem.includes("오전") || meridiem.includes("새벽") || meridiem.includes("아침")) && hour === 12) {
-        hour = 0;
-      }
-      departureTime = `${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
-    } else {
-      const colonMatch = text.match(/(\d{1,2}):(\d{2})/);
-      if (colonMatch) {
-        departureTime = `${colonMatch[1].padStart(2, "0")}:${colonMatch[2]}`;
-      }
-    }
-
-    const currentYear = new Date().getFullYear();
-    const mdMatch = text.match(/(\d{1,2})월\s*(\d{1,2})일/);
-    if (mdMatch) {
-      const m = String(parseInt(mdMatch[1], 10)).padStart(2, "0");
-      const d = String(parseInt(mdMatch[2], 10)).padStart(2, "0");
-      startDate = `${currentYear}-${m}-${d}`;
-    } else if (text.includes("오늘")) {
-      startDate = new Date().toISOString().slice(0, 10);
-    } else if (text.includes("내일")) {
-      const tm = new Date(Date.now() + 86400000);
-      startDate = tm.toISOString().slice(0, 10);
-    } else if (text.includes("모레")) {
-      const mr = new Date(Date.now() + 86400000 * 2);
-      startDate = mr.toISOString().slice(0, 10);
-    }
-
-    if (startDate && daysCount > 0) {
-      const s = new Date(`${startDate}T00:00:00`);
-      const e = new Date(s.getTime() + (daysCount - 1) * 86400000);
-      endDate = e.toISOString().slice(0, 10);
-    } else if (startDate && !endDate) {
-      endDate = startDate;
-    }
-
-    return { durationLabel, departureTime, startDate, endDate, daysCount };
-  };
-
-  // 3단계 로컬 파싱 (폴백용): 이동 수단 (ORS 지원 규격: driving / walking)
-  const parseMode = (text: string): LocationRouteMode => {
-    if (text.includes("도보") || text.includes("걸어") || text.includes("산책")) {
-      return "walking";
-    }
-    return "driving";
-  };
-
-  // 사용자 답변 처리: 백엔드 Gemini 대화형 플래너(/api/chat/planner)와 실시간 연동
+  // 모델은 장소 표현을 도와주고, 다음 단계는 확인된 사용자 답변으로만 결정한다.
   const handleUserResponse = async (userText: string) => {
-    if (!userText.trim() || isLoading) return;
-
+    if (!userText.trim() || isLoading || isGeneratingPlan) return;
+    activeOperation.current?.abort();
+    const controller = new AbortController();
+    activeOperation.current = controller;
     const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
+      id: "user-" + Date.now(),
       role: "user",
       text: userText,
       step: currentStep,
@@ -448,177 +377,76 @@ export function FullScreenAiChatPlanner({
         minute: "2-digit",
       }),
     };
-
     const nextMessages = [...messages, userMessage];
     setMessages(nextMessages);
     setInputText("");
     setIsLoading(true);
-
     let updatedDraft = { ...chatDraft };
-    let nextStep = currentStep;
-    let aiReply = "";
-
+    let extracted: Record<string, any> = {};
     try {
-      // 1. 백엔드 AI 대화형 플래너(/api/chat/planner) 호출
       try {
         const response = await fetch("/api/chat/planner", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal: AbortSignal.any([
+            controller.signal,
+            AbortSignal.timeout(35000),
+          ]),
           body: JSON.stringify({
             message: userText,
-            history: messages.slice(-6).map((m) => ({
-              role: m.role,
-              content: m.text,
-            })),
-            currentDraft: {
-              originName: chatDraft.originName,
-              destinationName: chatDraft.destinationName,
-              durationLabel: chatDraft.durationLabel,
-              departureTime: chatDraft.departureTime,
-              startDate: chatDraft.startDate,
-              endDate: chatDraft.endDate,
-              mode: chatDraft.mode,
-              preferences: chatDraft.preferences,
-            },
             currentStep,
+            history: messages
+              .slice(-6)
+              .map((m) => ({ role: m.role, content: m.text })),
+            currentDraft: { ...chatDraft, mode: chatDraft.mode || undefined },
           }),
         });
-
         if (response.ok) {
           const data = await response.json();
-          aiReply = data.reply;
-          nextStep = typeof data.step === "number" ? data.step : currentStep + 1;
-
-          // 4단계 선호 장소를 입력했거나, 서버가 isReady/step=5를 반환했거나, 필수 조건이 충족되면 반드시 5단계 확정
-          if (
-            currentStep === 4 ||
-            data.isReady ||
-            data.step === 5 ||
-            (updatedDraft.originName && updatedDraft.destinationName && (updatedDraft.preferences || userText))
-          ) {
-            nextStep = 5;
-          }
-
-          if (data.extracted) {
-            if (data.extracted.originName) {
-              updatedDraft.originName = data.extracted.originName;
-            }
-            if (data.extracted.destinationName) {
-              updatedDraft.destinationName = data.extracted.destinationName;
-            }
-            if (data.extracted.startDate) {
-              updatedDraft.startDate = data.extracted.startDate;
-            }
-            if (data.extracted.endDate) {
-              updatedDraft.endDate = data.extracted.endDate;
-            }
-            if (data.extracted.durationLabel) {
-              updatedDraft.durationLabel = data.extracted.durationLabel;
-            }
-            if (data.extracted.departureTime) {
-              updatedDraft.departureTime = data.extracted.departureTime;
-            }
-            if (data.extracted.mode) {
-              updatedDraft.mode = data.extracted.mode as LocationRouteMode;
-            }
-            if (data.extracted.preferences) {
-              updatedDraft.preferences = data.extracted.preferences;
-            }
-            if (data.extracted.selectedCategoryIds) {
-              updatedDraft.selectedCategoryIds = data.extracted.selectedCategoryIds;
-            }
-            if (data.extracted.categorySelections) {
-              updatedDraft.categorySelections = data.extracted.categorySelections;
-            }
-            if (data.extracted.categoryNames) {
-              updatedDraft.categoryNames = data.extracted.categoryNames;
-            }
-          }
+          if (data.extracted && typeof data.extracted === "object")
+            extracted = data.extracted;
         }
-      } catch (apiErr) {
-        console.warn("AI 플래너 API 연결 실패, 로컬 파서로 폴백:", apiErr);
+      } catch {
+        /* 연결 실패 시 같은 단계의 로컬 파서로 진행한다. */
       }
-
-      // 2. 만약 API 호출이 실패했거나 답변이 없을 경우 로컬 스마트 파서 폴백
-      if (!aiReply) {
-        const raw = userText.trim();
-        const isCorrection =
-          raw.includes("다시") ||
-          raw.includes("아니") ||
-          raw.includes("도착지") ||
-          raw.includes("출발지") ||
-          raw.includes("수정");
-
-        if (isCorrection) {
-          const destMatch = raw.match(/도착(?:지|은|:)?\s*([가-힣a-zA-Z0-9\s]+)/);
-          const origMatch = raw.match(/출발(?:지|은|:)?\s*([가-힣a-zA-Z0-9\s]+)/);
-
-          if (destMatch) {
-            updatedDraft.destinationName = cleanPlaceName(destMatch[1]);
-            aiReply = `도착지를 **${updatedDraft.destinationName}**(으)로 수정했습니다! 🚗\n\n📅 **2단계: 언제 출발하시고, 며칠 동안 여행하시나요?**\n출발 날짜(몇월 몇일)와 여행 기간(당일치기, 1박 2일 등), 그리고 출발 시각을 알려주세요.\n(예: '10월 28일 출발 1박 2일, 오전 9시 30분 출발')`;
-            nextStep = 2;
-          } else if (origMatch) {
-            updatedDraft.originName = cleanPlaceName(origMatch[1]);
-            aiReply = `출발지를 **${updatedDraft.originName}**(으)로 수정했습니다! 🚗\n\n📅 **2단계: 언제 출발하시고, 며칠 동안 여행하시나요?**\n출발 날짜(몇월 몇일)와 여행 기간(당일치기, 1박 2일 등), 그리고 출발 시각을 알려주세요.\n(예: '10월 28일 출발 1박 2일, 오전 9시 30분 출발')`;
-            nextStep = 2;
-          } else {
-            aiReply = `수정할 출발지 또는 도착지를 명확히 말씀해 주세요! 😊`;
-          }
-        } else if (currentStep === 1) {
-          const parsed = parseOriginAndDest(userText);
-          if (parsed.origin) updatedDraft.originName = parsed.origin;
-          if (parsed.destination) updatedDraft.destinationName = parsed.destination;
-
-          if (!updatedDraft.originName || !updatedDraft.destinationName) {
-            aiReply = `출발지와 도착지를 모두 말씀해 주세요. (예: '서울에서 춘천으로', '수원에서 부산 등')`;
-            nextStep = 1;
-          } else {
-            aiReply =
-              `네! **${updatedDraft.originName}**에서 출발하여 **${updatedDraft.destinationName}**(으)로 떠나는 여정으로 확인했습니다. 🛣️\n\n` +
-              `📅 **2단계: 언제 출발하시고, 며칠 동안 여행하시나요?**\n` +
-              `정확한 경로 탐색과 시간대별 식사/명소 추천을 위해 **출발 날짜(몇월 몇일)**와 **여행 기간(당일치기, 1박 2일 등)**, 그리고 **출발 시각**을 알려주세요!\n(예: '10월 28일 출발 1박 2일, 오전 9시 30분 출발')`;
-            nextStep = 2;
-          }
-        } else if (currentStep === 2) {
-          const parsed = parseDurationAndTime(userText);
-          if (parsed.durationLabel) updatedDraft.durationLabel = parsed.durationLabel;
-          if (parsed.departureTime) updatedDraft.departureTime = parsed.departureTime;
-          if (parsed.startDate) updatedDraft.startDate = parsed.startDate;
-          if (parsed.endDate) updatedDraft.endDate = parsed.endDate;
-
-          const missingList: string[] = [];
-          if (!updatedDraft.startDate) missingList.push("출발 날짜(몇월 몇일)");
-          if (!updatedDraft.durationLabel) missingList.push("여행 기간(당일치기, 1박 2일 등)");
-          if (!updatedDraft.departureTime) missingList.push("출발 시각(몇 시 몇 분)");
-
-          if (missingList.length > 0) {
-            nextStep = 2;
-            const known: string[] = [];
-            if (updatedDraft.startDate) known.push(`**${updatedDraft.startDate} 출발**`);
-            if (updatedDraft.durationLabel) known.push(`**${updatedDraft.durationLabel}**`);
-            if (updatedDraft.departureTime) known.push(`**${updatedDraft.departureTime} 출발**`);
-
-            const prefix = known.length > 0 ? `${known.join(", ")} 일정을 확인했습니다! 😊\n\n` : "";
-            aiReply = `${prefix}정확한 경로 탐색과 시간대별 식사/명소 추천을 위해, 아직 확인되지 않은 **${missingList.join(", ")}**을(를) 알려주세요!\n(예: '10월 28일 출발 1박 2일, 오전 9시 30분 출발')`;
-          } else {
-            nextStep = 3;
-            aiReply =
-              `📅 **${updatedDraft.startDate} ~ ${updatedDraft.endDate} (${updatedDraft.durationLabel})**, **${updatedDraft.departureTime} 출발**로 일정을 완벽히 기록했습니다! ⏰🚗\n\n` +
-              `🚗 **3단계: 어떻게 이동할까요?**\n` +
-              `직접 **자동차를 운전**하시나요, 아니면 **도보 산책** 위주의 여행이신가요? (※ ORS 경로 엔진 특성상 자차 및 도보 경로를 지원합니다)`;
-          }
-        } else if (currentStep === 3) {
-          const mode = parseMode(userText);
+      if (controller.signal.aborted) return;
+      if (currentStep === 1) {
+        const local = parseOriginAndDest(userText);
+        const origin =
+          typeof extracted.originName === "string"
+            ? extracted.originName
+            : local.origin;
+        const destination =
+          typeof extracted.destinationName === "string"
+            ? extracted.destinationName
+            : local.destination;
+        if (origin) {
+          updatedDraft.originName = origin;
+          updatedDraft.originPlace = null;
+        }
+        if (destination) {
+          updatedDraft.destinationName = destination;
+          updatedDraft.destinationPlace = null;
+        }
+      } else if (currentStep === 2) {
+        Object.assign(updatedDraft, scheduleFromText(userText, updatedDraft));
+      } else if (currentStep === 3) {
+        const mode = explicitTravelMode(userText);
+        if (mode) {
           updatedDraft.mode = mode;
-          const modeLabel = mode === "walking" ? "도보 산책" : "자동차 운전";
-          aiReply =
-            `이동 수단은 **${modeLabel}**(으)로 설정했습니다. 🚙\n\n` +
-            `🎯 **4단계: 길목에서 어떤 곳에 들르고 싶으세요?**\n` +
-            `원하시는 취향이나 방문 희망 장소를 자유롭게 말씀해 주세요. (예: '뷰 좋은 카페, 닭갈비 맛집, 힐링 자연 산책로' 등)\n💡 AI가 취향을 분석하여 우리 시스템 추천 카테고리에 딱 맞게 자동 매핑해 드립니다!`;
-          nextStep = 4;
-        } else if (currentStep === 4) {
-          updatedDraft.preferences = userText;
-
+          updatedDraft.modeConfirmed = true;
+        }
+      } else if (currentStep === 4) {
+        updatedDraft.preferences = userText.trim();
+        if (
+          Array.isArray(extracted.selectedCategoryIds) &&
+          extracted.categorySelections &&
+          Array.isArray(extracted.categoryNames)
+        ) {
+          updatedDraft.selectedCategoryIds = extracted.selectedCategoryIds;
+          updatedDraft.categorySelections = extracted.categorySelections;
+          updatedDraft.categoryNames = extracted.categoryNames;
+        } else {
           const FOOD_ID = "dd608518-f993-4a23-bd10-2c59a24fa674";
           const CAFE_ID = "f63cd46c-13db-465b-923d-4f064ab05feb";
           const KOREAN_FOOD_ID = "917f7b5a-5f95-414d-8ca6-9dc8c5535199";
@@ -632,29 +460,62 @@ export function FullScreenAiChatPlanner({
           const categorySelections: Record<string, string[]> = {};
           const categoryNames: string[] = [];
 
-          if (userText.includes("카페") || userText.includes("디저트") || userText.includes("커피") || userText.includes("찻집") || userText.includes("빵")) {
-            if (!selectedCategoryIds.includes(FOOD_ID)) selectedCategoryIds.push(FOOD_ID);
+          if (
+            userText.includes("카페") ||
+            userText.includes("디저트") ||
+            userText.includes("커피") ||
+            userText.includes("찻집") ||
+            userText.includes("빵")
+          ) {
+            if (!selectedCategoryIds.includes(FOOD_ID))
+              selectedCategoryIds.push(FOOD_ID);
             categorySelections[FOOD_ID] = categorySelections[FOOD_ID] || [];
             categorySelections[FOOD_ID].push(CAFE_ID);
             categoryNames.push("카페/ 찻집");
           }
-          if (userText.includes("맛집") || userText.includes("밥") || userText.includes("한식") || userText.includes("닭갈비") || userText.includes("고기")) {
-            if (!selectedCategoryIds.includes(FOOD_ID)) selectedCategoryIds.push(FOOD_ID);
+          if (
+            userText.includes("맛집") ||
+            userText.includes("밥") ||
+            userText.includes("한식") ||
+            userText.includes("닭갈비") ||
+            userText.includes("고기")
+          ) {
+            if (!selectedCategoryIds.includes(FOOD_ID))
+              selectedCategoryIds.push(FOOD_ID);
             categorySelections[FOOD_ID] = categorySelections[FOOD_ID] || [];
-            if (!categorySelections[FOOD_ID].includes(KOREAN_FOOD_ID)) categorySelections[FOOD_ID].push(KOREAN_FOOD_ID);
+            if (!categorySelections[FOOD_ID].includes(KOREAN_FOOD_ID))
+              categorySelections[FOOD_ID].push(KOREAN_FOOD_ID);
             categoryNames.push("한식(맛집)");
           }
-          if (userText.includes("자연") || userText.includes("휴양") || userText.includes("숲") || userText.includes("산책") || userText.includes("힐링")) {
-            if (!selectedCategoryIds.includes(NATURE_ID)) selectedCategoryIds.push(NATURE_ID);
+          if (
+            userText.includes("자연") ||
+            userText.includes("휴양") ||
+            userText.includes("숲") ||
+            userText.includes("산책") ||
+            userText.includes("힐링")
+          ) {
+            if (!selectedCategoryIds.includes(NATURE_ID))
+              selectedCategoryIds.push(NATURE_ID);
             categorySelections[NATURE_ID] = [FOREST_ID, PARK_ID];
             categoryNames.push("자연휴양림 & 자연공원");
           }
-          if (userText.includes("박물관") || userText.includes("미술관") || userText.includes("전시") || userText.includes("문화")) {
-            if (!selectedCategoryIds.includes(CULTURE_ID)) selectedCategoryIds.push(CULTURE_ID);
+          if (
+            userText.includes("박물관") ||
+            userText.includes("미술관") ||
+            userText.includes("전시") ||
+            userText.includes("문화")
+          ) {
+            if (!selectedCategoryIds.includes(CULTURE_ID))
+              selectedCategoryIds.push(CULTURE_ID);
             categoryNames.push("문화관광");
           }
-          if (userText.includes("체험") || userText.includes("액티비티") || userText.includes("레포츠")) {
-            if (!selectedCategoryIds.includes(ACTIVITY_ID)) selectedCategoryIds.push(ACTIVITY_ID);
+          if (
+            userText.includes("체험") ||
+            userText.includes("액티비티") ||
+            userText.includes("레포츠")
+          ) {
+            if (!selectedCategoryIds.includes(ACTIVITY_ID))
+              selectedCategoryIds.push(ACTIVITY_ID);
             categoryNames.push("체험관광");
           }
           if (selectedCategoryIds.length === 0) {
@@ -667,43 +528,17 @@ export function FullScreenAiChatPlanner({
           updatedDraft.selectedCategoryIds = selectedCategoryIds;
           updatedDraft.categorySelections = categorySelections;
           updatedDraft.categoryNames = categoryNames;
-
-          const badgeStr = categoryNames.map((n) => `[${n}]`).join(" ");
-          aiReply =
-            `선호하시는 취향(**${userText}**)을 바탕으로 최적의 추천 카테고리를 자동 매핑했습니다! 🎯\n\n` +
-            `📌 **AI 자동 매핑 카테고리**: ${badgeStr}\n\n` +
-            `수집된 모든 여행 조건을 바탕으로 우리 서버의 경로 탐색 엔진과 1:1 매핑할 준비가 끝났습니다. 아래 요약을 확인해 주세요.`;
-          nextStep = 5;
         }
       }
-
-      // 3. 지명이 바뀌었으면 백그라운드에서 실제 지도 좌표 검색 연동
-      if (updatedDraft.originName && (!updatedDraft.originPlace || updatedDraft.originPlace.name !== updatedDraft.originName)) {
-        void searchMapPlaces(updatedDraft.originName).then((places) => {
-          if (places && places.length > 0) {
-            setChatDraft((prev) => ({ ...prev, originPlace: places[0] }));
-          }
-        }).catch(() => {});
-      }
-      if (updatedDraft.destinationName && (!updatedDraft.destinationPlace || updatedDraft.destinationPlace.name !== updatedDraft.destinationName)) {
-        void searchMapPlaces(updatedDraft.destinationName).then((places) => {
-          if (places && places.length > 0) {
-            setChatDraft((prev) => ({ ...prev, destinationPlace: places[0] }));
-          }
-        }).catch(() => {});
-      }
-
-      if (nextStep === 5 && !updatedDraft.preferences) {
-        updatedDraft.preferences = userText;
-      }
-
-      setChatDraft(updatedDraft);
-      setCurrentStep(nextStep);
-
+      const nextStep = surveyStep(updatedDraft);
+      const reply =
+        nextStep === 3 && currentStep === 3 && !explicitTravelMode(userText)
+          ? "이동 수단을 임의로 정하지 않았어요. 자동차 또는 도보를 직접 골라 주세요."
+          : surveyPrompt(nextStep);
       const aiMessage: ChatMessage = {
-        id: `model-${Date.now()}`,
+        id: "model-" + Date.now(),
         role: "model",
-        text: aiReply,
+        text: reply,
         step: nextStep,
         isSummaryCard: nextStep === 5,
         timestamp: new Date().toLocaleTimeString("ko-KR", {
@@ -711,27 +546,31 @@ export function FullScreenAiChatPlanner({
           minute: "2-digit",
         }),
       };
-
       const finalMessages = [...nextMessages, aiMessage];
+      setChatDraft(updatedDraft);
+      setCurrentStep(nextStep);
       setMessages(finalMessages);
       saveToLocalStorage(nextStep, updatedDraft, finalMessages);
-
-      // 5단계 도달 시 AI 최적 경로 및 타임라인 자동 생성 실행 (잠시만 기다려 주세요 안내에 부합)
-      if (nextStep === 5) {
-        setTimeout(() => {
-          void handleGenerateFinalPlan(updatedDraft);
-        }, 600);
-      }
-    } catch (err: any) {
-      console.error("챗봇 단계 처리 오류:", err);
     } finally {
-      setIsLoading(false);
+      if (activeOperation.current === controller) {
+        activeOperation.current = null;
+        setIsLoading(false);
+      }
     }
   };
 
   // 대화 초기화
   const handleResetChat = () => {
+    activeOperation.current?.abort();
+    activeOperation.current = null;
+    setIsLoading(false);
+    setIsGeneratingPlan(false);
+    setInputText("");
+    workspaceDispatch({ type: "new" });
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem("roadfriend_chat_planner_data_v2");
+    setStep2SelectedDuration("1박 2일");
+    setStep2SelectedTime("09:30");
     setCurrentStep(1);
     setGenerationError(null);
 
@@ -744,7 +583,8 @@ export function FullScreenAiChatPlanner({
       departureTime: "",
       startDate: "",
       endDate: "",
-      mode: "driving" as LocationRouteMode,
+      mode: null,
+      modeConfirmed: false,
       preferences: "",
     };
     setChatDraft(initialDraft);
@@ -767,251 +607,66 @@ export function FullScreenAiChatPlanner({
     setLastSavedTime("");
   };
 
-  // 최종 서버 API 호출하여 경로 & 타임라인 생성
-  const handleGenerateFinalPlan = async (overrideDraft?: typeof chatDraft) => {
-    const draft = overrideDraft || chatDraft;
+  // 요약을 확인한 뒤 사용자가 직접 눌렀을 때만 여행 일정을 생성한다.
+  const handleGenerateFinalPlan = async () => {
+    if (isGeneratingPlan || isLoading) return;
+    if (surveyStep(chatDraft) !== 5 || !chatDraft.mode) {
+      setCurrentStep(surveyStep(chatDraft));
+      setGenerationError("날짜·이동 수단·취향을 모두 확인한 뒤 생성해 주세요.");
+      return;
+    }
+    activeOperation.current?.abort();
+    const controller = new AbortController();
+    activeOperation.current = controller;
     setIsGeneratingPlan(true);
     setGenerationError(null);
-
     try {
-      if (!draft.originName || !draft.originName.trim()) {
-        throw new Error("출발지가 설정되지 않았습니다. 출발지를 먼저 입력해 주세요.");
-      }
-      if (!draft.destinationName || !draft.destinationName.trim()) {
-        throw new Error("도착지가 설정되지 않았습니다. 도착지를 먼저 입력해 주세요.");
-      }
-
-      // 1. 출발지 & 도착지 실제 지도 좌표 검색 (검색 실패 시 국내 주요 도시/지명 좌표로 자동 폴백)
-      let originPlace = draft.originPlace;
-      if (!originPlace || originPlace.name !== draft.originName.trim()) {
-        try {
-          const originSearch = await searchMapPlaces(draft.originName.trim());
-          if (originSearch && originSearch.length > 0) {
-            originPlace = originSearch[0];
-          }
-        } catch (e) {
-          console.warn("출발지 지도 검색 실패, 기본 좌표 폴백 시도:", e);
-        }
-        if (!originPlace) {
-          originPlace = findFallbackCity(draft.originName.trim());
-        }
-        if (!originPlace) {
-          throw new Error(`'${draft.originName}'에 대한 지도 위치를 찾지 못했습니다. 보다 명확한 지명으로 입력해 주세요.`);
-        }
-      }
-
-      let destPlace = draft.destinationPlace;
-      if (!destPlace || destPlace.name !== draft.destinationName.trim()) {
-        try {
-          const destSearch = await searchMapPlaces(draft.destinationName.trim());
-          if (destSearch && destSearch.length > 0) {
-            destPlace = destSearch[0];
-          }
-        } catch (e) {
-          console.warn("도착지 지도 검색 실패, 기본 좌표 폴백 시도:", e);
-        }
-        if (!destPlace) {
-          destPlace = findFallbackCity(draft.destinationName.trim());
-        }
-        if (!destPlace) {
-          throw new Error(`'${draft.destinationName}'에 대한 지도 위치를 찾지 못했습니다. 보다 명확한 지명으로 입력해 주세요.`);
-        }
-      }
-
-      // 2. Draft 구성
-      const today = new Date().toISOString().slice(0, 10);
-      const startDate = draft.startDate || today;
-      const endDate = draft.endDate || startDate;
-      const depTime = draft.departureTime || "09:00";
-      const duration = calculateTripDuration(startDate, endDate);
-      const updatedDraft: TripDraft = {
+      const [origins, destinations] = await Promise.all([
+        searchMapPlaces(chatDraft.originName, controller.signal),
+        searchMapPlaces(chatDraft.destinationName, controller.signal),
+      ]);
+      if (controller.signal.aborted) return;
+      const origin = origins[0];
+      const destination = destinations[0];
+      if (!origin || !destination)
+        throw new Error(
+          "출발지 또는 도착지를 찾지 못했습니다. 지도 입력에서 정확한 장소를 선택해 주세요.",
+        );
+      const draft: TripDraft = {
         ...currentWorkspaceDraft,
-        title: `${originPlace.name}에서 ${destPlace.name}까지 (${duration.label})`,
-        originQuery: originPlace.name,
-        destinationQuery: destPlace.name,
-        origin: originPlace,
-        destination: destPlace,
-        mode: draft.mode || "driving",
-        startDate,
-        endDate,
-        departureTime: depTime,
+        title:
+          chatDraft.originName + "에서 " + chatDraft.destinationName + "까지",
+        originQuery: origin.name,
+        destinationQuery: destination.name,
+        origin,
+        destination,
+        mode: chatDraft.mode,
+        startDate: chatDraft.startDate,
+        endDate: chatDraft.endDate,
+        departureTime: chatDraft.departureTime,
+        selectedCategoryIds: chatDraft.selectedCategoryIds || [],
+        categorySelections: chatDraft.categorySelections || {},
         radiusMeters: 5000,
-        selectedCategoryIds: draft.selectedCategoryIds || [],
-        categorySelections: draft.categorySelections || {},
       };
-
-      workspaceDispatch({ type: "edit", patch: updatedDraft });
-
-      // 3. 서버 API 호출: 경로 비교 (/api/routes/compare)
-      const input = tripCompareRequest(updatedDraft);
-      if (!input) throw new Error("경로 비교 요청 파라미터가 유효하지 않습니다.");
-
-      const comparison = await compareRoutes(input);
-
-      // 4. 서버 API 호출: 실제 주행 경로 소요시간 기반 동적 타임라인 구간 산출 (/api/routes/timeline)
-      const primaryRoute = comparison.routes?.[0];
-      const routeDurationSec = primaryRoute?.durationSeconds || 3600;
-      const totalDriveMinutes = Math.max(Math.round(routeDurationSec / 60), 20);
-
-      const addMinutes = (timeStr: string, mins: number) => {
-        const [hStr, mStr] = (timeStr || "09:30").split(":");
-        const total =
-          (((Number(hStr) || 9) * 60 + (Number(mStr) || 30) + Math.round(mins)) %
-            (24 * 60) +
-            24 * 60) %
-          (24 * 60);
-        return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-      };
-
-      const mappedCategoryIds = [
-        ...new Set(
-          (draft.selectedCategoryIds || []).flatMap((id) =>
-            draft.categorySelections?.[id]?.length
-              ? draft.categorySelections[id]
-              : [id]
-          )
-        ),
-      ];
-
-      const themeDesc =
-        draft.preferences.trim() ||
-        (draft.categoryNames && draft.categoryNames.length > 0
-          ? draft.categoryNames.join(", ")
-          : "추천 쉼터 & 명소");
-
-      const defaultContentTypes = mappedCategoryIds.length > 0 ? [] : [12, 14, 38, 39];
-
-      // 주행 소요시간(totalDriveMinutes)과 실제 이동 경로 기반 동적 스팟 산출 (하드코딩 가데이터 제거)
-      const stops: TimelineStopRequest[] = [];
-
-      if (totalDriveMinutes <= 45) {
-        // 단거리 (45분 이하): 중간 경유지 및 도착지 거점
-        stops.push(
-          {
-            label: `${originPlace.name}➔${destPlace.name} 길목 쉼터 (${themeDesc})`,
-            targetTime: addMinutes(depTime, totalDriveMinutes * 0.5),
-            contentTypeIds: defaultContentTypes,
-            categoryIds: mappedCategoryIds,
-            radiusMeters: 5000,
-            limit: 5,
-          },
-          {
-            label: `${destPlace.name} 도착 핵심 거점 (${themeDesc})`,
-            targetTime: addMinutes(depTime, totalDriveMinutes),
-            contentTypeIds: defaultContentTypes,
-            categoryIds: mappedCategoryIds,
-            radiusMeters: 5000,
-            limit: 5,
-          }
+      workspaceDispatch({ type: "edit", patch: draft });
+      const result = await planTrip(draft, controller.signal);
+      if (controller.signal.aborted || activeOperation.current !== controller)
+        return;
+      workspaceDispatch({ type: "complete", result });
+      if (onComplete) onComplete();
+      else navigate("/trips");
+    } catch (error) {
+      if (!controller.signal.aborted)
+        setGenerationError(
+          error instanceof Error
+            ? error.message
+            : "일정을 생성하지 못했습니다. 다시 시도해 주세요.",
         );
-      } else if (totalDriveMinutes <= 120) {
-        // 중거리 (45분~2시간): 1차 쉼터, 도착 전 추천지, 도착지 거점
-        stops.push(
-          {
-            label: `길목 전반 쉼터 & 추천 (${chatDraft.categoryNames?.[0] || themeDesc})`,
-            targetTime: addMinutes(depTime, totalDriveMinutes * 0.4),
-            contentTypeIds: defaultContentTypes,
-            categoryIds: mappedCategoryIds,
-            radiusMeters: 5000,
-            limit: 5,
-          },
-          {
-            label: `${destPlace.name} 진입로 주요 스팟 (${chatDraft.categoryNames?.[1] || themeDesc})`,
-            targetTime: addMinutes(depTime, totalDriveMinutes * 0.8),
-            contentTypeIds: defaultContentTypes,
-            categoryIds: mappedCategoryIds,
-            radiusMeters: 5000,
-            limit: 5,
-          },
-          {
-            label: `${destPlace.name} 도착 핵심 거점 (${themeDesc})`,
-            targetTime: addMinutes(depTime, totalDriveMinutes),
-            contentTypeIds: defaultContentTypes,
-            categoryIds: mappedCategoryIds,
-            radiusMeters: 5000,
-            limit: 5,
-          }
-        );
-      } else {
-        // 장거리 (2시간 이상): 1차 쉼터, 중간 경유 스팟, 2차 쉼터, 도착지 거점
-        stops.push(
-          {
-            label: `1차 경유 쉼터 (${originPlace.name} 외곽 휴식)`,
-            targetTime: addMinutes(depTime, totalDriveMinutes * 0.25),
-            contentTypeIds: defaultContentTypes,
-            categoryIds: mappedCategoryIds,
-            radiusMeters: 5000,
-            limit: 5,
-          },
-          {
-            label: `중간 길목 주요 추천지 (${themeDesc})`,
-            targetTime: addMinutes(depTime, totalDriveMinutes * 0.55),
-            contentTypeIds: defaultContentTypes,
-            categoryIds: mappedCategoryIds,
-            radiusMeters: 5000,
-            limit: 5,
-          },
-          {
-            label: `2차 경유 쉼터 (${destPlace.name} 진입 전)`,
-            targetTime: addMinutes(depTime, totalDriveMinutes * 0.82),
-            contentTypeIds: defaultContentTypes,
-            categoryIds: mappedCategoryIds,
-            radiusMeters: 5000,
-            limit: 5,
-          },
-          {
-            label: `${destPlace.name} 최종 도착 핵심 명소 (${themeDesc})`,
-            targetTime: addMinutes(depTime, totalDriveMinutes),
-            contentTypeIds: defaultContentTypes,
-            categoryIds: mappedCategoryIds,
-            radiusMeters: 5000,
-            limit: 5,
-          }
-        );
-      }
-
-      let timeline = null;
-      try {
-        timeline = await getRouteTimeline({
-          mode: draft.mode === "walking" ? "walking" : "driving",
-          points: [
-            { longitude: originPlace.longitude, latitude: originPlace.latitude },
-            { longitude: destPlace.longitude, latitude: destPlace.latitude },
-          ],
-          departureTime: depTime,
-          stops,
-        });
-      } catch (timelineErr) {
-        console.warn("Timeline fetch error:", timelineErr);
-      }
-
-      // 5. 완료 결과 저장
-      workspaceDispatch({
-        type: "complete",
-        result: {
-          request: input,
-          comparison,
-          startDate: draft.startDate,
-          endDate: draft.endDate,
-          departureTime: draft.departureTime,
-          durationLabel: duration.label,
-          timeline,
-          categoryGroups: [],
-          title: updatedDraft.title,
-        },
-      });
-
-      // 6. 결과 페이지(/trips)로 이동
-      if (onComplete) {
-        onComplete();
-      } else {
-        navigate("/trips");
-      }
-    } catch (err: any) {
-      console.error("일정 자동 생성 에러:", err);
-      setGenerationError(err.message || "경로 탐색 서버 응답에 실패했습니다. 다시 시도해 주세요.");
     } finally {
-      setIsGeneratingPlan(false);
+      if (activeOperation.current === controller) {
+        activeOperation.current = null;
+        setIsGeneratingPlan(false);
+      }
     }
   };
 
@@ -1034,7 +689,8 @@ export function FullScreenAiChatPlanner({
                 </span>
               </div>
               <p className="text-[11px] text-emerald-100/80">
-                출발·도착 ➔ 기간·출발시각 ➔ 이동수단 ➔ 선호장소를 차례대로 묻고 최적 코스를 완성합니다.
+                출발·도착 ➔ 기간·출발시각 ➔ 이동수단 ➔ 선호장소를 차례대로 묻고
+                최적 코스를 완성합니다.
               </p>
             </div>
           </div>
@@ -1079,8 +735,8 @@ export function FullScreenAiChatPlanner({
                   isCurrent
                     ? "bg-white/25 text-amber-300 font-bold border border-white/30"
                     : isDone
-                    ? "text-emerald-200"
-                    : "text-white/40"
+                      ? "text-emerald-200"
+                      : "text-white/40"
                 }`}
               >
                 <span className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] bg-white/20">
@@ -1165,7 +821,9 @@ export function FullScreenAiChatPlanner({
                                 key={idx}
                                 type="button"
                                 disabled={isLoading}
-                                onClick={() => void handleUserResponse(item.value)}
+                                onClick={() =>
+                                  void handleUserResponse(item.value)
+                                }
                                 className="flex items-start gap-2.5 p-2.5 rounded-xl border border-stone-200 bg-emerald-50/50 hover:bg-emerald-100 hover:border-emerald-600 text-left transition shadow-2xs group cursor-pointer disabled:opacity-50"
                               >
                                 <div className="p-1 rounded-lg bg-emerald-800 text-white shrink-0 group-hover:scale-110 transition">
@@ -1183,7 +841,8 @@ export function FullScreenAiChatPlanner({
                             ))}
                           </div>
                           <div className="text-[11px] text-stone-400 pt-1">
-                            💡 직접 가고 싶은 곳이 있다면 아래 입력창에 편하게 입력해 주세요.
+                            💡 직접 가고 싶은 곳이 있다면 아래 입력창에 편하게
+                            입력해 주세요.
                           </div>
                         </div>
                       )}
@@ -1201,32 +860,38 @@ export function FullScreenAiChatPlanner({
                                   title: "1박 2일 · 오전 09:30 출발",
                                   badge: "가장 인기",
                                   desc: "여유로운 1박 2일 힐링 코스",
-                                  value: "1박 2일 일정이고, 오전 9시 30분에 출발할게요",
+                                  value:
+                                    "1박 2일 일정이고, 오전 9시 30분에 출발할게요",
                                 },
                                 {
                                   title: "당일치기 · 오전 09:00 출발",
                                   badge: "알찬 하루",
                                   desc: "하루를 꽉 채우는 근교 당일치기",
-                                  value: "당일치기 일정이고, 오전 9시 정각에 출발할게요",
+                                  value:
+                                    "당일치기 일정이고, 오전 9시 정각에 출발할게요",
                                 },
                                 {
                                   title: "2박 3일 · 오전 08:30 출발",
                                   badge: "여유로운 여행",
                                   desc: "2박 3일 넉넉한 힐링 투어",
-                                  value: "2박 3일 일정이고, 오전 8시 30분에 일찍 출발할게요",
+                                  value:
+                                    "2박 3일 일정이고, 오전 8시 30분에 일찍 출발할게요",
                                 },
                                 {
                                   title: "1박 2일 · 오전 10:00 출발",
                                   badge: "브런치 출발",
                                   desc: "여유롭게 아침 먹고 출발",
-                                  value: "1박 2일 일정이고, 오전 10시쯤 여유롭게 출발할게요",
+                                  value:
+                                    "1박 2일 일정이고, 오전 10시쯤 여유롭게 출발할게요",
                                 },
                               ].map((item, idx) => (
                                 <button
                                   key={idx}
                                   type="button"
                                   disabled={isLoading}
-                                  onClick={() => void handleUserResponse(item.value)}
+                                  onClick={() =>
+                                    void handleUserResponse(item.value)
+                                  }
                                   className="flex flex-col p-2.5 rounded-xl border border-stone-200 bg-white hover:bg-emerald-50 hover:border-emerald-600 text-left transition shadow-2xs group cursor-pointer disabled:opacity-50"
                                 >
                                   <div className="flex items-center justify-between mb-1">
@@ -1237,7 +902,9 @@ export function FullScreenAiChatPlanner({
                                       {item.badge}
                                     </span>
                                   </div>
-                                  <span className="text-[11px] text-stone-500">{item.desc}</span>
+                                  <span className="text-[11px] text-stone-500">
+                                    {item.desc}
+                                  </span>
                                 </button>
                               ))}
                             </div>
@@ -1248,7 +915,8 @@ export function FullScreenAiChatPlanner({
                             <div className="flex items-center justify-between text-xs font-bold text-stone-700">
                               <span>또는 기간과 시각을 직접 조합:</span>
                               <span className="text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md font-mono text-[11px]">
-                                {step2SelectedDuration} · {step2SelectedTime} 출발
+                                {step2SelectedDuration} · {step2SelectedTime}{" "}
+                                출발
                               </span>
                             </div>
 
@@ -1257,11 +925,18 @@ export function FullScreenAiChatPlanner({
                                 여행 기간:
                               </span>
                               <div className="flex flex-wrap gap-1.5">
-                                {["당일치기", "1박 2일", "2박 3일", "3박 4일"].map((dur) => (
+                                {[
+                                  "당일치기",
+                                  "1박 2일",
+                                  "2박 3일",
+                                  "3박 4일",
+                                ].map((dur) => (
                                   <button
                                     key={dur}
                                     type="button"
-                                    onClick={() => setStep2SelectedDuration(dur)}
+                                    onClick={() =>
+                                      setStep2SelectedDuration(dur)
+                                    }
                                     className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
                                       step2SelectedDuration === dur
                                         ? "bg-emerald-800 text-white shadow-2xs"
@@ -1279,7 +954,15 @@ export function FullScreenAiChatPlanner({
                                 출발 시각:
                               </span>
                               <div className="flex flex-wrap gap-1.5">
-                                {["08:00", "08:30", "09:00", "09:30", "10:00", "11:00", "13:00"].map((t) => (
+                                {[
+                                  "08:00",
+                                  "08:30",
+                                  "09:00",
+                                  "09:30",
+                                  "10:00",
+                                  "11:00",
+                                  "13:00",
+                                ].map((t) => (
                                   <button
                                     key={t}
                                     type="button"
@@ -1301,13 +984,16 @@ export function FullScreenAiChatPlanner({
                               disabled={isLoading}
                               onClick={() =>
                                 void handleUserResponse(
-                                  `${step2SelectedDuration} 일정이고, 오전 ${step2SelectedTime}에 출발할게요`
+                                  `${step2SelectedDuration} 일정이고, 오전 ${step2SelectedTime}에 출발할게요`,
                                 )
                               }
                               className="w-full py-2.5 px-4 rounded-xl bg-[#064e43] hover:bg-[#085a4e] text-white text-xs sm:text-sm font-bold transition flex items-center justify-center gap-2 shadow-xs cursor-pointer disabled:opacity-50"
                             >
                               <Check className="h-4 w-4" />
-                              <span>{step2SelectedDuration} · {step2SelectedTime} 출발 확정하기</span>
+                              <span>
+                                {step2SelectedDuration} · {step2SelectedTime}{" "}
+                                출발 확정하기
+                              </span>
                             </button>
                           </div>
                         </div>
@@ -1325,7 +1011,8 @@ export function FullScreenAiChatPlanner({
                                 title: "🚗 자동차 운전 (추천)",
                                 badge: "가장 추천",
                                 desc: "권장 경로 & 최단 경로를 비교하고 길목 휴게소와 맛집을 탐색합니다.",
-                                value: "자동차로 직접 운전해서 갈게요. 권장 경로와 최단 경로를 비교해 주세요",
+                                value:
+                                  "자동차로 직접 운전해서 갈게요. 권장 경로와 최단 경로를 비교해 주세요",
                               },
                               {
                                 title: "🚶 도보 산책 & 걷기",
@@ -1338,7 +1025,9 @@ export function FullScreenAiChatPlanner({
                                 key={idx}
                                 type="button"
                                 disabled={isLoading}
-                                onClick={() => void handleUserResponse(item.value)}
+                                onClick={() =>
+                                  void handleUserResponse(item.value)
+                                }
                                 className="flex flex-col p-3 rounded-xl border border-stone-200 bg-white hover:bg-emerald-50 hover:border-emerald-600 text-left transition shadow-2xs group cursor-pointer disabled:opacity-50"
                               >
                                 <div className="flex items-center justify-between mb-1.5">
@@ -1370,44 +1059,52 @@ export function FullScreenAiChatPlanner({
                                 title: "✨ 맛집 + 카페 + 명소 골고루 (추천)",
                                 badge: "밸런스 코스",
                                 desc: "식사, 전망 카페, 대표 명소를 균형 있게 구성",
-                                value: "맛집, 전망 좋은 카페, 대표 명소까지 골고루 균형 있게 추천해줘",
+                                value:
+                                  "맛집, 전망 좋은 카페, 대표 명소까지 골고루 균형 있게 추천해줘",
                               },
                               {
                                 title: "☕ 뷰 좋은 감성 카페 & 디저트",
                                 badge: "카페 투어",
                                 desc: "바다나 호수, 산 전망이 탁 트인 분위기 좋은 카페",
-                                value: "바다나 산 전망이 탁 트인 분위기 좋은 카페 위주로 추천해줘",
+                                value:
+                                  "바다나 산 전망이 탁 트인 분위기 좋은 카페 위주로 추천해줘",
                               },
                               {
-                                title: "🍽️ 길목 로컬 맛집 & 휴게소 별미",
+                                title: "🍽️ 도착지 로컬 맛집 & 향토 음식",
                                 badge: "식도락 여행",
-                                desc: "지역 대표 맛집과 고속도로 맛있는 휴게소",
-                                value: "이동 경로 주변의 길목 맛집과 고속도로 휴게소 맛있는 곳 위주로 추천해줘",
+                                desc: "도착지에서 즐기는 지역 대표 맛집과 향토 음식",
+                                value:
+                                  "도착한 뒤 지역 대표 맛집과 향토 음식 위주로 여행하고 싶어요",
                               },
                               {
                                 title: "🏞️ 필수 관광명소 & 문화재",
                                 badge: "랜드마크",
-                                desc: "이동 경로 상의 대표 역사 명소와 볼거리",
-                                value: "이동하는 길목의 대표적인 역사 유적지와 관광 명소 위주로 들르고 싶어",
+                                desc: "도착지의 대표 역사 명소와 볼거리",
+                                value:
+                                  "도착지의 대표적인 역사 유적지와 관광 명소 위주로 둘러보고 싶어요",
                               },
                               {
                                 title: "💆 힐링 쉼터 & 자연휴양림",
                                 badge: "힐링 쉼",
                                 desc: "조용하고 쾌적하게 쉴 수 있는 숲길과 자연공원",
-                                value: "사람 많지 않고 조용히 쉴 수 있는 힐링 자연 쉼터 위주로 추천해줘",
+                                value:
+                                  "사람 많지 않고 조용히 쉴 수 있는 힐링 자연 쉼터 위주로 추천해줘",
                               },
                               {
                                 title: "🛍️ 전통시장 & 로컬 쇼핑",
                                 badge: "로컬 마켓",
                                 desc: "지역 특산품과 정겨운 시장 먹거리",
-                                value: "전통시장과 지역 특산물 구경할 수 있는 곳 위주로 추천해줘",
+                                value:
+                                  "전통시장과 지역 특산물 구경할 수 있는 곳 위주로 추천해줘",
                               },
                             ].map((item, idx) => (
                               <button
                                 key={idx}
                                 type="button"
                                 disabled={isLoading}
-                                onClick={() => void handleUserResponse(item.value)}
+                                onClick={() =>
+                                  void handleUserResponse(item.value)
+                                }
                                 className="flex flex-col p-2.5 rounded-xl border border-stone-200 bg-white hover:bg-emerald-50 hover:border-emerald-600 text-left transition shadow-2xs group cursor-pointer disabled:opacity-50"
                               >
                                 <div className="flex items-center justify-between mb-1">
@@ -1425,7 +1122,8 @@ export function FullScreenAiChatPlanner({
                             ))}
                           </div>
                           <div className="text-[11px] text-stone-400 pt-1">
-                            💡 직접 가고 싶은 곳이나 취향이 있다면 아래 입력창에 말씀해 주셔도 됩니다.
+                            💡 직접 가고 싶은 곳이나 취향이 있다면 아래 입력창에
+                            말씀해 주셔도 됩니다.
                           </div>
                         </div>
                       )}
@@ -1441,8 +1139,15 @@ export function FullScreenAiChatPlanner({
                       <div className="p-3.5 rounded-xl bg-amber-400/20 border border-amber-300/40 flex items-center gap-3 animate-pulse">
                         <Loader2 className="h-5 w-5 text-amber-300 animate-spin shrink-0" />
                         <div className="text-xs text-amber-100">
-                          <p className="font-bold text-white text-sm">최적의 여행 경로와 타임라인을 자동 생성하고 있습니다...</p>
-                          <p className="text-[11px] text-amber-200/90 mt-0.5">ORS 권장/최단 주행 경로 비교 및 길목 명소·식사 타임라인 구간 산출 중입니다. 잠시만 기다려 주세요! 🚗💨</p>
+                          <p className="font-bold text-white text-sm">
+                            최적의 여행 경로와 타임라인을 자동 생성하고
+                            있습니다...
+                          </p>
+                          <p className="text-[11px] text-amber-200/90 mt-0.5">
+                            ORS 권장/최단 주행 경로 비교 및 길목 명소·식사
+                            타임라인 구간 산출 중입니다. 잠시만 기다려 주세요!
+                            🚗💨
+                          </p>
                         </div>
                       </div>
                     )}
@@ -1462,9 +1167,12 @@ export function FullScreenAiChatPlanner({
                       <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white/10">
                         <MapPin className="h-4 w-4 text-amber-300 shrink-0" />
                         <div>
-                          <span className="text-white/60 text-[11px] block">경로</span>
+                          <span className="text-white/60 text-[11px] block">
+                            경로
+                          </span>
                           <span className="font-bold text-white">
-                            {chatDraft.originName || "출발지 미정"} ➔ {chatDraft.destinationName || "도착지 미정"}
+                            {chatDraft.originName || "출발지 미정"} ➔{" "}
+                            {chatDraft.destinationName || "도착지 미정"}
                           </span>
                         </div>
                       </div>
@@ -1472,11 +1180,17 @@ export function FullScreenAiChatPlanner({
                       <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white/10">
                         <Clock className="h-4 w-4 text-emerald-300 shrink-0" />
                         <div>
-                          <span className="text-white/60 text-[11px] block">기간 및 출발시각</span>
+                          <span className="text-white/60 text-[11px] block">
+                            기간 및 출발시각
+                          </span>
                           <span className="font-bold text-white">
-                            {chatDraft.startDate ? `${chatDraft.startDate} · ` : ""}
+                            {chatDraft.startDate
+                              ? `${chatDraft.startDate} · `
+                              : ""}
                             {chatDraft.durationLabel || "일정 미지정"}{" "}
-                            {chatDraft.departureTime ? `(${chatDraft.departureTime} 출발)` : ""}
+                            {chatDraft.departureTime
+                              ? `(${chatDraft.departureTime} 출발)`
+                              : ""}
                           </span>
                         </div>
                       </div>
@@ -1484,12 +1198,12 @@ export function FullScreenAiChatPlanner({
                       <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white/10">
                         <Car className="h-4 w-4 text-emerald-300 shrink-0" />
                         <div>
-                          <span className="text-white/60 text-[11px] block">이동 수단</span>
+                          <span className="text-white/60 text-[11px] block">
+                            이동 수단
+                          </span>
                           <span className="font-bold text-white">
                             {chatDraft.mode === "driving"
                               ? "자동차 운전 (권장/최단 비교)"
-                              : chatDraft.mode === "transit"
-                              ? "대중교통 + 도보"
                               : "도보 산책"}
                           </span>
                         </div>
@@ -1498,7 +1212,9 @@ export function FullScreenAiChatPlanner({
                       <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white/10">
                         <Sparkles className="h-4 w-4 text-amber-300 shrink-0" />
                         <div>
-                          <span className="text-white/60 text-[11px] block">취향 테마</span>
+                          <span className="text-white/60 text-[11px] block">
+                            취향 테마
+                          </span>
                           <span className="font-bold text-white truncate max-w-[180px] block">
                             {chatDraft.preferences || "추천 코스 및 명소"}
                           </span>
@@ -1507,24 +1223,25 @@ export function FullScreenAiChatPlanner({
                     </div>
 
                     {/* AI 자동 매핑된 카테고리 태그 */}
-                    {chatDraft.categoryNames && chatDraft.categoryNames.length > 0 && (
-                      <div className="p-3 rounded-xl bg-white/10 border border-white/15">
-                        <span className="text-amber-200 text-[11px] font-semibold flex items-center gap-1.5 mb-1.5">
-                          <Sparkles className="h-3.5 w-3.5 text-amber-300" />
-                          AI 자동 매핑 추천 카테고리 (경로 주변 탐색에 적용)
-                        </span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {chatDraft.categoryNames.map((name, i) => (
-                            <span
-                              key={i}
-                              className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-500/25 text-emerald-100 border border-emerald-400/40 text-[11px] font-medium"
-                            >
-                              {name}
-                            </span>
-                          ))}
+                    {chatDraft.categoryNames &&
+                      chatDraft.categoryNames.length > 0 && (
+                        <div className="p-3 rounded-xl bg-white/10 border border-white/15">
+                          <span className="text-amber-200 text-[11px] font-semibold flex items-center gap-1.5 mb-1.5">
+                            <Sparkles className="h-3.5 w-3.5 text-amber-300" />
+                            추천 카테고리 (도착지 여행에 반영)
+                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {chatDraft.categoryNames.map((name, i) => (
+                              <span
+                                key={i}
+                                className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-500/25 text-emerald-100 border border-emerald-400/40 text-[11px] font-medium"
+                              >
+                                {name}
+                              </span>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
                     {generationError && (
                       <div className="rounded-xl bg-red-500/20 border border-red-400/40 p-3 text-xs text-red-200">
@@ -1536,19 +1253,25 @@ export function FullScreenAiChatPlanner({
                       <button
                         type="button"
                         disabled={isGeneratingPlan}
-                        onClick={handleGenerateFinalPlan}
+                        onClick={() => void handleGenerateFinalPlan()}
                         className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-stone-950 font-bold px-5 py-3.5 text-sm shadow-lg hover:shadow-xl transition-all cursor-pointer disabled:opacity-50"
                       >
                         {isGeneratingPlan ? (
                           <>
                             <Loader2 className="h-4 w-4 animate-spin" />
-                            <span>서버 API 최적 경로 & 타임라인 계산 중...</span>
+                            <span>
+                              서버 API 최적 경로 & 타임라인 계산 중...
+                            </span>
                           </>
                         ) : (
                           <>
                             <ArrowRight className="h-4 w-4" />
                             <span>
-                              최적 경로 & {chatDraft.durationLabel ? `${chatDraft.durationLabel} 맞춤` : "일정별"} 타임라인 생성하기
+                              최적 경로 &{" "}
+                              {chatDraft.durationLabel
+                                ? `${chatDraft.durationLabel} 맞춤`
+                                : "일정별"}{" "}
+                              타임라인 생성하기
                             </span>
                           </>
                         )}
@@ -1610,10 +1333,20 @@ export function FullScreenAiChatPlanner({
           e.preventDefault();
           void handleUserResponse(inputText);
         }}
-        className="flex items-center gap-3 p-4 bg-white border-t border-stone-200 shrink-0"
+        className="flex flex-wrap items-center gap-2 p-3 sm:p-4 bg-white border-t border-stone-200 shrink-0"
       >
+        <button
+          type="button"
+          onClick={handleResetChat}
+          className="inline-flex items-center gap-1 rounded-xl border border-stone-300 px-3 py-3 text-xs font-semibold text-stone-600 hover:bg-stone-50"
+          aria-label="대화 초기화"
+        >
+          <RotateCcw className="h-4 w-4" />
+          <span>초기화</span>
+        </button>
         <input
           type="text"
+          maxLength={5000}
           value={inputText}
           disabled={isLoading || currentStep > 4}
           onChange={(e) => setInputText(e.target.value)}
@@ -1621,14 +1354,14 @@ export function FullScreenAiChatPlanner({
             currentStep === 1
               ? "출발지와 도착지를 입력하세요 (예: 서울에서 부산으로)"
               : currentStep === 2
-              ? "여행 기간과 출발 시각을 입력하세요 (예: 1박 2일 오전 9시 30분)"
-              : currentStep === 3
-              ? "이동 수단을 입력하세요 (예: 자동차 운전)"
-              : currentStep === 4
-              ? "들르고 싶은 곳이나 취향을 입력하세요 (예: 길목 맛집과 카페)"
-              : "모든 질문이 완료되었습니다. 위의 생성 버튼을 눌러주세요!"
+                ? "여행 기간과 출발 시각을 입력하세요 (예: 1박 2일 오전 9시 30분)"
+                : currentStep === 3
+                  ? "이동 수단을 입력하세요 (예: 자동차 운전)"
+                  : currentStep === 4
+                    ? "도착 후 즐기고 싶은 여행을 알려주세요 (예: 맛집과 호수 산책)"
+                    : "모든 질문이 완료되었습니다. 위의 생성 버튼을 눌러주세요!"
           }
-          className="flex-1 rounded-2xl border border-stone-300 bg-stone-50/60 px-5 py-3.5 text-sm sm:text-base text-stone-900 placeholder-stone-400 focus:border-emerald-600 focus:bg-white focus:outline-none transition disabled:opacity-50"
+          className="min-w-0 flex-1 rounded-2xl border border-stone-300 bg-stone-50/60 px-3 py-3.5 text-sm sm:text-base text-stone-900 placeholder-stone-400 focus:border-emerald-600 focus:bg-white focus:outline-none transition disabled:opacity-50"
         />
         <button
           type="submit"

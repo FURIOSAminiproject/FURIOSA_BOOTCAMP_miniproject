@@ -1,5 +1,6 @@
 import { invalid, object } from '../routing-cache/routing.errors';
 import { coordinate, routeRequest } from '../routing-cache/routing.validation';
+import type { DestinationItineraryRequest } from './destination-itinerary';
 import {
   CONTENT_TYPES,
   type ExplorerRequest,
@@ -8,6 +9,90 @@ import {
 } from './explorer.types';
 
 const TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+/** 도착 후 일정은 날짜·시각을 필수로 받고 최대 10일로 제한한다. */
+export function destinationItineraryRequest(
+  value: unknown,
+): DestinationItineraryRequest {
+  if (
+    !object(value) ||
+    Object.keys(value).some(
+      (key) =>
+        ![
+          'mode',
+          'points',
+          'preference',
+          'startDate',
+          'endDate',
+          'departureTime',
+          'categoryIds',
+          'includeLunch',
+          'includeDinner',
+          'lunchTime',
+          'dinnerTime',
+        ].includes(key),
+    )
+  )
+    return invalid('body');
+  const comparison = explorerRequest({
+    mode: value.mode,
+    points: value.points,
+    categoryIds: value.categoryIds,
+  });
+  const route = routeRequest({
+    mode: value.mode,
+    points: value.points,
+    preference: value.preference,
+  });
+  const points = route.points.map((point) => {
+    if (!('latitude' in point) || !('longitude' in point))
+      return invalid('points (직접 좌표)');
+    return { latitude: point.latitude, longitude: point.longitude };
+  });
+  for (const key of ['startDate', 'endDate'] as const) {
+    const date = value[key];
+    if (
+      typeof date !== 'string' ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+      !Number.isFinite(Date.parse(date)) ||
+      new Date(date).toISOString().slice(0, 10) !== date
+    )
+      return invalid(key);
+  }
+  const days =
+    (Date.parse(value.endDate as string) -
+      Date.parse(value.startDate as string)) /
+      86400000 +
+    1;
+  if (days < 1 || days > 10) return invalid('여행 기간 (1~10일)');
+  if (
+    typeof value.departureTime !== 'string' ||
+    !TIME_REGEX.test(value.departureTime)
+  )
+    return invalid('departureTime');
+  for (const key of ['includeLunch', 'includeDinner'] as const)
+    if (value[key] !== undefined && typeof value[key] !== 'boolean')
+      return invalid(key);
+  for (const key of ['lunchTime', 'dinnerTime'] as const)
+    if (
+      value[key] !== undefined &&
+      (typeof value[key] !== 'string' || !TIME_REGEX.test(value[key]))
+    )
+      return invalid(key);
+  return {
+    mode: route.mode,
+    points,
+    preference: route.preference,
+    startDate: value.startDate as string,
+    endDate: value.endDate as string,
+    departureTime: value.departureTime,
+    categoryIds: comparison.categoryIds,
+    includeLunch: value.includeLunch as boolean | undefined,
+    includeDinner: value.includeDinner as boolean | undefined,
+    lunchTime: value.lunchTime as string | undefined,
+    dinnerTime: value.dinnerTime as string | undefined,
+  };
+}
 
 /** 자동완성의 검색어만 받는다. URL·인증키 등 임의 제공자 설정은 받지 않는다. */
 export function searchQuery(value: unknown): string {
@@ -93,13 +178,9 @@ export function timelineRequest(value: unknown): TimelineRequest {
     !object(value) ||
     Object.keys(value).some(
       (key) =>
-        ![
-          'mode',
-          'points',
-          'departureTime',
-          'preference',
-          'stops',
-        ].includes(key),
+        !['mode', 'points', 'departureTime', 'preference', 'stops'].includes(
+          key,
+        ),
     )
   )
     return invalid('body');
@@ -279,4 +360,3 @@ export function nearbyPlacesRequest(value: unknown): NearbyPlacesRequest {
     limit,
   };
 }
-
