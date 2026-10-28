@@ -72,7 +72,6 @@ const STEP_CHIPS: Record<number, StepOption[]> = {
   ],
   3: [
     { label: "🚗 자동차 운전 (권장/최단 비교)", value: "자동차로 직접 운전해서 갈게요. 권장 경로와 최단 경로를 비교해 주세요" },
-    { label: "🚆 대중교통 + 도보 연계", value: "대중교통과 도보를 연계해서 이동할게요" },
     { label: "🚶 도보 / 산책 중심", value: "도보 산책 위주로 편안하게 걷고 싶어요" },
   ],
   4: [
@@ -91,6 +90,48 @@ const STEP_LABELS = [
   "선호 장소",
   "완성 및 경로 생성",
 ];
+
+const KOREA_CITY_COORDINATES: Record<string, { lat: number; lng: number; address: string }> = {
+  "서울": { lat: 37.5665, lng: 126.9780, address: "서울특별시 중구 세종대로 110" },
+  "춘천": { lat: 37.8813, lng: 127.7298, address: "강원특별자치도 춘천시 시청길 11" },
+  "부산": { lat: 35.1796, lng: 129.0756, address: "부산광역시 연제구 중앙대로 1001" },
+  "강릉": { lat: 37.7519, lng: 128.8761, address: "강원특별자치도 강릉시 강릉대로 33" },
+  "속초": { lat: 38.2070, lng: 128.5918, address: "강원특별자치도 속초시 중앙로 183" },
+  "가평": { lat: 37.8315, lng: 127.5097, address: "경기도 가평군 가평읍 석봉로 181" },
+  "수원": { lat: 37.2636, lng: 127.0286, address: "경기도 수원시 팔달구 효원로 241" },
+  "인천": { lat: 37.4563, lng: 126.7052, address: "인천광역시 남동구 정각로 29" },
+  "대전": { lat: 36.3504, lng: 127.3845, address: "대전광역시 서구 둔산로 100" },
+  "대구": { lat: 35.8714, lng: 128.6014, address: "대구광역시 중구 공평로 88" },
+  "광주": { lat: 35.1595, lng: 126.8526, address: "광주광역시 서구 내방로 111" },
+  "전주": { lat: 35.8242, lng: 127.1480, address: "전북특별자치도 전주시 완산구 노송광장로 10" },
+  "경주": { lat: 35.8562, lng: 129.2247, address: "경상북도 경주시 양정로 260" },
+  "여수": { lat: 34.7604, lng: 127.6622, address: "전라남도 여수시 시청로 1" },
+  "제주": { lat: 33.4996, lng: 126.5312, address: "제주특별자치도 제주시 문연로 6" },
+  "포항": { lat: 36.0190, lng: 129.3435, address: "경상북도 포항시 남구 시청로 1" },
+  "안동": { lat: 36.5684, lng: 128.7294, address: "경상북도 안동시 퇴계로 115" },
+  "통영": { lat: 34.8544, lng: 128.4332, address: "경상남도 통영시 통영해안로 515" },
+  "남해": { lat: 34.8377, lng: 127.8924, address: "경상남도 남해군 남해읍 망운로 9" },
+  "단양": { lat: 36.9845, lng: 128.3656, address: "충청북도 단양군 단양읍 중앙1로 10" },
+  "군산": { lat: 35.9676, lng: 126.7366, address: "전북특별자치도 군산시 시청로 17" },
+  "원주": { lat: 37.3422, lng: 127.9202, address: "강원특별자치도 원주시 시청로 1" },
+  "성남": { lat: 37.4200, lng: 127.1265, address: "경기도 성남시 중원구 성남대로 997" },
+};
+
+function findFallbackCity(query: string): SearchPlace | null {
+  const q = query.trim();
+  for (const [cityName, coord] of Object.entries(KOREA_CITY_COORDINATES)) {
+    if (q.includes(cityName) || cityName.includes(q)) {
+      return {
+        id: `fallback-city-${cityName}`,
+        name: q,
+        latitude: coord.lat,
+        longitude: coord.lng,
+        address: coord.address,
+      };
+    }
+  }
+  return null;
+}
 
 export function FullScreenAiChatPlanner({
   onSwitchToPlanner,
@@ -166,11 +207,33 @@ export function FullScreenAiChatPlanner({
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.currentStep) setCurrentStep(parsed.currentStep);
-        if (parsed.chatDraft) setChatDraft(parsed.chatDraft);
-        if (parsed.messages && Array.isArray(parsed.messages) && parsed.messages.length > 0) {
-          setMessages(parsed.messages);
+        let restoredStep = parsed.currentStep || 1;
+        const restoredDraft = parsed.chatDraft || {};
+        let restoredMessages: ChatMessage[] = parsed.messages || [];
+
+        // 4단계 선호 장소까지 답변되었거나 "모든 조건이 완벽하게 준비되었습니다" 안내 후 멈춘 경우 즉시 5단계로 복원
+        const isSurveyReady =
+          Boolean(restoredDraft.originName && restoredDraft.destinationName && (restoredDraft.preferences || restoredStep >= 4));
+        const lastMsgReady = restoredMessages.some(
+          (m) =>
+            m.role === "model" &&
+            (m.text.includes("완벽하게 준비") ||
+              m.text.includes("최적의") ||
+              m.text.includes("타임라인을 안내")),
+        );
+
+        if (restoredStep === 4 && (isSurveyReady || lastMsgReady)) {
+          restoredStep = 5;
+          restoredMessages = restoredMessages.map((m, idx) =>
+            idx === restoredMessages.length - 1 && m.role === "model"
+              ? { ...m, isSummaryCard: true, step: 5 }
+              : m,
+          );
         }
+
+        if (restoredStep) setCurrentStep(restoredStep);
+        if (parsed.chatDraft) setChatDraft(restoredDraft);
+        if (restoredMessages.length > 0) setMessages(restoredMessages);
         if (parsed.savedAt) setLastSavedTime(parsed.savedAt);
       }
     } catch (e) {
@@ -363,11 +426,8 @@ export function FullScreenAiChatPlanner({
     return { durationLabel, departureTime, startDate, endDate, daysCount };
   };
 
-  // 3단계 로컬 파싱 (폴백용): 이동 수단
+  // 3단계 로컬 파싱 (폴백용): 이동 수단 (ORS 지원 규격: driving / walking)
   const parseMode = (text: string): LocationRouteMode => {
-    if (text.includes("대중교통") || text.includes("버스") || text.includes("기차") || text.includes("지하철")) {
-      return "transit";
-    }
     if (text.includes("도보") || text.includes("걸어") || text.includes("산책")) {
       return "walking";
     }
@@ -428,6 +488,16 @@ export function FullScreenAiChatPlanner({
           const data = await response.json();
           aiReply = data.reply;
           nextStep = typeof data.step === "number" ? data.step : currentStep + 1;
+
+          // 4단계 선호 장소를 입력했거나, 서버가 isReady/step=5를 반환했거나, 필수 조건이 충족되면 반드시 5단계 확정
+          if (
+            currentStep === 4 ||
+            data.isReady ||
+            data.step === 5 ||
+            (updatedDraft.originName && updatedDraft.destinationName && (updatedDraft.preferences || userText))
+          ) {
+            nextStep = 5;
+          }
 
           if (data.extracted) {
             if (data.extracted.originName) {
@@ -535,12 +605,12 @@ export function FullScreenAiChatPlanner({
             aiReply =
               `📅 **${updatedDraft.startDate} ~ ${updatedDraft.endDate} (${updatedDraft.durationLabel})**, **${updatedDraft.departureTime} 출발**로 일정을 완벽히 기록했습니다! ⏰🚗\n\n` +
               `🚗 **3단계: 어떻게 이동할까요?**\n` +
-              `직접 운전하시나요, 대중교통이나 도보를 이용하시나요? 자동차 경로 시 권장 경로와 최단 경로를 함께 비교해 드립니다.`;
+              `직접 **자동차를 운전**하시나요, 아니면 **도보 산책** 위주의 여행이신가요? (※ ORS 경로 엔진 특성상 자차 및 도보 경로를 지원합니다)`;
           }
         } else if (currentStep === 3) {
           const mode = parseMode(userText);
           updatedDraft.mode = mode;
-          const modeLabel = mode === "driving" ? "자동차 운전" : mode === "transit" ? "대중교통" : "도보";
+          const modeLabel = mode === "walking" ? "도보 산책" : "자동차 운전";
           aiReply =
             `이동 수단은 **${modeLabel}**(으)로 설정했습니다. 🚙\n\n` +
             `🎯 **4단계: 길목에서 어떤 곳에 들르고 싶으세요?**\n` +
@@ -623,6 +693,10 @@ export function FullScreenAiChatPlanner({
         }).catch(() => {});
       }
 
+      if (nextStep === 5 && !updatedDraft.preferences) {
+        updatedDraft.preferences = userText;
+      }
+
       setChatDraft(updatedDraft);
       setCurrentStep(nextStep);
 
@@ -641,6 +715,13 @@ export function FullScreenAiChatPlanner({
       const finalMessages = [...nextMessages, aiMessage];
       setMessages(finalMessages);
       saveToLocalStorage(nextStep, updatedDraft, finalMessages);
+
+      // 5단계 도달 시 AI 최적 경로 및 타임라인 자동 생성 실행 (잠시만 기다려 주세요 안내에 부합)
+      if (nextStep === 5) {
+        setTimeout(() => {
+          void handleGenerateFinalPlan(updatedDraft);
+        }, 600);
+      }
     } catch (err: any) {
       console.error("챗봇 단계 처리 오류:", err);
     } finally {
@@ -687,44 +768,61 @@ export function FullScreenAiChatPlanner({
   };
 
   // 최종 서버 API 호출하여 경로 & 타임라인 생성
-  const handleGenerateFinalPlan = async () => {
+  const handleGenerateFinalPlan = async (overrideDraft?: typeof chatDraft) => {
+    const draft = overrideDraft || chatDraft;
     setIsGeneratingPlan(true);
     setGenerationError(null);
 
     try {
-      if (!chatDraft.originName || !chatDraft.originName.trim()) {
+      if (!draft.originName || !draft.originName.trim()) {
         throw new Error("출발지가 설정되지 않았습니다. 출발지를 먼저 입력해 주세요.");
       }
-      if (!chatDraft.destinationName || !chatDraft.destinationName.trim()) {
+      if (!draft.destinationName || !draft.destinationName.trim()) {
         throw new Error("도착지가 설정되지 않았습니다. 도착지를 먼저 입력해 주세요.");
       }
 
-      // 1. 출발지 & 도착지 실제 지도 좌표 검색
-      let originPlace = chatDraft.originPlace;
-      if (!originPlace || originPlace.name !== chatDraft.originName.trim()) {
-        const originSearch = await searchMapPlaces(chatDraft.originName.trim());
-        if (originSearch && originSearch.length > 0) {
-          originPlace = originSearch[0];
-        } else {
-          throw new Error(`'${chatDraft.originName}'에 대한 지도 위치를 찾지 못했습니다. 보다 명확한 지명으로 입력해 주세요.`);
+      // 1. 출발지 & 도착지 실제 지도 좌표 검색 (검색 실패 시 국내 주요 도시/지명 좌표로 자동 폴백)
+      let originPlace = draft.originPlace;
+      if (!originPlace || originPlace.name !== draft.originName.trim()) {
+        try {
+          const originSearch = await searchMapPlaces(draft.originName.trim());
+          if (originSearch && originSearch.length > 0) {
+            originPlace = originSearch[0];
+          }
+        } catch (e) {
+          console.warn("출발지 지도 검색 실패, 기본 좌표 폴백 시도:", e);
+        }
+        if (!originPlace) {
+          originPlace = findFallbackCity(draft.originName.trim());
+        }
+        if (!originPlace) {
+          throw new Error(`'${draft.originName}'에 대한 지도 위치를 찾지 못했습니다. 보다 명확한 지명으로 입력해 주세요.`);
         }
       }
 
-      let destPlace = chatDraft.destinationPlace;
-      if (!destPlace || destPlace.name !== chatDraft.destinationName.trim()) {
-        const destSearch = await searchMapPlaces(chatDraft.destinationName.trim());
-        if (destSearch && destSearch.length > 0) {
-          destPlace = destSearch[0];
-        } else {
-          throw new Error(`'${chatDraft.destinationName}'에 대한 지도 위치를 찾지 못했습니다. 보다 명확한 지명으로 입력해 주세요.`);
+      let destPlace = draft.destinationPlace;
+      if (!destPlace || destPlace.name !== draft.destinationName.trim()) {
+        try {
+          const destSearch = await searchMapPlaces(draft.destinationName.trim());
+          if (destSearch && destSearch.length > 0) {
+            destPlace = destSearch[0];
+          }
+        } catch (e) {
+          console.warn("도착지 지도 검색 실패, 기본 좌표 폴백 시도:", e);
+        }
+        if (!destPlace) {
+          destPlace = findFallbackCity(draft.destinationName.trim());
+        }
+        if (!destPlace) {
+          throw new Error(`'${draft.destinationName}'에 대한 지도 위치를 찾지 못했습니다. 보다 명확한 지명으로 입력해 주세요.`);
         }
       }
 
       // 2. Draft 구성
       const today = new Date().toISOString().slice(0, 10);
-      const startDate = chatDraft.startDate || today;
-      const endDate = chatDraft.endDate || startDate;
-      const depTime = chatDraft.departureTime || "09:00";
+      const startDate = draft.startDate || today;
+      const endDate = draft.endDate || startDate;
+      const depTime = draft.departureTime || "09:00";
       const duration = calculateTripDuration(startDate, endDate);
       const updatedDraft: TripDraft = {
         ...currentWorkspaceDraft,
@@ -733,13 +831,13 @@ export function FullScreenAiChatPlanner({
         destinationQuery: destPlace.name,
         origin: originPlace,
         destination: destPlace,
-        mode: chatDraft.mode || "driving",
+        mode: draft.mode || "driving",
         startDate,
         endDate,
         departureTime: depTime,
         radiusMeters: 5000,
-        selectedCategoryIds: chatDraft.selectedCategoryIds || [],
-        categorySelections: chatDraft.categorySelections || {},
+        selectedCategoryIds: draft.selectedCategoryIds || [],
+        categorySelections: draft.categorySelections || {},
       };
 
       workspaceDispatch({ type: "edit", patch: updatedDraft });
@@ -767,18 +865,18 @@ export function FullScreenAiChatPlanner({
 
       const mappedCategoryIds = [
         ...new Set(
-          (chatDraft.selectedCategoryIds || []).flatMap((id) =>
-            chatDraft.categorySelections?.[id]?.length
-              ? chatDraft.categorySelections[id]
+          (draft.selectedCategoryIds || []).flatMap((id) =>
+            draft.categorySelections?.[id]?.length
+              ? draft.categorySelections[id]
               : [id]
           )
         ),
       ];
 
       const themeDesc =
-        chatDraft.preferences.trim() ||
-        (chatDraft.categoryNames && chatDraft.categoryNames.length > 0
-          ? chatDraft.categoryNames.join(", ")
+        draft.preferences.trim() ||
+        (draft.categoryNames && draft.categoryNames.length > 0
+          ? draft.categoryNames.join(", ")
           : "추천 쉼터 & 명소");
 
       const defaultContentTypes = mappedCategoryIds.length > 0 ? [] : [12, 14, 38, 39];
@@ -875,7 +973,7 @@ export function FullScreenAiChatPlanner({
       let timeline = null;
       try {
         timeline = await getRouteTimeline({
-          mode: chatDraft.mode === "walking" ? "walking" : "driving",
+          mode: draft.mode === "walking" ? "walking" : "driving",
           points: [
             { longitude: originPlace.longitude, latitude: originPlace.latitude },
             { longitude: destPlace.longitude, latitude: destPlace.latitude },
@@ -893,9 +991,9 @@ export function FullScreenAiChatPlanner({
         result: {
           request: input,
           comparison,
-          startDate: chatDraft.startDate,
-          endDate: chatDraft.endDate,
-          departureTime: chatDraft.departureTime,
+          startDate: draft.startDate,
+          endDate: draft.endDate,
+          departureTime: draft.departureTime,
           durationLabel: duration.label,
           timeline,
           categoryGroups: [],
@@ -1338,6 +1436,16 @@ export function FullScreenAiChatPlanner({
                 {/* 5단계 요약 카드 & 최종 생성 버튼 */}
                 {msg.isSummaryCard && (
                   <div className="mt-4 rounded-2xl bg-gradient-to-br from-emerald-950 via-[#064e43] to-[#04332c] text-white p-5 sm:p-6 shadow-xl border border-emerald-600/40 space-y-4 animate-in fade-in zoom-in-95 duration-300">
+                    {/* 자동 생성 중 안내 배너 */}
+                    {isGeneratingPlan && (
+                      <div className="p-3.5 rounded-xl bg-amber-400/20 border border-amber-300/40 flex items-center gap-3 animate-pulse">
+                        <Loader2 className="h-5 w-5 text-amber-300 animate-spin shrink-0" />
+                        <div className="text-xs text-amber-100">
+                          <p className="font-bold text-white text-sm">최적의 여행 경로와 타임라인을 자동 생성하고 있습니다...</p>
+                          <p className="text-[11px] text-amber-200/90 mt-0.5">ORS 권장/최단 주행 경로 비교 및 길목 명소·식사 타임라인 구간 산출 중입니다. 잠시만 기다려 주세요! 🚗💨</p>
+                        </div>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between border-b border-white/20 pb-3">
                       <div className="flex items-center gap-2">
                         <CheckCircle className="h-5 w-5 text-amber-300" />

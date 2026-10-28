@@ -249,11 +249,18 @@ ${contextLines.length ? `\n[현재 생성된 여행 계획 정보]\n${contextLin
      사용자가 아직 "출발 날짜(몇월 몇일)"를 말하지 않았거나, "출발 시각(몇 시)"을 말하지 않았거나, "기간(당일/1박2일 등)"을 명시하지 않았다면,
      절대로 3단계로 넘어가지 말고 step을 2로 유지하세요!
      사용자가 말한 내용(예: "1박 2일")을 확인해 주고, 아직 확인되지 않은 항목(예: "몇월 몇일에 출발하시나요? 몇 시에 출발하시나요?")을 구체적으로 되물어보세요.
-3단계. 이동 수단 (mode: "driving" | "transit" | "walking")
-   - 자동차 운전: "driving", 대중교통: "transit", 도보: "walking"
+3단계. 이동 수단 (mode: "driving" | "walking")
+   - [중요 원칙]: 우리 시스템의 ORS 경로 탐색 엔진은 '자동차 운전(driving)'과 '도보(walking)'만 지원합니다.
+   - 대중교통(버스, 지하철, 기차 등)은 절대 선택지로 언급하거나 제안하지 마세요!
+   - 질문할 때도 반드시 "🚗 직접 자동차를 운전하시나요, 아니면 도보 산책 위주의 여행이신가요?"라고만 질문하세요.
+   - 사용자가 만약 대중교통을 언급하더라도 자차 운전("driving")으로 자동 매핑하여 안내하세요.
 4단계. 선호 장소/취향 (preferences 및 DB 카테고리 매핑)
-   - 사용자가 방문하고 싶은 장소나 취향(예: "뷰 좋은 카페, 닭갈비 맛집, 힐링 숲길")을 말하면,
+   - 사용자가 방문하고 싶은 장소나 취향(예: "뷰 좋은 카페, 닭갈비 맛집, 힐링 숲길", "이동하는 길목의 대표적인 역사 유적지와 관광 명소 위주")을 말하면,
      우리 시스템 DB 카테고리와 매핑하여 selectedCategoryIds(상위 ID), categorySelections(세부 ID 맵), categoryNames(카테고리명 목록)를 함께 추출하세요.
+   - [필수 완료 규칙!]:
+     사용자가 4단계(취향/선호 장소)를 답변했거나, 이미 1~3단계 필수 조건(출발지/도착지, 일정/출발시각, 이동수단)이 모두 확인된 상태라면 모든 조건 수집이 완료된 상태입니다.
+     이 때는 반드시 "step": 5, "isReady": true 로 출력해야 합니다! 절대로 step: 4에 머무르지 마세요!
+     reply 답변에는 "모든 조건이 완벽하게 준비되었습니다. 이제 최적의 여행 경로와 타임라인을 안내해 드릴게요. 잠시만 기다려 주세요!"와 같이 완료 안내를 포함하세요.
    - 주요 카테고리 ID 가이드:
      * 카페/찻집: 상위 음식(dd608518-f993-4a23-bd10-2c59a24fa674) > 세부 카페(f63cd46c-13db-465b-923d-4f064ab05feb)
      * 한식/맛집: 상위 음식(dd608518-f993-4a23-bd10-2c59a24fa674) > 세부 한식(917f7b5a-5f95-414d-8ca6-9dc8c5535199)
@@ -287,7 +294,7 @@ ${contextLines.length ? `\n[현재 생성된 여행 계획 정보]\n${contextLin
     "endDate": "YYYY-MM-DD (없으면 null)",
     "durationLabel": "파악되거나 유지된 기간 (없으면 null)",
     "departureTime": "파악되거나 유지된 출발시각 HH:mm (없으면 null)",
-    "mode": "driving | transit | walking (없으면 null)",
+    "mode": "driving | walking (없으면 null)",
     "preferences": "파악되거나 유지된 취향 (없으면 null)",
     "selectedCategoryIds": ["매핑된 상위 카테고리 UUID"],
     "categorySelections": { "상위UUID": ["하위UUID"] },
@@ -329,29 +336,130 @@ ${contextLines.length ? `\n[현재 생성된 여행 계획 정보]\n${contextLin
       }
 
       const parsed = JSON.parse(cleanJson);
+
+      const originName = parsed.extracted?.originName || currentDraft.originName || null;
+      const destinationName = parsed.extracted?.destinationName || currentDraft.destinationName || null;
+      const startDate = parsed.extracted?.startDate || currentDraft.startDate || null;
+      const endDate = parsed.extracted?.endDate || currentDraft.endDate || null;
+      const durationLabel = parsed.extracted?.durationLabel || currentDraft.durationLabel || null;
+      const departureTime = parsed.extracted?.departureTime || currentDraft.departureTime || null;
+      const mode = parsed.extracted?.mode || currentDraft.mode || 'driving';
+      let preferences = parsed.extracted?.preferences || currentDraft.preferences || null;
+
+      if (currentStep === 4 && !preferences && userMessage) {
+        preferences = userMessage;
+      }
+
+      // 4단계 응답이거나 필수 조건(출발, 도착, 취향)이 채워진 경우 결정론적으로 5단계 완성으로 전진
+      let step = typeof parsed.step === 'number' ? parsed.step : currentStep;
+      if (currentStep === 4 || (originName && destinationName && preferences)) {
+        step = 5;
+      }
+      const isReady = step === 5 || Boolean(parsed.isReady);
+
+      // 카테고리 매핑 보충 (AI 응답에 없거나 5단계 확정 시)
+      let selectedCategoryIds = parsed.extracted?.selectedCategoryIds || [];
+      let categorySelections = parsed.extracted?.categorySelections || {};
+      let categoryNames = parsed.extracted?.categoryNames || [];
+
+      if ((!categoryNames || categoryNames.length === 0) && (preferences || userMessage)) {
+        const catMapping = this.extractCategories(preferences || userMessage);
+        selectedCategoryIds = catMapping.selectedCategoryIds;
+        categorySelections = catMapping.categorySelections;
+        categoryNames = catMapping.categoryNames;
+      }
+
       return {
         reply: parsed.reply || '입력을 확인했습니다.',
-        step: typeof parsed.step === 'number' ? parsed.step : currentStep,
+        step,
         extracted: {
-          originName: parsed.extracted?.originName || currentDraft.originName || null,
-          destinationName: parsed.extracted?.destinationName || currentDraft.destinationName || null,
-          startDate: parsed.extracted?.startDate || currentDraft.startDate || null,
-          endDate: parsed.extracted?.endDate || currentDraft.endDate || null,
-          durationLabel: parsed.extracted?.durationLabel || currentDraft.durationLabel || null,
-          departureTime: parsed.extracted?.departureTime || currentDraft.departureTime || null,
-          mode: parsed.extracted?.mode || currentDraft.mode || null,
-          preferences: parsed.extracted?.preferences || currentDraft.preferences || null,
-          selectedCategoryIds: parsed.extracted?.selectedCategoryIds || [],
-          categorySelections: parsed.extracted?.categorySelections || {},
-          categoryNames: parsed.extracted?.categoryNames || [],
+          originName,
+          destinationName,
+          startDate,
+          endDate,
+          durationLabel,
+          departureTime,
+          mode,
+          preferences,
+          selectedCategoryIds,
+          categorySelections,
+          categoryNames,
         },
-        isReady: Boolean(parsed.isReady || parsed.step === 5),
+        isReady,
         modelUsed: modelName,
       };
     } catch (err: any) {
       this.logger.error(`Gemini planChat error: ${err?.message}`);
       return this.fallbackPlanChat(userMessage, currentDraft, currentStep);
     }
+  }
+
+  /** 취향 텍스트 기반 DB 카테고리 자동 시맨틱 매핑 */
+  private extractCategories(text: string): {
+    selectedCategoryIds: string[];
+    categorySelections: Record<string, string[]>;
+    categoryNames: string[];
+  } {
+    const raw = (text || '').trim();
+    const selectedCategoryIds: string[] = [];
+    const categorySelections: Record<string, string[]> = {};
+    const categoryNames: string[] = [];
+
+    const FOOD_ID = 'dd608518-f993-4a23-bd10-2c59a24fa674';
+    const CAFE_ID = 'f63cd46c-13db-465b-923d-4f064ab05feb';
+    const KOREAN_FOOD_ID = '917f7b5a-5f95-414d-8ca6-9dc8c5535199';
+
+    const NATURE_ID = '6486b07a-4e08-4f42-9942-eec0b631592b';
+    const FOREST_ID = 'b1c0732e-15d7-4837-ad8c-b5f3a88af4b2';
+    const PARK_ID = 'a44a0670-6aa4-4794-8b7d-0126f260e439';
+
+    const CULTURE_ID = '1cd55dd3-084a-4f30-aa37-b9f772807d90';
+    const ACTIVITY_ID = '02e5b4c1-7434-48a1-8712-76cba3e09ad8';
+
+    // 카페 매핑
+    if (raw.includes('카페') || raw.includes('디저트') || raw.includes('커피') || raw.includes('찻집') || raw.includes('빵') || raw.includes('베이커리')) {
+      if (!selectedCategoryIds.includes(FOOD_ID)) selectedCategoryIds.push(FOOD_ID);
+      categorySelections[FOOD_ID] = categorySelections[FOOD_ID] || [];
+      if (!categorySelections[FOOD_ID].includes(CAFE_ID)) categorySelections[FOOD_ID].push(CAFE_ID);
+      categoryNames.push('카페/ 찻집');
+    }
+
+    // 맛집 / 한식 매핑
+    if (raw.includes('맛집') || raw.includes('밥') || raw.includes('한식') || raw.includes('닭갈비') || raw.includes('고기') || raw.includes('막국수') || raw.includes('식당') || raw.includes('식사') || raw.includes('먹거리') || raw.includes('향토음식')) {
+      if (!selectedCategoryIds.includes(FOOD_ID)) selectedCategoryIds.push(FOOD_ID);
+      categorySelections[FOOD_ID] = categorySelections[FOOD_ID] || [];
+      if (!categorySelections[FOOD_ID].includes(KOREAN_FOOD_ID)) categorySelections[FOOD_ID].push(KOREAN_FOOD_ID);
+      categoryNames.push('한식(맛집)');
+    }
+
+    // 자연 / 힐링 / 공원 매핑
+    if (raw.includes('자연') || raw.includes('휴양') || raw.includes('숲') || raw.includes('산책') || raw.includes('힐링') || raw.includes('쉼터') || raw.includes('호수') || raw.includes('바다') || raw.includes('산') || raw.includes('공원') || raw.includes('수목원')) {
+      if (!selectedCategoryIds.includes(NATURE_ID)) selectedCategoryIds.push(NATURE_ID);
+      categorySelections[NATURE_ID] = [FOREST_ID, PARK_ID];
+      categoryNames.push('자연휴양림 & 자연공원');
+    }
+
+    // 문화 / 역사 / 전시 / 명소 매핑 (사용자가 "역사 유적지와 관광 명소"라고 입력한 경우 완벽 지원!)
+    if (raw.includes('역사') || raw.includes('유적') || raw.includes('명소') || raw.includes('관광') || raw.includes('문화') || raw.includes('박물관') || raw.includes('미술관') || raw.includes('전시') || raw.includes('문화재') || raw.includes('랜드마크') || raw.includes('유적지')) {
+      if (!selectedCategoryIds.includes(CULTURE_ID)) selectedCategoryIds.push(CULTURE_ID);
+      categoryNames.push('문화관광 & 랜드마크');
+    }
+
+    // 체험 / 액티비티 / 쇼핑 매핑
+    if (raw.includes('체험') || raw.includes('액티비티') || raw.includes('레포츠') || raw.includes('스포츠') || raw.includes('놀이') || raw.includes('테마파크') || raw.includes('시장') || raw.includes('쇼핑')) {
+      if (!selectedCategoryIds.includes(ACTIVITY_ID)) selectedCategoryIds.push(ACTIVITY_ID);
+      categoryNames.push('체험관광 & 로컬마켓');
+    }
+
+    // 기본 카테고리가 없으면 골고루 지정
+    if (selectedCategoryIds.length === 0) {
+      selectedCategoryIds.push(FOOD_ID, NATURE_ID, CULTURE_ID);
+      categorySelections[FOOD_ID] = [CAFE_ID, KOREAN_FOOD_ID];
+      categorySelections[NATURE_ID] = [PARK_ID];
+      categoryNames.push('카페/ 찻집', '한식(맛집)', '자연공원', '문화관광');
+    }
+
+    return { selectedCategoryIds, categorySelections, categoryNames };
   }
 
   private fallbackPlanChat(
@@ -530,72 +638,12 @@ ${contextLines.length ? `\n[현재 생성된 여행 계획 정보]\n${contextLin
     } else if (step === 4) {
       updatedDraft.preferences = raw;
 
-      // 취향 키워드 기반 DB 카테고리 자동 시맨틱 매핑
-      const selectedCategoryIds: string[] = [];
-      const categorySelections: Record<string, string[]> = {};
-      const categoryNames: string[] = [];
+      const catMapping = this.extractCategories(raw);
+      updatedDraft.selectedCategoryIds = catMapping.selectedCategoryIds;
+      updatedDraft.categorySelections = catMapping.categorySelections;
+      updatedDraft.categoryNames = catMapping.categoryNames;
 
-      const FOOD_ID = 'dd608518-f993-4a23-bd10-2c59a24fa674';
-      const CAFE_ID = 'f63cd46c-13db-465b-923d-4f064ab05feb';
-      const KOREAN_FOOD_ID = '917f7b5a-5f95-414d-8ca6-9dc8c5535199';
-
-      const NATURE_ID = '6486b07a-4e08-4f42-9942-eec0b631592b';
-      const FOREST_ID = 'b1c0732e-15d7-4837-ad8c-b5f3a88af4b2';
-      const PARK_ID = 'a44a0670-6aa4-4794-8b7d-0126f260e439';
-
-      const CULTURE_ID = '1cd55dd3-084a-4f30-aa37-b9f772807d90';
-      const ACTIVITY_ID = '02e5b4c1-7434-48a1-8712-76cba3e09ad8';
-
-      // 카페 매핑
-      if (raw.includes('카페') || raw.includes('디저트') || raw.includes('커피') || raw.includes('찻집') || raw.includes('빵')) {
-        if (!selectedCategoryIds.includes(FOOD_ID)) selectedCategoryIds.push(FOOD_ID);
-        categorySelections[FOOD_ID] = categorySelections[FOOD_ID] || [];
-        categorySelections[FOOD_ID].push(CAFE_ID);
-        categoryNames.push('카페/ 찻집');
-      }
-
-      // 맛집 / 한식 매핑
-      if (raw.includes('맛집') || raw.includes('밥') || raw.includes('한식') || raw.includes('닭갈비') || raw.includes('고기') || raw.includes('막국수')) {
-        if (!selectedCategoryIds.includes(FOOD_ID)) selectedCategoryIds.push(FOOD_ID);
-        categorySelections[FOOD_ID] = categorySelections[FOOD_ID] || [];
-        if (!categorySelections[FOOD_ID].includes(KOREAN_FOOD_ID)) {
-          categorySelections[FOOD_ID].push(KOREAN_FOOD_ID);
-        }
-        categoryNames.push('한식(맛집)');
-      }
-
-      // 자연 / 힐링 / 공원 매핑
-      if (raw.includes('자연') || raw.includes('휴양') || raw.includes('숲') || raw.includes('산책') || raw.includes('힐링') || raw.includes('쉼터')) {
-        if (!selectedCategoryIds.includes(NATURE_ID)) selectedCategoryIds.push(NATURE_ID);
-        categorySelections[NATURE_ID] = [FOREST_ID, PARK_ID];
-        categoryNames.push('자연휴양림 & 자연공원');
-      }
-
-      // 문화 / 전시 매핑
-      if (raw.includes('박물관') || raw.includes('미술관') || raw.includes('전시') || raw.includes('문화')) {
-        if (!selectedCategoryIds.includes(CULTURE_ID)) selectedCategoryIds.push(CULTURE_ID);
-        categoryNames.push('문화관광');
-      }
-
-      // 체험 / 액티비티 매핑
-      if (raw.includes('체험') || raw.includes('액티비티') || raw.includes('레포츠')) {
-        if (!selectedCategoryIds.includes(ACTIVITY_ID)) selectedCategoryIds.push(ACTIVITY_ID);
-        categoryNames.push('체험관광');
-      }
-
-      // 기본 카테고리가 없으면 음식과 자연관광 기본 지정
-      if (selectedCategoryIds.length === 0) {
-        selectedCategoryIds.push(FOOD_ID, NATURE_ID);
-        categorySelections[FOOD_ID] = [CAFE_ID, KOREAN_FOOD_ID];
-        categorySelections[NATURE_ID] = [PARK_ID];
-        categoryNames.push('카페/ 찻집', '한식(맛집)', '자연공원');
-      }
-
-      updatedDraft.selectedCategoryIds = selectedCategoryIds;
-      updatedDraft.categorySelections = categorySelections;
-      updatedDraft.categoryNames = categoryNames;
-
-      const badgeStr = categoryNames.map((n) => `[${n}]`).join(' ');
+      const badgeStr = catMapping.categoryNames.map((n: string) => `[${n}]`).join(' ');
       const durationTag = updatedDraft.durationLabel ? `${updatedDraft.durationLabel} 맞춤` : '맞춤';
       reply = `선호하시는 취향(**${raw}**)을 바탕으로 최적의 추천 카테고리를 자동 매핑했습니다! 🎯\n\n📌 **AI 자동 매핑 카테고리**: ${badgeStr}\n\n이제 여행 계획을 생성하기 위한 모든 조건이 완벽히 준비되었습니다! 🎉\n아래 요약 카드를 확인하시고 **[최적 경로 & ${durationTag} 타임라인 생성하기]** 버튼을 눌러 일정을 완성하세요.`;
       step = 5;
