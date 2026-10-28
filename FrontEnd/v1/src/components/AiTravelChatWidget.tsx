@@ -215,7 +215,7 @@ export function AiTravelChatWidget() {
             type="button"
             onClick={() => setIsOpen(true)}
             className="flex items-center gap-2.5 rounded-full bg-gradient-to-r from-[#064e43] to-[#0d7363] px-5 py-3.5 text-white shadow-2xl hover:shadow-emerald-900/40 transition-all duration-300 hover:scale-105 active:scale-95 border-2 border-emerald-400/40"
-            aria-label="I like your J AI 일정 수정 플래너 열기"
+            aria-label="I am your J AI 일정 수정 플래너 열기"
           >
             <div className="relative">
               <Bot className="h-5 w-5" />
@@ -240,7 +240,7 @@ export function AiTravelChatWidget() {
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
-                  <h3 className="font-bold text-sm">I like your J 일정 수정 플래너</h3>
+                  <h3 className="font-bold text-sm">I am your J 일정 수정 플래너</h3>
                   <span className="rounded-full bg-emerald-400/25 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-200">
                     Flash-Lite
                   </span>

@@ -34,13 +34,13 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
         <div className="relative z-10 max-w-2xl space-y-7 text-white">
           <div className="space-y-3">
             <span className="inline-block text-xs sm:text-sm font-bold tracking-[0.2em] text-emerald-300 font-mono">
-              ROAD TRIP & TRAVEL PLANNER · I LIKE YOUR J
+              ROAD TRIP & TRAVEL PLANNER · I AM YOUR J
             </span>
             <h1 className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tight leading-[1.2] text-white font-sans drop-shadow-md">
               계획은 가볍게,<br />
               여행은 완벽하게.<br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-200 to-amber-300">
-                I like your J
+                I am your J
               </span>
             </h1>
           </div>

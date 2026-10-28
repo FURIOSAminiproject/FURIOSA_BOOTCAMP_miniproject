@@ -126,12 +126,12 @@ export const AgentTeamIntro: React.FC<AgentTeamIntroProps> = ({
 
   return (
     <div className="space-y-16">
-      {/* 1. I like your J 핵심 스마트 기능 쇼케이스 */}
+      {/* 1. I am your J 핵심 스마트 기능 쇼케이스 */}
       <section className="space-y-8">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b border-[#e8e4dc] pb-4">
           <div>
             <span className="text-xs font-bold text-[#064e43] uppercase tracking-wider font-mono">
-              WHY I LIKE YOUR J
+              WHY I AM YOUR J
             </span>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-stone-900 tracking-tight font-serif mt-1">
               완벽한 여행을 설계하는 스마트 AI 엔진
@@ -191,7 +191,7 @@ export const AgentTeamIntro: React.FC<AgentTeamIntroProps> = ({
               J들이 사랑하는 인기 여행 코스
             </h2>
             <p className="text-sm text-stone-500 mt-1.5">
-              원하는 여행지를 선택하면 I like your J 플래너에서 바로 일정을 시작할 수 있습니다.
+              원하는 여행지를 선택하면 I am your J 플래너에서 바로 일정을 시작할 수 있습니다.
             </p>
           </div>
         </div>

@@ -160,7 +160,7 @@ export class ChatService {
       }
     }
 
-    const systemInstruction = `당신은 여행 플랫폼 'I like your J'의 [AI 일정 수정 & 코스 조율 전속 플래너]입니다.
+    const systemInstruction = `당신은 여행 플랫폼 'I am your J'의 [AI 일정 수정 & 코스 조율 전속 플래너]입니다.
 사용자는 이미 생성된 여행 계획(출발지, 도착지, 이동 경로, 타임라인 구간, 추천 장소 등)을 조회 중이며, 이를 수정·조율하고자 대화하고 있습니다.
 다음 원칙을 지켜 답변하세요:
 1. 사용자가 요구하는 일정 수정 사항(식당 교체, 카페 추가, 휴게소/경유지 시간 변경, 도착지 인근 명소 추천 등)을 정확히 파악하고, 전체 이동 동선과 현실적인 소요 시간을 고려하여 최적의 대안과 수정된 일정을 제시하세요.
@@ -173,7 +173,7 @@ ${contextLines.length ? `\n[현재 생성된 여행 계획 정보]\n${contextLin
     // 대화 내역(history) 구성
     const contents: any[] = [];
     contents.push({ role: 'user', parts: [{ text: systemInstruction }] });
-    contents.push({ role: 'model', parts: [{ text: '네, I like your J 전속 플래너로서 고객님의 완벽한 여행을 위해 일정 수정 및 코스 조율을 성심껏 도와드리겠습니다. 어떤 부분을 변경하고 싶으신가요?' }] });
+    contents.push({ role: 'model', parts: [{ text: '네, I am your J 전속 플래너로서 고객님의 완벽한 여행을 위해 일정 수정 및 코스 조율을 성심껏 도와드리겠습니다. 어떤 부분을 변경하고 싶으신가요?' }] });
 
     if (dto.history && Array.isArray(dto.history)) {
       for (const h of dto.history.slice(-8)) {
@@ -229,7 +229,7 @@ ${contextLines.length ? `\n[현재 생성된 여행 계획 정보]\n${contextLin
     const { ai, modelName } = gemini;
 
     const todayStr = new Date().toISOString().slice(0, 10);
-    const systemInstruction = `당신은 여행 플랫폼 'I like your J'의 [대화형 AI 여행 설계 플래너]입니다.
+    const systemInstruction = `당신은 여행 플랫폼 'I am your J'의 [대화형 AI 여행 설계 플래너]입니다.
 사용자는 별도의 날짜/시간 선택 창(Select Box, Date Picker) 없이 오직 당신과의 대화만으로 여행을 설계합니다.
 따라서 최적의 여행 경로 API(/api/routes/compare)와 시간대별 타임라인 API(/api/routes/timeline)를 호출할 수 있도록,
 다음 4가지 여행 조건을 순서대로 매우 정확하게 파악해야 합니다.
@@ -305,7 +305,7 @@ ${contextLines.length ? `\n[현재 생성된 여행 계획 정보]\n${contextLin
 
     const contents: any[] = [];
     contents.push({ role: 'user', parts: [{ text: systemInstruction }] });
-    contents.push({ role: 'model', parts: [{ text: '{"reply": "네! I like your J 전속 플래너로서 완벽한 여행 일정을 설계하겠습니다.", "step": 1, "extracted": {}, "isReady": false}' }] });
+    contents.push({ role: 'model', parts: [{ text: '{"reply": "네! I am your J 전속 플래너로서 완벽한 여행 일정을 설계하겠습니다.", "step": 1, "extracted": {}, "isReady": false}' }] });
 
     if (dto.history && Array.isArray(dto.history)) {
       for (const h of dto.history.slice(-6)) {

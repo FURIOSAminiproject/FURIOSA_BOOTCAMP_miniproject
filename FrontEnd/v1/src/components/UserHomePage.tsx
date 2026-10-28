@@ -45,7 +45,7 @@ export const UserHomePage: React.FC<UserHomePageProps> = ({
 
   return (
     <div className="space-y-12 animate-in fade-in duration-300">
-      {/* 1. 메인 웰컴 & 계획 모드 선택 영웅 섹션 (I like your J) */}
+      {/* 1. 메인 웰컴 & 계획 모드 선택 영웅 섹션 (I am your J) */}
       <section className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-[#064e43] via-[#095c50] to-[#04332c] text-white p-7 sm:p-12 shadow-2xl border border-emerald-800/40">
         <div className="absolute top-0 right-0 -mr-16 -mt-16 w-96 h-96 bg-emerald-400/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-1/3 -mb-20 w-80 h-80 bg-amber-400/10 rounded-full blur-3xl pointer-events-none" />
@@ -54,7 +54,7 @@ export const UserHomePage: React.FC<UserHomePageProps> = ({
           {/* 상단 뱃지 */}
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs text-emerald-200">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="font-bold tracking-wider font-mono">I LIKE YOUR J</span>
+            <span className="font-bold tracking-wider font-mono">I AM YOUR J</span>
             <span className="text-white/40">·</span>
             <span className="text-white/90">당신의 완벽한 계획형 여행 메이트</span>
           </div>
