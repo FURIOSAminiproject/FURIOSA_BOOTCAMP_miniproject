@@ -45,3 +45,36 @@ test('aborted requests remain canceled and never produce a forecast',async()=>{
  const original=global.fetch;const controller=new AbortController();controller.abort();
  try{global.fetch=async(_url,{signal})=>{signal.throwIfAborted()};await assert.rejects(fetchWeatherPrediction(destination,...dates,controller.signal),{name:'AbortError'});}finally{global.fetch=original;}
 });
+
+test('deployed legacy schema mismatch is a deployment error, not a region/date restriction', async()=>{
+ const original=global.fetch;
+ try{
+  global.fetch=async()=>({ok:false,status:422,json:async()=>({detail:[
+   {type:'missing',loc:['body','locality_name'],msg:'Field required'},
+   {type:'extra_forbidden',loc:['body','destination_name'],msg:'Extra inputs are not permitted'},
+   {type:'extra_forbidden',loc:['body','latitude'],msg:'Extra inputs are not permitted'},
+   {type:'extra_forbidden',loc:['body','longitude'],msg:'Extra inputs are not permitted'}
+  ]})});
+  await assert.rejects(fetchWeatherPrediction(destination,...dates),error=>/이전 버전/.test(error.message)&&/FastAPI/.test(error.message)&&!/선택한 지역·날짜/.test(error.message));
+ }finally{global.fetch=original;}
+});
+test('422 distinguishes an actual observed-date boundary from model/CSV inconsistency', async()=>{
+ const original=global.fetch;
+ try{
+  global.fetch=async()=>({ok:false,status:422,json:async()=>({detail:'2026-10-30는 마지막 관측일 2026-10-31 이후여야 합니다.'})});
+  await assert.rejects(fetchWeatherPrediction(destination,...dates),/마지막 관측일 2026-10-31/);
+  global.fetch=async()=>({ok:false,status:422,json:async()=>({detail:'CSV의 마지막 관측일이 모델 메타데이터와 다릅니다.'})});
+  await assert.rejects(fetchWeatherPrediction(destination,...dates),/모델과 기상 데이터셋이 일치하지 않습니다/);
+  global.fetch=async()=>({ok:false,status:422,json:async()=>({detail:[{type:'date_parsing',loc:['body','target_dates',0],input:'private input',msg:'private server detail'}]})});
+  await assert.rejects(fetchWeatherPrediction(destination,...dates),error=>/여행 날짜/.test(error.message)&&!/private/.test(error.message));
+ }finally{global.fetch=original;}
+});
+test('unknown server errors and validation-only responses never become synthetic weather', async()=>{
+ const original=global.fetch;
+ try{
+  global.fetch=async()=>({ok:false,status:422,json:async()=>({detail:'private database path and credentials'})});
+  await assert.rejects(fetchWeatherPrediction(destination,...dates),error=>!/private/.test(error.message)&&!/예측할 수 없습니다/.test(error.message));
+  global.fetch=async()=>({ok:true,json:async()=>({status:'request_validated',model_codes:['TA_AVG']})});
+  await assert.rejects(fetchWeatherPrediction(destination,...dates),/요청 검증만 제공하는 이전 버전/);
+ }finally{global.fetch=original;}
+});

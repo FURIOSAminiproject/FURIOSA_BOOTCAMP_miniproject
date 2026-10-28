@@ -68,3 +68,9 @@ curl http://127.0.0.1:8000/health
 Compose는 호스트 루프백 `127.0.0.1:8000`에만 포트를 공개합니다. 프론트 Nginx가 실행 중이면 `/fastapi/health`, `/fastapi/api/v1/recommend`로 접근할 수 있습니다. Nginx가 `/fastapi/` 접두사를 제거합니다. Vite 개발 서버에는 이 프록시가 없습니다. Nginx 경유 Swagger UI는 OpenAPI URL 접두사 별도 설정이 없어 같은 호스트에서 직접 접속하는 `http://localhost:8000/docs`를 사용합니다. 원격 EC2의 Swagger UI를 로컬 브라우저에서 보려면 SSH 포트 포워딩 등 별도 접속 경로가 필요합니다.
 
 Docker 이미지는 Python 3.12 Slim, 비루트 `appuser`로 실행하며 `/health`를 확인하는 Docker HEALTHCHECK를 포함합니다. [CI/CD 안내](../../CI_CD/BackEnd/fastapi/README.md)를 참고합니다.
+
+## 현재 기상 API와 운영 배포 확인 (2026-10-29)
+
+위 샘플 추천과 별개로 현재 소스에는 app/routers/weather.py의 기상 추론 API가 있다. POST /api/v1/weather/predict/request는 target_dates와 locality_name 또는 destination_name/latitude/longitude를 받는다. 지역명이 없으면 Gemini 지역 매핑(실패 시 관측소 거리 기준 매핑)을 수행하고 DB 모델 아티팩트를 불러 실제 추론을 실행한다. WEATHER_PROJECT_DIR와 CSV, 해당 지역 5개 모델 아티팩트가 필요하다. /resolve-locality는 지역 매핑만 제공한다.
+
+전주·2026-10-30~31 운영 요청에서 locality_name 필수 및 destination_name/latitude/longitude 금지 오류를 재현했다. 운영 OpenAPI도 이전 스키마였으므로 모델이 해당 날짜를 거부한 증거가 아니다. 현재 소스와 운영 컨테이너가 달라 FastAPI를 최신 main으로 재배포해야 한다. 프런트나 NestJS의 성공 배포가 FastAPI 배포 성공을 의미하지 않는다. 배포 후 공개 OpenAPI에서 locality_name이 선택이고 /resolve-locality가 존재하는지 확인한 다음 동일 전주 요청으로 실제 매핑·추론을 별도 검증한다. /health만으로 이를 확인할 수 없다. 실제 운영 추론 성공은 아직 확인하지 못했다.
