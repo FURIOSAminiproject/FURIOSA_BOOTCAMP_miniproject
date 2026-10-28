@@ -116,6 +116,7 @@ export function parseCuratedDays(
             durationMinutes: entry.durationMinutes as number,
           }))
       : undefined;
+    if (!title && !placeIds.length && !visits?.length) continue;
     result.push({
       date: day.date,
       title,
@@ -185,6 +186,7 @@ export function buildDestinationItinerary(
   );
   const used = new Set<string>();
   const days: DestinationDay[] = [];
+  let appliedCuration = false;
   // 식사·휴식 사이에 체류 시간을 두며 다음 날은 도착지에서 다시 시작한다.
   const mealTime = (value: string | undefined, fallback: number) =>
     value ? value.split(':').reduce((h, m) => h * 60 + Number(m), 0) : fallback;
@@ -213,6 +215,15 @@ export function buildDestinationItinerary(
   for (let day = 0; day < count; day++) {
     const currentDate = dateAt(request.startDate, day);
     const curated = curatedDays.find((item) => item.date === currentDate);
+    const reservedForFuture = new Set(
+      curatedDays
+        .filter((item) => item.date > currentDate)
+        .flatMap((item) => [
+          ...item.placeIds,
+          ...(item.visits || []).map((visit) => visit.placeId),
+        ]),
+    );
+    if (day >= arrivalDay && curated?.title?.trim()) appliedCuration = true;
     const result: DestinationDay = {
       date: currentDate,
       dayNumber: day + 1,
@@ -298,12 +309,19 @@ export function buildDestinationItinerary(
         travelMinutes,
         durationMinutes: proposed.durationMinutes,
       });
+      appliedCuration = true;
       used.add(place.id);
       previous = place;
       available = start + proposed.durationMinutes;
     }
-    if (!result.visits.length) {
+    // AI가 한 곳만 고른 날에는 제안을 유지하고 남은 시간의 빈 칸을 채운다.
+    if (result.visits.length < 2) {
       for (const slot of slots) {
+        if (
+          slot.kind !== 'sightseeing' &&
+          result.visits.some((visit) => visit.kind === slot.kind)
+        )
+          continue;
         // 이미 지난 식사 시간이나 관광 시간대를 다음 날 일정처럼 되풀이하지 않는다.
         if (day === arrivalDay && slot.time + 90 < available) continue;
         const pool =
@@ -313,7 +331,7 @@ export function buildDestinationItinerary(
               ? food.filter(cafe)
               : food.filter((p) => !cafe(p));
         const availablePlaces = pool
-          .filter((p) => !used.has(p.id))
+          .filter((p) => !used.has(p.id) && !reservedForFuture.has(p.id))
           .sort((a, b) => distance(previous, a) - distance(previous, b));
         const eligible = availablePlaces.filter(
           (place) => request.mode !== 'walking' || travelFor(place) <= 45,
@@ -341,6 +359,7 @@ export function buildDestinationItinerary(
           travelMinutes,
           durationMinutes: slot.duration,
         });
+        if (preferred) appliedCuration = true;
         used.add(selected.id);
         previous = selected;
         available = start + slot.duration;
@@ -375,6 +394,6 @@ export function buildDestinationItinerary(
     days,
     stayOptions: count > 1 ? unique(candidates.stays).slice(0, 3) : [],
     warnings,
-    curationSource: curatedDays.length ? 'ai' : 'local',
+    curationSource: appliedCuration ? 'ai' : 'local',
   };
 }

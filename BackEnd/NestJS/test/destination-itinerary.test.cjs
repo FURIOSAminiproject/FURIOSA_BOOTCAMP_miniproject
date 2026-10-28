@@ -160,6 +160,81 @@ test('curator output accepts only itinerary dates and registered place IDs', () 
   assert.deepEqual(choices, [
     { date: '2026-10-28', title: '호수 여행', placeIds: ['sight7'] },
   ]);
+  assert.deepEqual(
+    parseCuratedDays(
+      [{ date: '2026-10-28', placeIds: ['made-up-place'] }],
+      request,
+      candidates,
+    ),
+    [],
+  );
+});
+
+test('a sparse AI first day keeps its visit and fills available meal and sightseeing time', () => {
+  const result = buildDestinationItinerary(
+    request,
+    { durationSeconds: 5400 },
+    candidates,
+    [],
+    [
+      {
+        date: '2026-10-28',
+        title: '호수 산책 첫날',
+        placeIds: ['sight7'],
+        visits: [
+          {
+            placeId: 'sight7',
+            kind: 'sightseeing',
+            time: '11:45',
+            durationMinutes: 75,
+          },
+        ],
+      },
+    ],
+  );
+  const firstDay = result.days[0].visits;
+  assert.equal(firstDay[0].place.id, 'sight7');
+  assert.equal(firstDay[0].time, '11:45');
+  assert.ok(firstDay.length >= 3);
+  assert.ok(firstDay.some((visit) => visit.kind === 'lunch'));
+  assert.ok(firstDay.some((visit) => visit.kind === 'dinner'));
+  assert.equal(result.curationSource, 'ai');
+  for (let i = 1; i < firstDay.length; i++)
+    assert.ok(
+      minutes(firstDay[i].time) >=
+        minutes(firstDay[i - 1].endTime) + firstDay[i].travelMinutes,
+    );
+});
+
+test('local filling does not consume a place reserved by AI for a later day', () => {
+  const result = buildDestinationItinerary(
+    { ...request, endDate: '2026-10-30' },
+    { durationSeconds: 5400 },
+    candidates,
+    [],
+    [
+      {
+        date: '2026-10-30',
+        title: '마지막 날 문화 산책',
+        placeIds: ['sight1'],
+        visits: [
+          {
+            placeId: 'sight1',
+            kind: 'sightseeing',
+            time: '09:45',
+            durationMinutes: 90,
+          },
+        ],
+      },
+    ],
+  );
+  assert.ok(
+    result.days.slice(0, 2).every((day) =>
+      day.visits.every((visit) => visit.place.id !== 'sight1'),
+    ),
+  );
+  assert.equal(result.days[2].visits[0].place.id, 'sight1');
+  assert.equal(result.days[2].visits[0].time, '09:45');
 });
 
 test('AI visit times are shifted after arrival and cannot overlap or repeat a place', () => {
