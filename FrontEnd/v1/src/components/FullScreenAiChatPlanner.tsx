@@ -326,6 +326,7 @@ export function FullScreenAiChatPlanner({
     mode: LocationRouteMode | null;
     modeConfirmed: boolean;
     preferences: string;
+    preferencesConfirmed: boolean;
     selectedCategoryIds?: string[];
     categorySelections?: Record<string, string[]>;
     categoryNames?: string[];
@@ -342,6 +343,7 @@ export function FullScreenAiChatPlanner({
       mode: null,
       modeConfirmed: false,
       preferences: "",
+      preferencesConfirmed: false,
       selectedCategoryIds: currentWorkspaceDraft.selectedCategoryIds || [],
       categorySelections: currentWorkspaceDraft.categorySelections || {},
       categoryNames: [],
@@ -377,19 +379,35 @@ export function FullScreenAiChatPlanner({
         const restoredStep = surveyStep(restoredDraft);
         setCurrentStep(restoredStep);
         setChatDraft(restoredDraft);
-        if (parsed.messages.length)
-          setMessages(
-            parsed.messages.map((message: ChatMessage, index: number) => ({
+        if (parsed.messages.length) {
+          const restoredMessages = parsed.messages.map(
+            (message: ChatMessage, index: number) => ({
               ...message,
               isSummaryCard: restoredStep === 5 && message.isSummaryCard,
               text:
-                index === parsed.messages.length - 1 &&
-                restoredStep === 2 &&
-                message.role === "model"
-                  ? surveyPrompt(2, restoredDraft)
-                  : message.text,
-            })),
+                restoredStep === 4 && message.isSummaryCard
+                  ? "이전 대화의 취향 선택을 이어서 확인해 주세요."
+                  : index === parsed.messages.length - 1 &&
+                      restoredStep === 2 &&
+                      message.role === "model"
+                    ? surveyPrompt(2, restoredDraft)
+                    : message.text,
+            }),
           );
+          if (restoredStep === 4 && parsed.currentStep === 5)
+            restoredMessages.push({
+              id: `step-4-restore-${Date.now()}`,
+              role: "model",
+              step: 4,
+              text: surveyPrompt(4, restoredDraft),
+              timestamp: new Date().toLocaleTimeString("ko-KR", {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+              isSummaryCard: false,
+            });
+          setMessages(restoredMessages);
+        }
         if (parsed.savedAt) setLastSavedTime(parsed.savedAt);
       }
     } catch (e) {
@@ -669,8 +687,18 @@ export function FullScreenAiChatPlanner({
           updatedDraft.mode = mode;
           updatedDraft.modeConfirmed = true;
         }
+      } else if (currentStep === 4 && userText.trim() === "선택 완료") {
+        updatedDraft.preferencesConfirmed = !!updatedDraft.preferences.trim();
       } else if (currentStep === 4) {
-        updatedDraft.preferences = userText.trim();
+        const previousCategoryIds = chatDraft.selectedCategoryIds || [];
+        const previousSelections = chatDraft.categorySelections || {};
+        const previousCategoryNames = chatDraft.categoryNames || [];
+        const previousPreference = chatDraft.preferences.trim();
+        updatedDraft.preferences =
+          previousPreference && previousPreference !== userText.trim()
+            ? `${previousPreference}, ${userText.trim()}`.slice(0, 500)
+            : (previousPreference || userText.trim()).slice(0, 500);
+        updatedDraft.preferencesConfirmed = false;
         if (
           Array.isArray(extracted.selectedCategoryIds) &&
           extracted.categorySelections &&
@@ -751,17 +779,30 @@ export function FullScreenAiChatPlanner({
               selectedCategoryIds.push(ACTIVITY_ID);
             categoryNames.push("체험관광");
           }
-          if (selectedCategoryIds.length === 0) {
-            selectedCategoryIds.push(FOOD_ID, NATURE_ID);
-            categorySelections[FOOD_ID] = [CAFE_ID, KOREAN_FOOD_ID];
-            categorySelections[NATURE_ID] = [PARK_ID];
-            categoryNames.push("카페/ 찻집", "한식(맛집)", "자연공원");
-          }
-
           updatedDraft.selectedCategoryIds = selectedCategoryIds;
           updatedDraft.categorySelections = categorySelections;
           updatedDraft.categoryNames = categoryNames;
         }
+        updatedDraft.selectedCategoryIds = [
+          ...new Set([
+            ...previousCategoryIds,
+            ...(updatedDraft.selectedCategoryIds || []),
+          ]),
+        ];
+        const mergedSelections = { ...previousSelections };
+        for (const [id, ids] of Object.entries(
+          updatedDraft.categorySelections || {},
+        ))
+          mergedSelections[id] = [
+            ...new Set([...(mergedSelections[id] || []), ...ids]),
+          ];
+        updatedDraft.categorySelections = mergedSelections;
+        updatedDraft.categoryNames = [
+          ...new Set([
+            ...previousCategoryNames,
+            ...(updatedDraft.categoryNames || []),
+          ]),
+        ];
       }
       const nextStep = surveyStep(updatedDraft);
       const reply =
@@ -857,6 +898,7 @@ export function FullScreenAiChatPlanner({
       mode: null,
       modeConfirmed: false,
       preferences: "",
+      preferencesConfirmed: false,
     };
     setChatDraft(initialDraft);
 
@@ -1528,9 +1570,29 @@ export function FullScreenAiChatPlanner({
                               </button>
                             ))}
                           </div>
+                          {chatDraft.preferences.trim() && (
+                            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-2">
+                              <p className="text-xs font-semibold text-emerald-900">
+                                선택한 취향:{" "}
+                                {chatDraft.categoryNames?.join(", ") ||
+                                  chatDraft.preferences}
+                              </p>
+                              <button
+                                type="button"
+                                disabled={isLoading}
+                                onClick={() =>
+                                  void handleUserResponse("선택 완료")
+                                }
+                                className="rounded-lg bg-emerald-800 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-900 disabled:opacity-50"
+                              >
+                                선택 완료 · 일정 요약 보기
+                              </button>
+                            </div>
+                          )}
                           <div className="text-[11px] text-stone-400 pt-1">
-                            💡 직접 가고 싶은 곳이나 취향이 있다면 아래 입력창에
-                            말씀해 주셔도 됩니다.
+                            💡 취향을 여러 개 고르거나 직접 입력할 수 있습니다.
+                            숙박 후보는 취향 선택과 별도로 도착지 주변에서
+                            찾습니다.
                           </div>
                         </div>
                       )}

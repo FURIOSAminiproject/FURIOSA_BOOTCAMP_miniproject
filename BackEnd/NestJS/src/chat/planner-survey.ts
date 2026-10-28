@@ -9,6 +9,7 @@ export interface SurveyDraft {
   mode?: string | null;
   modeConfirmed?: boolean;
   preferences?: string | null;
+  preferencesConfirmed?: boolean;
 }
 
 export function explicitTravelMode(text: string): 'driving' | 'walking' | null {
@@ -48,7 +49,8 @@ export function surveyStep(draft: SurveyDraft): number {
     !['driving', 'walking'].includes(draft.mode || '')
   )
     return 3;
-  if (!draft.preferences?.trim()) return 4;
+  if (!draft.preferences?.trim() || draft.preferencesConfirmed !== true)
+    return 4;
   return 5;
 }
 
@@ -119,6 +121,8 @@ export function surveyPrompt(step: number, draft: SurveyDraft = {}): string {
   if (step === 3)
     return '이동 수단을 선택해 주세요. 자동차로 운전하시나요, 도보로 여행하시나요?';
   if (step === 4)
-    return '도착 후 어떤 여행을 즐기고 싶으세요? 맛집, 카페, 자연, 문화·역사 등 취향을 알려주세요.';
+    return draft.preferences?.trim()
+      ? '취향을 더 고르거나 직접 말씀해 주세요. 모두 고르셨다면 「선택 완료」를 눌러 주세요. 숙박 후보는 취향 카테고리와 별도로 찾습니다.'
+      : '도착 후 어떤 여행을 즐기고 싶으세요? 맛집, 카페, 자연, 문화·역사 등 취향을 여러 개 고를 수 있습니다. 숙박 후보는 별도로 찾습니다.';
   return '여행 조건을 모두 확인했습니다. 아래 요약을 확인한 뒤 여행 일정 생성 버튼을 눌러 주세요.';
 }

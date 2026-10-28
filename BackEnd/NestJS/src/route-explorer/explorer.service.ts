@@ -3,6 +3,7 @@ import { RoutingError } from '../routing-cache/routing.errors';
 import type { ExplorerRepository } from './explorer.repository';
 import { RouteProximity } from './route-proximity';
 import { DestinationCurator } from './destination-curator';
+import { LiveLodgingProvider } from './live-lodging.provider';
 import {
   buildDestinationItinerary,
   type DestinationItineraryRequest,
@@ -21,6 +22,7 @@ import type {
   TimelineRequest,
   TimelineResponse,
   TimelineStopResult,
+  SpotPlace,
 } from './explorer.types';
 
 /** ORS 두 경로와 TourAPI DB 추천, 타임라인 길목 추천 및 거점 반경 추천을 조립한다. */
@@ -32,6 +34,7 @@ export class ExplorerService {
       'candidates' | 'placesAroundSpot'
     >,
     private readonly curator?: DestinationCurator,
+    private readonly liveLodging?: LiveLodgingProvider,
   ) {}
 
   /** 경로 위 후보와 별도로 도착지 주변 관광·식사·숙박 후보를 수집한다. */
@@ -71,6 +74,59 @@ export class ExplorerService {
         return [];
       }
     };
+    const findLodging = async (): Promise<SpotPlace[]> => {
+      let failed = false;
+      const filter = {
+        contentTypeIds: [32],
+        categoryIds: [],
+        limit: 20,
+        radiusMeters: request.mode === 'walking' ? 3000 : 10000,
+      };
+      for (const radiusMeters of [
+        filter.radiusMeters,
+        request.mode === 'walking' ? 5000 : 20000,
+      ]) {
+        try {
+          const nearby = await this.places.placesAroundSpot(center, {
+            ...filter,
+            radiusMeters,
+          });
+          if (nearby.places.length) return nearby.places;
+        } catch {
+          failed = true;
+          break;
+        }
+      }
+      if (this.liveLodging) {
+        try {
+          const live = await this.liveLodging.nearby(center);
+          if (live.length) return live;
+        } catch {
+          failed = true;
+        }
+      }
+      try {
+        // 기존 DB의 전체 국내 숙박 중 가장 가까운 곳까지 찾는다.
+        const nationwide = await this.places.placesAroundSpot(center, {
+          ...filter,
+          radiusMeters: 1000000,
+        });
+        if (nationwide.places.length) {
+          warnings.push(
+            '가까운 숙박 후보가 없어 더 먼 등록 숙박시설을 표시했습니다. 도착지와의 거리를 확인해 주세요.',
+          );
+          return nationwide.places;
+        }
+      } catch {
+        failed = true;
+      }
+      warnings.push(
+        failed
+          ? '숙박 후보를 조회하지 못했습니다. 지도 검색으로 숙박시설을 확인해 주세요.'
+          : '숙박에 해당하는 등록 장소가 부족합니다.',
+      );
+      return [];
+    };
     const [sights, food, themed, stays] = await Promise.all([
       find('관광·문화', [12, 14, 28, 38]),
       find('맛집·카페', [39]),
@@ -78,7 +134,7 @@ export class ExplorerService {
         ? find('선호 장소', [], request.categoryIds)
         : Promise.resolve([]),
       request.startDate !== request.endDate
-        ? find('숙박', [32])
+        ? findLodging()
         : Promise.resolve([]),
     ]);
     const candidates = { sights, food, themed, stays };

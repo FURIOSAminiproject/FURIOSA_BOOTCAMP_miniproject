@@ -8,6 +8,7 @@ import { ExplorerRepository } from './explorer.repository';
 import { ExplorerService } from './explorer.service';
 import { GeocodingProvider } from './geocoding.provider';
 import { DestinationCurator } from './destination-curator';
+import { LiveLodgingProvider } from './live-lodging.provider';
 
 /** 기존 ORS 캐시/DB 연결을 공유하며 별도 서버나 스케줄러를 만들지 않는다. */
 @Module({
@@ -26,13 +27,23 @@ import { DestinationCurator } from './destination-curator';
       inject: [DataSource],
     },
     {
+      provide: LiveLodgingProvider,
+      useFactory: () => new LiveLodgingProvider(),
+    },
+    {
       provide: ExplorerService,
       useFactory: (
         planner: RoutingService,
         places: ExplorerRepository,
         curator: DestinationCurator,
-      ) => new ExplorerService(planner, places, curator),
-      inject: [RoutingService, ExplorerRepository, DestinationCurator],
+        liveLodging: LiveLodgingProvider,
+      ) => new ExplorerService(planner, places, curator, liveLodging),
+      inject: [
+        RoutingService,
+        ExplorerRepository,
+        DestinationCurator,
+        LiveLodgingProvider,
+      ],
     },
   ],
 })

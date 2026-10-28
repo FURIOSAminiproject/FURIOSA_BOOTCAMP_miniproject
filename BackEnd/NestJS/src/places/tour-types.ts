@@ -8,6 +8,7 @@ export type TourEndpoint =
   | 'lclsSystmCode2'
   | 'ldongCode2'
   | 'areaBasedList2'
+  | 'locationBasedList2'
   | 'areaBasedSyncList2'
   | 'searchFestival2'
   | 'detailCommon2'

@@ -16,11 +16,16 @@ const LABELS: Record<DestinationVisit["kind"], string> = {
 /** 이동 중 추천과 구분해 실제 여행 날짜별 체류 일정을 보여준다. */
 export function DestinationItineraryView({
   itinerary,
+  destinationName,
   onFocusPlace,
 }: {
   itinerary: DestinationItinerary;
+  destinationName: string;
   onFocusPlace: (place: SearchPlace) => void;
 }) {
+  const stayLookupFailed = itinerary.warnings.some((warning) =>
+    warning.startsWith("숙박 후보를 조회하지 못했습니다"),
+  );
   return (
     <section aria-label="도착 후 날짜별 여행 일정" className="space-y-5">
       <header className="rounded-2xl bg-[#064e43] p-5 sm:p-7 text-white">
@@ -115,39 +120,62 @@ export function DestinationItineraryView({
           <h3 className="flex items-center gap-2 font-bold text-stone-900">
             <BedDouble className="h-4 w-4" /> 도착지 주변 숙박 후보
           </h3>
-          <p className="text-xs text-stone-500">
-            등록된 숙박시설 후보입니다. 가격·잔여 객실·예약은 시설에 직접 확인해
-            주세요.
-          </p>
           {itinerary.stayOptions.length ? (
-            <div className="grid gap-3 sm:grid-cols-3">
-              {itinerary.stayOptions.map((place) => (
-                <button
-                  key={place.id}
-                  type="button"
-                  onClick={() => onFocusPlace(place)}
-                  className="rounded-xl border border-stone-200 p-3 text-left hover:border-emerald-500"
-                >
-                  <span className="block text-sm font-bold text-stone-800">
-                    {place.name}
-                  </span>
-                  <span className="mt-1 block text-xs text-stone-500">
-                    {place.address}
-                  </span>
-                </button>
-              ))}
-            </div>
+            <>
+              <p className="text-xs text-stone-500">
+                도착지 주변에 등록된 숙박시설 후보입니다. 가격·잔여 객실·예약은
+                시설에 직접 확인해 주세요.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {itinerary.stayOptions.map((place) => (
+                  <button
+                    key={place.id}
+                    type="button"
+                    onClick={() => onFocusPlace(place)}
+                    className="rounded-xl border border-stone-200 p-3 text-left hover:border-emerald-500"
+                  >
+                    <span className="block text-sm font-bold text-stone-800">
+                      {place.name}
+                    </span>
+                    <span className="mt-1 block text-xs text-stone-500">
+                      {place.address}
+                    </span>
+                    <span className="mt-1 block text-xs text-emerald-800">
+                      도착지에서 직선거리 약{" "}
+                      {place.distanceMeters < 1000
+                        ? `${place.distanceMeters}m`
+                        : `${(place.distanceMeters / 1000).toFixed(1)}km`}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </>
           ) : (
-            <p className="text-sm text-stone-500">
-              등록된 숙박 후보를 찾지 못했습니다. 숙소는 별도로 정해 주세요.
-            </p>
+            <div className="space-y-2 text-sm text-stone-600">
+              <p>
+                {stayLookupFailed
+                  ? "숙박 후보 조회에 실패했습니다."
+                  : "취향 카테고리와 별도로 도착지 주변 숙박시설을 찾았지만, 등록된 후보가 없습니다."}
+              </p>
+              <a
+                href={`https://map.naver.com/v5/search/${encodeURIComponent(`${destinationName} 숙박`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 font-semibold text-emerald-800 underline"
+              >
+                지도에서 {destinationName} 숙박시설 찾아보기
+                <ArrowUpRight className="h-3.5 w-3.5" />
+              </a>
+            </div>
           )}
         </div>
       )}
       <ul className="space-y-1 text-xs leading-relaxed text-stone-500">
-        {itinerary.warnings.map((warning) => (
-          <li key={warning}>{warning}</li>
-        ))}
+        {itinerary.warnings
+          .filter((warning) => !warning.startsWith("숙박"))
+          .map((warning) => (
+            <li key={warning}>{warning}</li>
+          ))}
       </ul>
     </section>
   );

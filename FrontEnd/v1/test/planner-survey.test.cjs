@@ -7,7 +7,7 @@ const {
   surveyPrompt,
 } = require("../src/services/planner-survey.ts");
 
-test("frontend requires explicit transport and a preference answer before completing", () => {
+test("frontend requires explicit transport and preference completion", () => {
   const draft = scheduleFromText("2026-10-28 1박 2일 09:30", {
     originName: "서울",
     destinationName: "춘천",
@@ -17,8 +17,18 @@ test("frontend requires explicit transport and a preference answer before comple
   assert.equal(surveyStep({ ...draft, modeConfirmed: true }), 4);
   assert.equal(
     surveyStep({ ...draft, modeConfirmed: true, preferences: "맛집과 자연" }),
+    4,
+  );
+  assert.equal(
+    surveyStep({
+      ...draft,
+      modeConfirmed: true,
+      preferences: "맛집과 자연",
+      preferencesConfirmed: true,
+    }),
     5,
   );
+  assert.match(surveyPrompt(4, { preferences: "맛집" }), /선택 완료/);
   assert.equal(draft.endDate, "2026-10-29");
 });
 

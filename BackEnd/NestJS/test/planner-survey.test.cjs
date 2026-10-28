@@ -86,7 +86,7 @@ test('unsupported and ambiguous transport answers remain at step 3', async () =>
   }
 });
 
-test('transport confirmation and preferences each require their own answer', async () => {
+test('travel themes can be combined before explicit preference completion', async () => {
   const chat = new ChatService();
   const car = await chat.planChat({
     currentStep: 3,
@@ -96,14 +96,35 @@ test('transport confirmation and preferences each require their own answer', asy
   assert.equal(car.step, 4);
   assert.equal(car.isReady, false);
   assert.equal(car.extracted.modeConfirmed, true);
-  const ready = await chat.planChat({
+  const first = await chat.planChat({
     currentStep: 4,
     message: '문화 유적과 맛집',
     currentDraft: car.extracted,
   });
+  assert.equal(first.step, 4);
+  assert.equal(first.isReady, false);
+  const second = await chat.planChat({
+    currentStep: 4,
+    message: '자연 공원도 좋아요',
+    currentDraft: first.extracted,
+  });
+  assert.equal(second.step, 4);
+  assert.match(second.extracted.preferences, /문화 유적과 맛집, 자연 공원도 좋아요/);
+  assert.ok(
+    second.extracted.selectedCategoryIds.includes(
+      '6486b07a-4e08-4f42-9942-eec0b631592b',
+    ),
+  );
+  assert.ok(second.extracted.selectedCategoryIds.length > first.extracted.selectedCategoryIds.length);
+  const ready = await chat.planChat({
+    currentStep: 4,
+    message: '선택 완료',
+    currentDraft: second.extracted,
+  });
   assert.equal(ready.step, 5);
   assert.equal(ready.isReady, true);
-  assert.equal(ready.extracted.preferences, '문화 유적과 맛집');
+  assert.equal(ready.extracted.preferences, second.extracted.preferences);
+  assert.equal(ready.extracted.preferencesConfirmed, true);
   assert.equal(explicitTravelMode('걸어서 여행할래'), 'walking');
 });
 
@@ -228,9 +249,58 @@ test('AI selects preference themes rather than fixed keyword defaults', async ()
     message: '조용한 시간을 보내고 싶어요',
     currentDraft: { ...schedule, mode: 'walking', modeConfirmed: true },
   });
-  assert.equal(result.step, 5);
+  assert.equal(result.step, 4);
   assert.deepEqual(result.extracted.selectedCategoryIds, [
     '6486b07a-4e08-4f42-9942-eec0b631592b',
     '1cd55dd3-084a-4f30-aa37-b9f772807d90',
   ]);
+});
+
+test('an explicit restaurant choice survives an unrelated AI theme suggestion', async () => {
+  const chat = new ChatService();
+  chat.getGeminiClient = async () => ({
+    modelName: 'stub-gemini',
+    ai: {
+      models: {
+        generateContent: async () => ({
+          text: '{"categoryThemes":["nature"]}',
+        }),
+      },
+    },
+  });
+  const result = await chat.planChat({
+    currentStep: 4,
+    message: '도착지 로컬 맛집도 가고 싶어요',
+    currentDraft: { ...schedule, mode: 'walking', modeConfirmed: true },
+  });
+  assert.equal(result.step, 4);
+  assert.ok(
+    result.extracted.selectedCategoryIds.includes(
+      'dd608518-f993-4a23-bd10-2c59a24fa674',
+    ),
+  );
+  assert.ok(
+    result.extracted.selectedCategoryIds.includes(
+      '6486b07a-4e08-4f42-9942-eec0b631592b',
+    ),
+  );
+});
+
+test('lodging-only preference does not invent restaurant or nature categories', async () => {
+  const chat = new ChatService();
+  chat.getGeminiClient = async () => null;
+  const selected = await chat.planChat({
+    currentStep: 4,
+    message: '조용한 숙박시설을 찾고 싶어요',
+    currentDraft: { ...schedule, mode: 'walking', modeConfirmed: true },
+  });
+  assert.equal(selected.step, 4);
+  assert.deepEqual(selected.extracted.selectedCategoryIds, []);
+  assert.equal(selected.extracted.preferences, '조용한 숙박시설을 찾고 싶어요');
+  const completed = await chat.planChat({
+    currentStep: 4,
+    message: '선택 완료',
+    currentDraft: selected.extracted,
+  });
+  assert.equal(completed.step, 5);
 });

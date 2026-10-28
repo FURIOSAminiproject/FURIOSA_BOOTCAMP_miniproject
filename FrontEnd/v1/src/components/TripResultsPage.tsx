@@ -296,6 +296,11 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
       {state.result.destinationItinerary && (
         <DestinationItineraryView
           itinerary={state.result.destinationItinerary}
+          destinationName={
+            state.draft.destination?.name ||
+            state.draft.destinationQuery ||
+            "도착지"
+          }
           onFocusPlace={(place) => {
             setFocusedPlace(place);
             mapSection.current?.scrollIntoView({

@@ -11,6 +11,9 @@ const { ExplorerService } = require('../dist/route-explorer/explorer.service');
 const {
   DestinationCurator,
 } = require('../dist/route-explorer/destination-curator');
+const {
+  LiveLodgingProvider,
+} = require('../dist/route-explorer/live-lodging.provider');
 const request = {
   mode: 'driving',
   preference: 'recommended',
@@ -404,6 +407,103 @@ test('destination service queries near destination and preserves partial DB fail
   );
   assert.ok(result.days[1].visits.length > 0);
   assert.ok(result.warnings.some((w) => w.includes('숙박')));
+});
+
+test('overnight lodging lookup ignores selected sightseeing categories', async () => {
+  const filters = [];
+  const service = new ExplorerService(
+    { route: async () => ({ durationSeconds: 5400 }) },
+    {
+      placesAroundSpot: async (_center, filter) => {
+        filters.push(filter);
+        return {
+          places: filter.contentTypeIds.includes(32) ? [] : candidates.sights,
+          limited: false,
+        };
+      },
+    },
+  );
+  const result = await service.destinationItinerary({
+    ...request,
+    categoryIds: ['6486b07a-4e08-4f42-9942-eec0b631592b'],
+  });
+  const lodging = filters.filter((filter) => filter.contentTypeIds.includes(32));
+  assert.equal(lodging.length, 3);
+  assert.ok(lodging.every((filter) => filter.categoryIds.length === 0));
+  assert.equal(result.stayOptions.length, 0);
+  assert.ok(result.warnings.some((warning) => warning.includes('숙박')));
+});
+
+test('lodging is found beyond the local radius before reporting no options', async () => {
+  const radii = [];
+  const farStay = { ...place('stayFar', 32), distanceMeters: 85000 };
+  const service = new ExplorerService(
+    { route: async () => ({ durationSeconds: 5400 }) },
+    {
+      placesAroundSpot: async (_center, filter) => {
+        if (filter.contentTypeIds.includes(32)) {
+          radii.push(filter.radiusMeters);
+          return {
+            places: filter.radiusMeters >= 1000000 ? [farStay] : [],
+            limited: false,
+          };
+        }
+        return { places: candidates.sights, limited: false };
+      },
+    },
+  );
+  const result = await service.destinationItinerary(request);
+  assert.deepEqual(radii, [10000, 20000, 1000000]);
+  assert.equal(result.stayOptions[0].id, 'stayFar');
+  assert.equal(result.stayOptions[0].distanceMeters, 85000);
+  assert.ok(result.warnings.some((warning) => warning.includes('더 먼')));
+  assert.ok(!result.warnings.some((warning) => warning.includes('등록 장소가 부족')));
+});
+
+test('live TourAPI lodging candidates fill an incomplete local DB', async () => {
+  let requested;
+  const live = new LiveLodgingProvider(() => ({
+    page: async (endpoint, params) => {
+      requested = { endpoint, params };
+      return {
+        items: [
+          {
+            contentid: '12345',
+            contenttypeid: '32',
+            title: '춘천 검증 숙박',
+            addr1: '강원특별자치도 춘천시',
+            mapx: '127.73',
+            mapy: '37.88',
+          },
+          {
+            contentid: '99999',
+            contenttypeid: '12',
+            title: '숙박이 아닌 장소',
+            mapx: '127.73',
+            mapy: '37.88',
+          },
+        ],
+      };
+    },
+  }));
+  const service = new ExplorerService(
+    { route: async () => ({ durationSeconds: 5400 }) },
+    {
+      placesAroundSpot: async (_center, filter) => ({
+        places: filter.contentTypeIds.includes(32) ? [] : candidates.sights,
+        limited: false,
+      }),
+    },
+    undefined,
+    live,
+  );
+  const result = await service.destinationItinerary(request);
+  assert.equal(requested.endpoint, 'locationBasedList2');
+  assert.equal(requested.params.contentTypeId, 32);
+  assert.equal(requested.params.radius, 20000);
+  assert.equal(result.stayOptions.length, 1);
+  assert.equal(result.stayOptions[0].id, 'tourapi:12345');
+  assert.ok(!result.warnings.some((warning) => warning.startsWith('숙박')));
 });
 
 test('HTTP destination itinerary uses the shared API prefix and rejects invalid dates before queries', async (t) => {

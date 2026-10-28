@@ -52,6 +52,10 @@ export class PlannerChatRequestDto {
     mode?: string;
     modeConfirmed?: boolean;
     preferences?: string;
+    preferencesConfirmed?: boolean;
+    selectedCategoryIds?: string[];
+    categorySelections?: Record<string, string[]>;
+    categoryNames?: string[];
   };
   currentStep?: number;
 }
@@ -69,6 +73,7 @@ export class PlannerChatResponseDto {
     mode?: 'driving' | 'walking' | null;
     modeConfirmed?: boolean;
     preferences?: string | null;
+    preferencesConfirmed?: boolean;
     selectedCategoryIds?: string[];
     categorySelections?: Record<string, string[]>;
     categoryNames?: string[];
@@ -212,12 +217,21 @@ ${contextLines.length ? `\n[현재 생성된 여행 계획 정보]\n${contextLin
       typeof dto?.message === 'string' ? dto.message.trim().slice(0, 5000) : '';
     const draft = { ...dto?.currentDraft };
     const currentStep = surveyStep(draft);
-    const result = await this.generatePlanChat({
-      ...dto,
-      message,
-      currentStep,
-      currentDraft: draft,
-    });
+    const completingPreferences = currentStep === 4 && message === '선택 완료';
+    const result: PlannerChatResponseDto = completingPreferences
+      ? {
+          extracted: {},
+          reply: '',
+          modelUsed: 'preference-confirmation',
+          step: 4,
+          isReady: false,
+        }
+      : await this.generatePlanChat({
+          ...dto,
+          message,
+          currentStep,
+          currentDraft: draft,
+        });
     let extracted: PlannerChatResponseDto['extracted'] = {
       ...draft,
       mode:
@@ -267,19 +281,40 @@ ${contextLines.length ? `\n[현재 생성된 여행 계획 정보]\n${contextLin
         extracted.mode = mode;
         extracted.modeConfirmed = true;
       }
+    } else if (completingPreferences) {
+      extracted.preferencesConfirmed = !!draft.preferences?.trim();
     } else if (currentStep === 4 && message) {
-      extracted.preferences = message;
-      Object.assign(
-        extracted,
+      const previous = draft.preferences?.trim() || '';
+      extracted.preferences =
+        previous && previous !== message
+          ? `${previous}, ${message}`.slice(0, 500)
+          : (previous || message).slice(0, 500);
+      extracted.preferencesConfirmed = false;
+      const incoming =
         result.modelUsed !== 'local-nlp-fallback' &&
-          result.extracted.selectedCategoryIds
-          ? {
-              selectedCategoryIds: result.extracted.selectedCategoryIds,
-              categorySelections: result.extracted.categorySelections,
-              categoryNames: result.extracted.categoryNames,
-            }
-          : this.extractCategories(message),
-      );
+        result.extracted.selectedCategoryIds
+          ? result.extracted
+          : this.extractCategories(message);
+      const explicit = this.extractCategories(message);
+      extracted.selectedCategoryIds = [
+        ...new Set([
+          ...(draft.selectedCategoryIds || []),
+          ...(incoming.selectedCategoryIds || []),
+          ...explicit.selectedCategoryIds,
+        ]),
+      ];
+      const selections = { ...(draft.categorySelections || {}) };
+      for (const source of [incoming, explicit])
+        for (const [id, ids] of Object.entries(source.categorySelections || {}))
+          selections[id] = [...new Set([...(selections[id] || []), ...ids])];
+      extracted.categorySelections = selections;
+      extracted.categoryNames = [
+        ...new Set([
+          ...(draft.categoryNames || []),
+          ...(incoming.categoryNames || []),
+          ...explicit.categoryNames,
+        ]),
+      ];
     }
     const step = surveyStep(extracted);
     const acknowledgment =
@@ -343,7 +378,7 @@ ${contextLines.length ? `\n[현재 생성된 여행 계획 정보]\n${contextLin
         }),
         config: {
           systemInstruction:
-            '당신은 국내 여행 상담 에이전트입니다. 최신 사용자 답변을 기존 대화와 초안에 비추어 해석하세요. 현재 step의 정보만 새로 추출하고, 답변에 없는 날짜·기간·시각·교통수단을 추측해 채우지 마세요. 출발지/도착지는 실제 지명만 추출하세요. step 2: startDate는 한국 달력 YYYY-MM-DD, durationDays는 1~10 정수, departureTime은 24시간제 HH:mm로 정규화하세요. 말한 항목만 출력하세요. step 3: 사용자가 자동차/도보를 명확하게 선택한 경우에만 mode를 driving/walking으로 출력하세요. 모호한 답변 또는 대중교통은 null입니다. step 4: 취향에 맞는 categoryThemes를 cafe, food, nature, culture, activity 중 1~4개 고르세요. acknowledgment는 사용자의 답변을 이해했다는 짧은 한 문장만 쓰고 질문이나 확인되지 않은 사실은 넣지 마세요. JSON 객체 {originName?, destinationName?, startDate?, durationDays?, departureTime?, mode?, categoryThemes?, acknowledgment?}만 반환하세요.',
+            '당신은 국내 여행 상담 에이전트입니다. 최신 사용자 답변을 기존 대화와 초안에 비추어 해석하세요. 현재 step의 정보만 새로 추출하고, 답변에 없는 날짜·기간·시각·교통수단을 추측해 채우지 마세요. 출발지/도착지는 실제 지명만 추출하세요. step 2: startDate는 한국 달력 YYYY-MM-DD, durationDays는 1~10 정수, departureTime은 24시간제 HH:mm로 정규화하세요. 말한 항목만 출력하세요. step 3: 사용자가 자동차/도보를 명확하게 선택한 경우에만 mode를 driving/walking으로 출력하세요. 모호한 답변 또는 대중교통은 null입니다. step 4: 현재 답변에 해당하는 categoryThemes를 cafe, food, nature, culture, activity 중 0~4개 고르세요. 숙박만 요청하면 빈 배열로 두세요. acknowledgment는 사용자의 답변을 이해했다는 짧은 한 문장만 쓰고 질문이나 확인되지 않은 사실은 넣지 마세요. JSON 객체 {originName?, destinationName?, startDate?, durationDays?, departureTime?, mode?, categoryThemes?, acknowledgment?}만 반환하세요.',
           responseMimeType: 'application/json',
         },
       });
@@ -544,14 +579,6 @@ ${contextLines.length ? `\n[현재 생성된 여행 계획 정보]\n${contextLin
       if (!selectedCategoryIds.includes(ACTIVITY_ID))
         selectedCategoryIds.push(ACTIVITY_ID);
       categoryNames.push('체험관광 & 로컬마켓');
-    }
-
-    // 기본 카테고리가 없으면 골고루 지정
-    if (selectedCategoryIds.length === 0) {
-      selectedCategoryIds.push(FOOD_ID, NATURE_ID, CULTURE_ID);
-      categorySelections[FOOD_ID] = [CAFE_ID, KOREAN_FOOD_ID];
-      categorySelections[NATURE_ID] = [PARK_ID];
-      categoryNames.push('카페/ 찻집', '한식(맛집)', '자연공원', '문화관광');
     }
 
     return { selectedCategoryIds, categorySelections, categoryNames };
