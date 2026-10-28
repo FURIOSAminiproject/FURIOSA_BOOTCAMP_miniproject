@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -41,6 +41,7 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate();
   const [focusedPlace, setFocusedPlace] = useState<SearchPlace | null>(null);
   const mapSection = useRef<HTMLElement>(null);
+  useEffect(() => setFocusedPlace(null), [state.result?.destinationItinerary]);
   const create = () => {
     dispatch({ type: "new" });
     navigate("/trips/new");

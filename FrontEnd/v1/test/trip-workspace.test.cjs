@@ -60,6 +60,18 @@ test("fresh trip has no fabricated location or itinerary and cannot be submitted
   assert.equal(tripCompareRequest(state.draft), null);
 });
 
+test("validated AI itinerary revisions replace only the current result", () => {
+  const original = completed();
+  const base = { ...original.result, destinationItinerary: { days: [{ date: "2026-10-30", visits: [] }] } };
+  const state = { ...original, result: base };
+  const revised = { days: [{ date: "2026-10-30", visits: [{ time: "13:00" }] }] };
+  const updated = reduce(state, { type: "revise-itinerary", base, itinerary: revised });
+  assert.equal(updated.result.destinationItinerary, revised);
+  assert.equal(updated.result.comparison, base.comparison);
+  assert.equal(reduce(updated, { type: "revise-itinerary", base, itinerary: { days: [] } }), updated);
+  assert.equal(reduce(reduce(state, { type: "new" }), { type: "revise-itinerary", base, itinerary: revised }).result, null);
+});
+
 test("typed search terms alone never become routable coordinates", () => {
   const state = reduce(createTripWorkspace(), {
     type: "edit",

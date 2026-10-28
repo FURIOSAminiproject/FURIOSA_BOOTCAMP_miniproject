@@ -1,19 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import {
-  Bot,
-  MessageSquare,
-  Send,
-  X,
-  Sparkles,
-  MapPin,
-  Clock,
-  RotateCcw,
-  Minimize2,
-  ChevronDown,
-  Wand2,
-} from "lucide-react";
+import { Bot, Send, X, Sparkles, MapPin, RotateCcw } from "lucide-react";
 import { useTripWorkspace } from "./TripWorkspaceContext";
+import { parseDestinationItinerary } from "../services/route-explorer";
 
 interface ChatMessage {
   id: string;
@@ -22,19 +11,30 @@ interface ChatMessage {
   timestamp: string;
 }
 
+const welcomeMessage = (): ChatMessage => ({
+  id: `welcome-msg-${Date.now()}`,
+  role: "model",
+  text:
+    "안녕하세요! 도착 후 날짜별 일정을 수정하는 AI 플래너입니다.\n\n" +
+    "관광·식사·카페 방문 장소와 시각을 바꾸고 싶다면 말씀해 주세요. 반영되면 위의 일정 카드도 함께 바뀝니다. 경로와 출발 조건은 조건 수정 화면에서 바꿀 수 있어요.",
+  timestamp: new Date().toLocaleTimeString("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }),
+});
+
 const QUICK_PROMPTS = [
-  "🍽️ 점심 식사 장소를 다른 길목 맛집으로 바꿔줘",
-  "☕ 이동 길목에 뷰 좋은 카페 하나 더 추가해줘",
-  "⏰ 운전 피로를 줄이게 휴게소 정차 시간 늘려줘",
-  "🏞️ 도착지 인근에 꼭 가볼 만한 명소로 변경해줘",
-  "🔄 오후 일정을 1시간 늦춰서 여유롭게 재배치해줘",
-  "🌿 가족과 함께 가기 좋은 한적한 쉼터 추천해줘",
+  "🍽️ 첫날 점심 식당을 다른 후보로 바꿔줘",
+  "☕ 둘째 날 오후에 카페를 추가해줘",
+  "🏞️ 마지막 날 명소를 다른 곳으로 바꿔줘",
+  "🔄 첫날 오후 일정을 1시간 늦춰줘",
+  "🌿 방문 장소를 줄여서 여유롭게 바꿔줘",
 ];
 
 export function AiTravelChatWidget() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { state } = useTripWorkspace();
+  const { state, dispatch } = useTripWorkspace();
   const { draft, result } = state;
 
   // 결과 화면에서 방해되지 않도록 닫힌 상태로 시작
@@ -42,20 +42,33 @@ export function AiTravelChatWidget() {
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "welcome-msg",
-      role: "model",
-      text:
-        "안녕하세요! 완성된 여행 계획의 **AI 일정 수정 & 코스 조율 플래너**입니다. 🚗✨\n\n" +
-        "현재 계획된 동선, 출발 시각, 식사 장소, 카페, 경유지 등을 변경하고 싶으시면 편하게 말씀해 주세요. 실시간으로 최적의 대안과 맞춤 수정을 도와드립니다!",
-      timestamp: new Date().toLocaleTimeString("ko-KR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    },
+  const requestRef = useRef<AbortController | null>(null);
+  const resultRef = useRef(result);
+  resultRef.current = result;
+  const tripRequestRef = useRef(result?.request);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [
+    welcomeMessage(),
   ]);
+
+  useEffect(() => {
+    if (!result) {
+      requestRef.current?.abort();
+      requestRef.current = null;
+      setIsLoading(false);
+      setIsOpen(false);
+      setMessages([welcomeMessage()]);
+    } else if (
+      tripRequestRef.current &&
+      tripRequestRef.current !== result.request
+    ) {
+      requestRef.current?.abort();
+      requestRef.current = null;
+      setIsLoading(false);
+      setIsOpen(false);
+      setMessages([welcomeMessage()]);
+    }
+    tripRequestRef.current = result?.request;
+  }, [result]);
 
   // 스크롤 자동 이동
   useEffect(() => {
@@ -76,7 +89,15 @@ export function AiTravelChatWidget() {
     !isExcludedPage &&
     (location.pathname === "/trips" ||
       location.pathname === "/trips/archive") &&
-    Boolean(result);
+    Boolean(result?.destinationItinerary);
+
+  useEffect(() => {
+    if (!isTripResultPage) {
+      requestRef.current?.abort();
+      requestRef.current = null;
+      setIsLoading(false);
+    }
+  }, [isTripResultPage]);
 
   if (!isTripResultPage) return null;
 
@@ -103,56 +124,36 @@ export function AiTravelChatWidget() {
     setMessages((prev) => [...prev, userMessage]);
     setInputText("");
     setIsLoading(true);
+    const baseResult = result;
+    const controller = new AbortController();
+    requestRef.current = controller;
 
     try {
-      const timelineStops = result?.timeline?.stops || [];
-      const timelineSummary =
-        timelineStops.length > 0
-          ? timelineStops
-              .map(
-                (s) =>
-                  `${s.targetTime} [${s.label}]: 추천 ${
-                    s.places
-                      ?.slice(0, 2)
-                      .map((p) => p.name)
-                      .join(", ") || "없음"
-                  }`,
-              )
-              .join(" | ")
-          : undefined;
-
-      const activeRoute =
-        result?.comparison?.routes?.find(
-          (r) => r.preference === state.active,
-        ) || result?.comparison?.routes?.[0];
-      const routeDistanceText = activeRoute?.route
-        ? `${(activeRoute.route.distanceMeters / 1000).toFixed(1)}km`
-        : undefined;
-      const routeDurationText = activeRoute?.route
-        ? `${Math.round(activeRoute.route.durationSeconds / 60)}분`
-        : undefined;
-
-      const response = await fetch("/api/chat", {
+      if (!baseResult?.destinationItinerary)
+        throw new Error(
+          "수정할 도착 후 일정이 없습니다. 여행 조건 화면에서 다시 생성해 주세요.",
+        );
+      const destination = baseResult.request.points.at(-1);
+      if (!destination) throw new Error("도착지 정보가 없습니다.");
+      const response = await fetch("/api/chat/revise", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           message: text,
-          history: messages.slice(-6).map((m) => ({
-            role: m.role,
-            content: m.text,
-          })),
-          context: {
-            origin: originName,
-            destination: destinationName,
-            startDate: draft.startDate,
-            endDate: draft.endDate,
-            departureTime: draft.departureTime,
-            durationLabel: result?.durationLabel,
-            mode: draft.mode === "driving" ? "자동차" : "도보",
-            distanceText: routeDistanceText,
-            durationText: routeDurationText,
-            timelineSummary: timelineSummary,
+          history: messages
+            .filter((m) => !m.id.startsWith("welcome-msg"))
+            .slice(-6)
+            .map((m) => ({
+              role: m.role,
+              content: m.text,
+            })),
+          itinerary: baseResult.destinationItinerary,
+          destination: {
+            latitude: destination.latitude,
+            longitude: destination.longitude,
           },
+          mode: baseResult.request.mode,
         }),
       });
 
@@ -160,7 +161,34 @@ export function AiTravelChatWidget() {
         throw new Error(`서버 응답 오류 (${response.status})`);
       }
 
-      const data = await response.json();
+      const data: unknown = await response.json();
+      if (
+        !data ||
+        typeof data !== "object" ||
+        !("changed" in data) ||
+        !("reply" in data) ||
+        typeof data.changed !== "boolean" ||
+        typeof data.reply !== "string"
+      )
+        throw new Error("서버의 일정 수정 응답 형식이 올바르지 않습니다.");
+      if (controller.signal.aborted || resultRef.current !== baseResult) return;
+      if (data.changed) {
+        if (!("itinerary" in data)) throw new Error("수정된 일정이 없습니다.");
+        const revised = parseDestinationItinerary(data.itinerary);
+        if (
+          revised.days.length !== baseResult.destinationItinerary.days.length ||
+          revised.days.some(
+            (day, index) =>
+              day.date !== baseResult.destinationItinerary!.days[index].date,
+          )
+        )
+          throw new Error("수정된 일정의 날짜가 기존 여행과 다릅니다.");
+        dispatch({
+          type: "revise-itinerary",
+          base: baseResult,
+          itinerary: revised,
+        });
+      }
       const aiReply =
         data.reply ||
         "죄송합니다. 답변을 생성하지 못했습니다. 잠시 후 다시 시도해 주세요.";
@@ -177,10 +205,11 @@ export function AiTravelChatWidget() {
 
       setMessages((prev) => [...prev, aiMessage]);
     } catch (err: any) {
+      if (controller.signal.aborted) return;
       const errorMessage: ChatMessage = {
         id: `err-${Date.now()}`,
         role: "model",
-        text: `네트워크 오류가 발생했습니다: ${err.message || "연결 상태를 확인해 주세요."}`,
+        text: `일정 수정 오류: ${err.message || "연결 상태를 확인해 주세요."}`,
         timestamp: new Date().toLocaleTimeString("ko-KR", {
           hour: "2-digit",
           minute: "2-digit",
@@ -188,11 +217,18 @@ export function AiTravelChatWidget() {
       };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
-      setIsLoading(false);
+      if (requestRef.current === controller) {
+        requestRef.current = null;
+        setIsLoading(false);
+      }
     }
   };
 
   const handleResetChat = () => {
+    requestRef.current?.abort();
+    requestRef.current = null;
+    setIsLoading(false);
+    setInputText("");
     setMessages([
       {
         id: "welcome-msg-reset",
@@ -214,14 +250,14 @@ export function AiTravelChatWidget() {
           {hasTripContext && (
             <div className="absolute -top-10 right-0 whitespace-nowrap rounded-xl bg-stone-900/90 text-white text-[11px] font-medium px-3 py-1 shadow-lg backdrop-blur-xs flex items-center gap-1.5 animate-bounce">
               <Sparkles className="h-3 w-3 text-emerald-400" />
-              <span>AI 일정 수정 플래너 대기 중</span>
+              <span>도착 후 일정 수정 플래너</span>
             </div>
           )}
           <button
             type="button"
             onClick={() => setIsOpen(true)}
             className="flex items-center gap-2.5 rounded-full bg-gradient-to-r from-[#064e43] to-[#0d7363] px-5 py-3.5 text-white shadow-2xl hover:shadow-emerald-900/40 transition-all duration-300 hover:scale-105 active:scale-95 border-2 border-emerald-400/40"
-            aria-label="I am your J AI 일정 수정 플래너 열기"
+            aria-label="I am your J 도착 후 일정 수정 플래너 열기"
           >
             <div className="relative">
               <Bot className="h-5 w-5" />
@@ -231,7 +267,7 @@ export function AiTravelChatWidget() {
               </span>
             </div>
             <span className="text-sm font-bold tracking-tight">
-              AI 일정 수정·조율
+              AI 도착 후 일정 수정
             </span>
           </button>
         </div>
@@ -256,7 +292,7 @@ export function AiTravelChatWidget() {
                   </span>
                 </div>
                 <p className="text-[11px] text-emerald-200/90">
-                  완성된 여행 일정 및 코스 실시간 수정·조율
+                  도착 후 날짜별 방문 장소·시각 수정
                 </p>
               </div>
             </div>
@@ -339,7 +375,11 @@ export function AiTravelChatWidget() {
 
           {/* 빠른 추천 질문 칩 (사용자가 클릭 시 즉시 질문) */}
           <div className="px-3 py-2 bg-white border-t border-stone-100 flex gap-1.5 overflow-x-auto no-scrollbar">
-            {QUICK_PROMPTS.map((prompt, idx) => (
+            {QUICK_PROMPTS.filter(
+              (prompt) =>
+                (result?.destinationItinerary?.days.length || 0) > 1 ||
+                !prompt.includes("둘째 날"),
+            ).map((prompt, idx) => (
               <button
                 key={idx}
                 type="button"

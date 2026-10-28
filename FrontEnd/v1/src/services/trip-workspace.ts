@@ -78,6 +78,11 @@ export type TripAction =
   | { type: "edit"; patch: Partial<TripDraft> }
   | { type: "new"; destinationQuery?: string }
   | { type: "complete"; result: TripResult }
+  | {
+      type: "revise-itinerary";
+      base: TripResult;
+      itinerary: DestinationItinerary;
+    }
   | { type: "select-route"; preference: Preference };
 
 /** 좌표·이름·견적·예시 일정을 넣지 않는다. 기본값은 조회 조건에만 적용한다. */
@@ -150,6 +155,13 @@ export function tripWorkspaceReducer(
           action.result.comparison.routes.find((route) => route.route)
             ?.preference ?? "recommended",
       };
+    case "revise-itinerary":
+      return state.result === action.base && state.result.destinationItinerary
+        ? {
+            ...state,
+            result: { ...state.result, destinationItinerary: action.itinerary },
+          }
+        : state;
     case "select-route":
       return state.result?.comparison.routes.some(
         (route) => route.preference === action.preference && route.route,
