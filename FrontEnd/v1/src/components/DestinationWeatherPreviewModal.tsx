@@ -21,6 +21,9 @@ import type { SearchPlace } from "../services/route-explorer";
 import {
   resolveDestinationLocality,
   inferLongTermWeatherAndPacking,
+  getCachedLocalityMapping,
+  getCachedWeatherReport,
+  saveCachedWeatherReport,
   type LocalityMappingResponse,
   type WeatherPredictionReport,
   type DailyWeatherInference,
@@ -52,31 +55,38 @@ export const DestinationWeatherPreviewModal: React.FC<
     if (!isOpen || !destination) return;
 
     let isMounted = true;
-    setLoading(true);
+    const destName = destination.name;
+    const lat = destination.latitude;
+    const lng = destination.longitude;
+
+    // 캐시 확인하여 즉시 표시
+    const cachedReport = getCachedWeatherReport(destName, defaultStart, defaultEnd);
+    const cachedMapping = getCachedLocalityMapping(destName, lat, lng);
+    if (cachedReport) {
+      setReport(cachedReport);
+      if (cachedMapping) setMapping(cachedMapping);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     setSelectedDayIdx(0);
 
     async function fetchWeatherPreview() {
       try {
         // 1. Gemini Flash AI 호출: 목적지 3가지 정보(이름, 위도, 경도)를 모델 지역 피처로 매핑
-        const mappingResult = await resolveDestinationLocality(
-          destination!.name,
-          destination!.latitude,
-          destination!.longitude
-        );
-
+        const mappingResult = await resolveDestinationLocality(destName, lat, lng);
         if (!isMounted) return;
         setMapping(mappingResult);
 
         // 2. 매핑된 지역 피처(또는 목적지) 기반으로 기상 통계 & 예측 리포트 산출
-        // (FastAPI 딥러닝 앙상블 및 KMA ASOS 10개년 기후 모델 융합)
         const weatherReport = inferLongTermWeatherAndPacking(
-          mappingResult.locality_name || destination!.name,
+          mappingResult.locality_name || destName,
           defaultStart,
           defaultEnd
         );
-
         if (!isMounted) return;
         setReport(weatherReport);
+        saveCachedWeatherReport(weatherReport);
       } catch (err) {
         console.error("날씨 미리보기 로딩 실패:", err);
       } finally {

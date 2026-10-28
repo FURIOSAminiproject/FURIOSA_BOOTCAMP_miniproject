@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { type Preference, type SearchPlace } from "../services/route-explorer";
-import { useTripWorkspace } from "./TripWorkspaceContext";
+import { useTripWorkspace, TRIP_RESULT_BACKUP_KEY } from "./TripWorkspaceContext";
 import { TripFlowHeader } from "./TripFlowHeader";
 import { RouteExplorerMap, ROUTE_COLORS } from "./RouteExplorerMap";
 import { RouteAttribution } from "./RouteAttribution";
@@ -33,6 +33,9 @@ import { DestinationWeatherPreviewModal } from "./DestinationWeatherPreviewModal
 import {
   resolveDestinationLocality,
   inferLongTermWeatherAndPacking,
+  getCachedLocalityMapping,
+  getCachedWeatherReport,
+  saveCachedWeatherReport,
   type LocalityMappingResponse,
   type WeatherPredictionReport,
 } from "../services/weatherPredictionService";
@@ -57,6 +60,32 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
   const [focusedPlace, setFocusedPlace] = useState<SearchPlace | null>(null);
   const mapSection = useRef<HTMLElement>(null);
   useEffect(() => setFocusedPlace(null), [state.result?.destinationItinerary]);
+
+  // 새로고침 시 state.result가 아직 메모리에 복원되지 않았을 경우 백업 캐시에서 즉시 자동 복원
+  useEffect(() => {
+    if (!state.result && typeof window !== "undefined") {
+      try {
+        const backup =
+          localStorage.getItem(TRIP_RESULT_BACKUP_KEY) ||
+          sessionStorage.getItem(TRIP_RESULT_BACKUP_KEY);
+        if (backup) {
+          const parsed = JSON.parse(backup);
+          if (parsed && parsed.comparison) {
+            dispatch({ type: "complete", result: parsed });
+          }
+        }
+      } catch (err) {
+        console.warn("TripResultsPage: 백업 결과 복원 실패", err);
+      }
+    }
+  }, [state.result, dispatch]);
+
+  const targetDestination = state.result
+    ? state.result.request.points[1]
+    : state.draft.destination;
+  const targetStartDate = state.result?.startDate || state.draft.startDate;
+  const targetEndDate = state.result?.endDate || state.draft.endDate;
+
   const create = () => {
     dispatch({ type: "new" });
     navigate("/trips/new");
@@ -64,17 +93,60 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
   const edit = () => navigate("/trips/new");
 
   const [weatherModalOpen, setWeatherModalOpen] = useState(false);
-  const [weatherLoading, setWeatherLoading] = useState(false);
-  const [weatherMapping, setWeatherMapping] = useState<LocalityMappingResponse | null>(null);
-  const [weatherReport, setWeatherReport] = useState<WeatherPredictionReport | null>(null);
-  const [selectedWeatherDayIdx, setSelectedWeatherDayIdx] = useState(0);
-  const [showAll14Days, setShowAll14Days] = useState(false);
 
-  const targetDestination = state.result
-    ? state.result.request.points[1]
-    : state.draft.destination;
-  const targetStartDate = state.result?.startDate || state.draft.startDate;
-  const targetEndDate = state.result?.endDate || state.draft.endDate;
+  // 새로고침해도 선택된 일차(1일차, 2일차 등)와 2주 확장 상태를 캐시에서 복원
+  const [selectedWeatherDayIdx, setSelectedWeatherDayIdxState] = useState<number>(() => {
+    if (typeof window === "undefined") return 0;
+    try {
+      const saved = localStorage.getItem("roadfriend_weather_selected_day_idx");
+      return saved !== null ? Math.max(0, parseInt(saved, 10)) : 0;
+    } catch {
+      return 0;
+    }
+  });
+  const setSelectedWeatherDayIdx = (idx: number) => {
+    setSelectedWeatherDayIdxState(idx);
+    try {
+      localStorage.setItem("roadfriend_weather_selected_day_idx", String(idx));
+    } catch {}
+  };
+
+  const [showAll14Days, setShowAll14DaysState] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return localStorage.getItem("roadfriend_weather_show_14days") === "true";
+    } catch {
+      return false;
+    }
+  });
+  const setShowAll14Days = (show: boolean | ((prev: boolean) => boolean)) => {
+    setShowAll14DaysState((prev) => {
+      const next = typeof show === "function" ? show(prev) : show;
+      try {
+        localStorage.setItem("roadfriend_weather_show_14days", String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  // 새로고침 시 캐시된 날씨 정보를 즉시 로드하여 깜빡임 및 로딩 지연 방지 (Stale-While-Revalidate)
+  const [weatherMapping, setWeatherMapping] = useState<LocalityMappingResponse | null>(() => {
+    if (!targetDestination?.name) return null;
+    return getCachedLocalityMapping(
+      targetDestination.name,
+      targetDestination.latitude,
+      targetDestination.longitude
+    );
+  });
+  const [weatherReport, setWeatherReport] = useState<WeatherPredictionReport | null>(() => {
+    if (!targetDestination?.name) return null;
+    return getCachedWeatherReport(targetDestination.name, targetStartDate, targetEndDate);
+  });
+  const [weatherLoading, setWeatherLoading] = useState<boolean>(() => {
+    if (!targetDestination?.name) return false;
+    const cached = getCachedWeatherReport(targetDestination.name, targetStartDate, targetEndDate);
+    return !cached;
+  });
 
   useEffect(() => {
     if (!targetDestination) {
@@ -84,33 +156,39 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
     }
 
     let isMounted = true;
-    setWeatherLoading(true);
+    const destName = targetDestination.name;
+    const lat = targetDestination.latitude;
+    const lng = targetDestination.longitude;
+    const defaultStart = targetStartDate || new Date().toISOString().split("T")[0];
+    const defaultEnd =
+      targetEndDate ||
+      new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+    // 캐시 확인 및 즉시 로드
+    const cachedReport = getCachedWeatherReport(destName, defaultStart, defaultEnd);
+    const cachedMapping = getCachedLocalityMapping(destName, lat, lng);
+    if (cachedReport) {
+      setWeatherReport(cachedReport);
+      if (cachedMapping) setWeatherMapping(cachedMapping);
+      setWeatherLoading(false);
+    } else {
+      setWeatherLoading(true);
+    }
 
     async function loadWeather() {
       try {
-        const mappingRes = await resolveDestinationLocality(
-          targetDestination!.name,
-          targetDestination!.latitude,
-          targetDestination!.longitude,
-        );
+        const mappingRes = await resolveDestinationLocality(destName, lat, lng);
         if (!isMounted) return;
         setWeatherMapping(mappingRes);
 
-        const defaultStart =
-          targetStartDate || new Date().toISOString().split("T")[0];
-        const defaultEnd =
-          targetEndDate ||
-          new Date(Date.now() + 2 * 24 * 60 * 60 * 1000)
-            .toISOString()
-            .split("T")[0];
-
         const report = inferLongTermWeatherAndPacking(
-          mappingRes.locality_name || targetDestination!.name,
+          mappingRes.locality_name || destName,
           defaultStart,
-          defaultEnd,
+          defaultEnd
         );
         if (!isMounted) return;
         setWeatherReport(report);
+        saveCachedWeatherReport(report);
       } catch (err) {
         console.warn("TripResultsPage: weather resolve failed", err);
       } finally {

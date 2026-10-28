@@ -645,15 +645,100 @@ export interface LocalityMappingResponse {
   reason?: string;
 }
 
+const LOCALITY_CACHE_PREFIX = 'roadfriend_weather_locality_v1_';
+const REPORT_CACHE_PREFIX = 'roadfriend_weather_report_v1_';
+
+export function getCachedLocalityMapping(
+  destinationName: string,
+  latitude?: number,
+  longitude?: number
+): LocalityMappingResponse | null {
+  if (typeof window === 'undefined' || !destinationName) return null;
+  try {
+    const coordKey =
+      typeof latitude === 'number' && typeof longitude === 'number'
+        ? `_${latitude.toFixed(3)}_${longitude.toFixed(3)}`
+        : '';
+    const key = `${LOCALITY_CACHE_PREFIX}${destinationName}${coordKey}`;
+    const cached = localStorage.getItem(key) || sessionStorage.getItem(key);
+    if (cached) return JSON.parse(cached) as LocalityMappingResponse;
+    // 좌표 없는 fallback 캐시 키도 확인
+    const generalKey = `${LOCALITY_CACHE_PREFIX}${destinationName}`;
+    const generalCached = localStorage.getItem(generalKey) || sessionStorage.getItem(generalKey);
+    if (generalCached) return JSON.parse(generalCached) as LocalityMappingResponse;
+  } catch (err) {
+    console.warn('날씨 매핑 캐시 조회 오류:', err);
+  }
+  return null;
+}
+
+export function saveCachedLocalityMapping(
+  mapping: LocalityMappingResponse,
+  latitude?: number,
+  longitude?: number
+): void {
+  if (typeof window === 'undefined' || !mapping?.destination?.name) return;
+  try {
+    const name = mapping.destination.name;
+    const coordKey =
+      typeof latitude === 'number' && typeof longitude === 'number'
+        ? `_${latitude.toFixed(3)}_${longitude.toFixed(3)}`
+        : '';
+    const key = `${LOCALITY_CACHE_PREFIX}${name}${coordKey}`;
+    const serialized = JSON.stringify(mapping);
+    localStorage.setItem(key, serialized);
+    sessionStorage.setItem(key, serialized);
+  } catch (err) {
+    console.warn('날씨 매핑 캐시 저장 오류:', err);
+  }
+}
+
+export function getCachedWeatherReport(
+  destination: string,
+  startDate?: string,
+  endDate?: string
+): WeatherPredictionReport | null {
+  if (typeof window === 'undefined' || !destination) return null;
+  try {
+    const s = startDate || '';
+    const e = endDate || '';
+    const key = `${REPORT_CACHE_PREFIX}${destination}_${s}_${e}`;
+    const cached = localStorage.getItem(key) || sessionStorage.getItem(key);
+    if (cached) return JSON.parse(cached) as WeatherPredictionReport;
+  } catch (err) {
+    console.warn('날씨 리포트 캐시 조회 오류:', err);
+  }
+  return null;
+}
+
+export function saveCachedWeatherReport(report: WeatherPredictionReport): void {
+  if (typeof window === 'undefined' || !report?.destination) return;
+  try {
+    const key = `${REPORT_CACHE_PREFIX}${report.destination}_${report.startDate || ''}_${report.endDate || ''}`;
+    const serialized = JSON.stringify(report);
+    localStorage.setItem(key, serialized);
+    sessionStorage.setItem(key, serialized);
+  } catch (err) {
+    console.warn('날씨 리포트 캐시 저장 오류:', err);
+  }
+}
+
 /**
  * 목적지 3가지 정보(이름, 위도, 경도)를 전달하여
- * FastAPI의 Gemini Flash AI 매핑 엔드포인트(/fastapi/api/v1/weather/resolve-locality)를 호출한다.
+ * 캐시가 있으면 즉시 반환하고, 없으면 FastAPI의 Gemini Flash AI 매핑 엔드포인트를 호출한다.
  */
 export async function resolveDestinationLocality(
   destinationName: string,
   latitude: number,
   longitude: number
 ): Promise<LocalityMappingResponse> {
+  // 1. 캐시 우선 확인 (새로고침 시 즉시 복원 및 네트워크 지연 제거)
+  const cached = getCachedLocalityMapping(destinationName, latitude, longitude);
+  if (cached) {
+    return cached;
+  }
+
+  let result: LocalityMappingResponse | null = null;
   try {
     const res = await fetch('/fastapi/api/v1/weather/resolve-locality', {
       method: 'POST',
@@ -665,35 +750,41 @@ export async function resolveDestinationLocality(
       }),
     });
     if (res.ok) {
-      return (await res.json()) as LocalityMappingResponse;
+      result = (await res.json()) as LocalityMappingResponse;
     }
   } catch (err) {
     console.warn('FastAPI Gemini Flash 지역 매핑 요청 실패, 로컬 폴백 수행:', err);
   }
 
-  // 기본 강릉/제주/부산 휴리스틱 폴백
-  let locality_name = '강릉_강원특별자치도';
-  let station_name = '강릉';
-  let province = '강원특별자치도';
+  if (!result) {
+    // 기본 강릉/제주/부산 휴리스틱 폴백
+    let locality_name = '강릉_강원특별자치도';
+    let station_name = '강릉';
+    let province = '강원특별자치도';
 
-  if (destinationName.includes('부산')) {
-    locality_name = '부산_부산광역시';
-    station_name = '부산';
-    province = '부산광역시';
-  } else if (destinationName.includes('제주')) {
-    locality_name = '제주_제주특별자치도';
-    station_name = '제주';
-    province = '제주특별자치도';
+    if (destinationName.includes('부산')) {
+      locality_name = '부산_부산광역시';
+      station_name = '부산';
+      province = '부산광역시';
+    } else if (destinationName.includes('제주')) {
+      locality_name = '제주_제주특별자치도';
+      station_name = '제주';
+      province = '제주특별자치도';
+    }
+
+    result = {
+      status: 'fallback',
+      destination: { name: destinationName, latitude, longitude },
+      locality_name,
+      station_name,
+      province,
+      method: 'fallback',
+      reason: '오프라인 휴리스틱 매핑',
+    };
   }
 
-  return {
-    status: 'fallback',
-    destination: { name: destinationName, latitude, longitude },
-    locality_name,
-    station_name,
-    province,
-    method: 'fallback',
-    reason: '오프라인 휴리스틱 매핑',
-  };
+  // 성공 또는 폴백 결과 캐시 저장
+  saveCachedLocalityMapping(result, latitude, longitude);
+  return result;
 }
 
