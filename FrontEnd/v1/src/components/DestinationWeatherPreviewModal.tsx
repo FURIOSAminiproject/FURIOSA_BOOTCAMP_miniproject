@@ -125,34 +125,34 @@ export const DestinationWeatherPreviewModal: React.FC<
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl border border-stone-200 max-h-[92vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-stone-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="relative w-full max-w-2xl overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl border border-stone-200 max-h-[94vh] sm:max-h-[92vh] flex flex-col">
         {/* Header */}
-        <div className="relative flex items-center justify-between border-b border-stone-100 bg-gradient-to-r from-emerald-900 via-[#064e43] to-teal-900 px-6 py-5 text-white">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 shadow-inner">
-              <CloudSun className="h-6 w-6 text-emerald-300" />
+        <div className="relative flex items-center justify-between border-b border-stone-100 bg-gradient-to-r from-emerald-900 via-[#064e43] to-teal-900 px-4 py-3.5 sm:px-6 sm:py-5 text-white">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+            <div className="flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl sm:rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 shadow-inner">
+              <CloudSun className="h-5 w-5 sm:h-6 sm:w-6 text-emerald-300" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-lg font-bold tracking-tight text-white">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <h3 className="text-sm sm:text-lg font-bold tracking-tight text-white truncate">
                   {destination.name} 예상 날씨
                 </h3>
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/20 px-2 py-0.5 text-[11px] font-semibold text-emerald-200 border border-emerald-400/30">
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-400/20 px-1.5 sm:px-2 py-0.2 text-[10px] sm:text-[11px] font-semibold text-emerald-200 border border-emerald-400/30">
                   <Sparkles className="h-3 w-3" />
-                  AI 예보
+                  AI
                 </span>
               </div>
-              <p className="text-xs text-emerald-200/90 flex items-center gap-1.5 mt-0.5">
-                <MapPin className="h-3 w-3 text-emerald-300" />
-                위도: {destination.latitude.toFixed(4)}, 경도: {destination.longitude.toFixed(4)}
+              <p className="text-[11px] sm:text-xs text-emerald-200/90 flex items-center gap-1 mt-0.5 truncate">
+                <MapPin className="h-3 w-3 text-emerald-300 shrink-0" />
+                위도 {destination.latitude.toFixed(3)}, 경도 {destination.longitude.toFixed(3)}
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full p-2 text-white/80 hover:bg-white/10 hover:text-white transition-all"
+            className="rounded-full p-1.5 sm:p-2 text-white/80 hover:bg-white/10 hover:text-white transition-all shrink-0 ml-2"
             aria-label="닫기"
           >
             <X className="h-5 w-5" />
@@ -160,19 +160,19 @@ export const DestinationWeatherPreviewModal: React.FC<
         </div>
 
         {/* Content Body */}
-        <div className="overflow-y-auto p-6 space-y-5">
+        <div className="overflow-y-auto p-3.5 sm:p-6 space-y-3.5 sm:space-y-5">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-16 space-y-4">
-              <div className="relative flex h-14 w-14 items-center justify-center">
+            <div className="flex flex-col items-center justify-center py-12 sm:py-16 space-y-3 sm:space-y-4">
+              <div className="relative flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center">
                 <div className="absolute inset-0 rounded-full border-4 border-emerald-200 border-t-emerald-700 animate-spin" />
-                <Sparkles className="h-6 w-6 text-emerald-700 animate-pulse" />
+                <Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-emerald-700 animate-pulse" />
               </div>
-              <div className="text-center space-y-1">
-                <p className="text-sm font-bold text-stone-800">
+              <div className="text-center space-y-1 px-4">
+                <p className="text-xs sm:text-sm font-bold text-stone-800">
                   Gemini Flash가 관측소 지역 피처를 매핑 중입니다...
                 </p>
-                <p className="text-xs text-stone-500">
-                  목적지 좌표({destination.latitude.toFixed(3)}, {destination.longitude.toFixed(3)}) 기반 최적 기상 모델 매칭
+                <p className="text-[11px] sm:text-xs text-stone-500">
+                  목적지 좌표 기반 최적 기상 모델 매칭
                 </p>
               </div>
             </div>
@@ -180,33 +180,33 @@ export const DestinationWeatherPreviewModal: React.FC<
             <>
               {/* 1. Gemini Flash AI 지역 매핑 결과 배너 */}
               {mapping && (
-                <div className="rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/60 p-4 border border-emerald-200/80 shadow-xs space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-700 text-white text-[11px] font-bold px-2.5 py-0.5 shadow-2xs">
+                <div className="rounded-xl sm:rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/60 p-3 sm:p-4 border border-emerald-200/80 shadow-xs space-y-1.5 sm:space-y-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-700 text-white text-[10px] sm:text-[11px] font-bold px-2.5 py-0.5 shadow-2xs w-fit">
                       <Sparkles className="h-3 w-3 text-emerald-200" />
                       {mapping.method === "gemini_flash"
-                        ? "Gemini Flash AI 1:1 매핑 완료"
+                        ? "Gemini Flash AI 매핑 완료"
                         : "지리적 관측소 매핑"}
                     </span>
                     {mapping.distance_km !== undefined && mapping.distance_km !== null && (
-                      <span className="text-xs font-semibold text-emerald-800">
+                      <span className="text-[11px] sm:text-xs font-semibold text-emerald-800">
                         관측소 이격거리: 약 {mapping.distance_km}km
                       </span>
                     )}
                   </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-xs font-medium text-stone-600">
-                      날씨 예측 모델 피처:
+                  <div className="flex flex-wrap items-baseline gap-1.5 sm:gap-2">
+                    <span className="text-[11px] sm:text-xs font-medium text-stone-600">
+                      모델 피처:
                     </span>
-                    <span className="text-base font-extrabold text-emerald-950">
+                    <span className="text-sm sm:text-base font-extrabold text-emerald-950">
                       {mapping.locality_name}
                     </span>
-                    <span className="text-xs text-stone-500">
-                      ({mapping.province} {mapping.station_name} 관측소)
+                    <span className="text-[11px] sm:text-xs text-stone-500">
+                      ({mapping.province} {mapping.station_name})
                     </span>
                   </div>
                   {mapping.reason && (
-                    <p className="text-xs text-emerald-800/90 leading-relaxed bg-white/70 rounded-xl p-2.5 border border-emerald-100">
+                    <p className="text-[11px] sm:text-xs text-emerald-800/90 leading-relaxed bg-white/70 rounded-lg sm:rounded-xl p-2 sm:p-2.5 border border-emerald-100">
                       💡 <strong>AI 매핑 근거:</strong> {mapping.reason}
                     </p>
                   )}
@@ -215,22 +215,22 @@ export const DestinationWeatherPreviewModal: React.FC<
 
               {/* 2. 일자별 탭 선택기 */}
               {report && report.dailyForecast.length > 1 && (
-                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-thin">
                   {report.dailyForecast.map((d, idx) => (
                     <button
                       key={d.date}
                       type="button"
                       onClick={() => setSelectedDayIdx(idx)}
-                      className={`flex flex-col items-center px-4 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 ${
+                      className={`flex flex-col items-center px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs font-semibold transition-all shrink-0 ${
                         idx === selectedDayIdx
                           ? "bg-emerald-800 text-white shadow-sm scale-102"
                           : "bg-stone-100 text-stone-700 hover:bg-stone-200/70"
                       }`}
                     >
-                      <span>
+                      <span className="text-[11px] sm:text-xs">
                         {d.dayNumber}일차 ({d.dayOfWeek})
                       </span>
-                      <span className="text-[10px] opacity-80">{d.date.slice(5)}</span>
+                      <span className="text-[9px] sm:text-[10px] opacity-80">{d.date.slice(5)}</span>
                     </button>
                   ))}
                 </div>
@@ -238,81 +238,81 @@ export const DestinationWeatherPreviewModal: React.FC<
 
               {/* 3. 선택 일자 기상 상세 카드 */}
               {currentDaily && (
-                <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-xs space-y-4">
-                  <div className="flex items-center justify-between border-b border-stone-100 pb-4">
-                    <div className="flex items-center gap-3">
+                <div className="rounded-xl sm:rounded-2xl border border-stone-200 bg-white p-3.5 sm:p-5 shadow-xs space-y-3 sm:space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 border-b border-stone-100 pb-3 sm:pb-4">
+                    <div className="flex items-center gap-2.5 sm:gap-3">
                       {getWeatherIcon(currentDaily.condition)}
                       <div>
                         <div className="flex items-center gap-2">
-                          <h4 className="text-xl font-bold text-stone-900">
+                          <h4 className="text-lg sm:text-xl font-bold text-stone-900">
                             {currentDaily.conditionLabel}
                           </h4>
                           <span className="text-xs font-medium text-stone-500">
                             {currentDaily.date} ({currentDaily.dayOfWeek})
                           </span>
                         </div>
-                        <p className="text-xs text-stone-500 mt-0.5">
+                        <p className="text-[11px] sm:text-xs text-stone-500 mt-0.5">
                           10개년 기후 빅데이터
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-3xl font-extrabold text-stone-900">
+                    <div className="text-left sm:text-right flex sm:block items-baseline gap-2">
+                      <div className="text-2xl sm:text-3xl font-extrabold text-stone-900">
                         {currentDaily.avgTemp}°C
                       </div>
-                      <div className="text-xs font-semibold text-stone-500 mt-0.5">
+                      <div className="text-[11px] sm:text-xs font-semibold text-stone-500 mt-0.5 font-mono">
                         최저 {currentDaily.minTemp}° / 최고 {currentDaily.maxTemp}°
                       </div>
                     </div>
                   </div>
 
                   {/* 4대 주요 기상 지표 그리드 */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
-                    <div className="rounded-xl bg-blue-50/70 p-3 border border-blue-100 text-center">
-                      <div className="flex items-center justify-center gap-1 text-blue-700 text-xs font-semibold">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 pt-1">
+                    <div className="rounded-lg sm:rounded-xl bg-blue-50/70 p-2.5 sm:p-3 border border-blue-100 text-center">
+                      <div className="flex items-center justify-center gap-1 text-blue-700 text-[11px] sm:text-xs font-semibold">
                         <Umbrella className="h-3.5 w-3.5" />
                         <span>강수 확률</span>
                       </div>
-                      <div className="text-lg font-bold text-blue-900 mt-1">
+                      <div className="text-base sm:text-lg font-bold text-blue-900 mt-0.5 sm:mt-1">
                         {currentDaily.precipProbability}%
                       </div>
                     </div>
 
-                    <div className="rounded-xl bg-amber-50/70 p-3 border border-amber-100 text-center">
-                      <div className="flex items-center justify-center gap-1 text-amber-700 text-xs font-semibold">
+                    <div className="rounded-lg sm:rounded-xl bg-amber-50/70 p-2.5 sm:p-3 border border-amber-100 text-center">
+                      <div className="flex items-center justify-center gap-1 text-amber-700 text-[11px] sm:text-xs font-semibold">
                         <Thermometer className="h-3.5 w-3.5" />
                         <span>일교차</span>
                       </div>
-                      <div className="text-lg font-bold text-amber-900 mt-1">
+                      <div className="text-base sm:text-lg font-bold text-amber-900 mt-0.5 sm:mt-1">
                         {currentDaily.diurnalRange}°C
                       </div>
                     </div>
 
-                    <div className="rounded-xl bg-teal-50/70 p-3 border border-teal-100 text-center">
-                      <div className="flex items-center justify-center gap-1 text-teal-700 text-xs font-semibold">
+                    <div className="rounded-lg sm:rounded-xl bg-teal-50/70 p-2.5 sm:p-3 border border-teal-100 text-center">
+                      <div className="flex items-center justify-center gap-1 text-teal-700 text-[11px] sm:text-xs font-semibold">
                         <Wind className="h-3.5 w-3.5" />
                         <span>예상 풍속</span>
                       </div>
-                      <div className="text-lg font-bold text-teal-900 mt-1">
+                      <div className="text-base sm:text-lg font-bold text-teal-900 mt-0.5 sm:mt-1">
                         {currentDaily.windSpeed} m/s
                       </div>
                     </div>
 
-                    <div className="rounded-xl bg-purple-50/70 p-3 border border-purple-100 text-center">
-                      <div className="flex items-center justify-center gap-1 text-purple-700 text-xs font-semibold">
+                    <div className="rounded-lg sm:rounded-xl bg-purple-50/70 p-2.5 sm:p-3 border border-purple-100 text-center">
+                      <div className="flex items-center justify-center gap-1 text-purple-700 text-[11px] sm:text-xs font-semibold">
                         <Sun className="h-3.5 w-3.5" />
                         <span>습도 / 자외선</span>
                       </div>
-                      <div className="text-lg font-bold text-purple-900 mt-1">
+                      <div className="text-sm sm:text-base font-bold text-purple-900 mt-0.5 sm:mt-1">
                         {currentDaily.humidity}% / Lv.{currentDaily.uvIndex}
                       </div>
                     </div>
                   </div>
 
                   {/* 맞춤 우산 & 복장 가이드 */}
-                  <div className="rounded-xl bg-stone-50 p-3.5 border border-stone-200/80 text-xs space-y-1.5">
-                    <div className="flex items-center gap-2 font-bold text-stone-800">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  <div className="rounded-lg sm:rounded-xl bg-stone-50 p-3 sm:p-3.5 border border-stone-200/80 text-xs space-y-1.5">
+                    <div className="flex items-center gap-1.5 font-bold text-stone-800 text-[11px] sm:text-xs">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
                       <span>여행자 맞춤 날씨 가이드</span>
                     </div>
                     <p className="text-stone-600 leading-relaxed">

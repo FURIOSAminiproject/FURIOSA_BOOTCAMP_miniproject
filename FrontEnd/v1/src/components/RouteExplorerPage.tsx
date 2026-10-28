@@ -338,7 +338,7 @@ export function TripRequestPage({
                           }
                         }}
                         disabled={!draft.destination}
-                        className={`flex items-center gap-1.5 px-3.5 py-3 rounded-xl font-bold text-xs sm:text-sm transition-all shadow-xs shrink-0 whitespace-nowrap active:scale-95 ${
+                        className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm transition-all shadow-xs shrink-0 whitespace-nowrap active:scale-95 ${
                           draft.destination
                             ? "bg-gradient-to-r from-teal-600 via-emerald-600 to-emerald-700 text-white hover:from-teal-700 hover:to-emerald-800 shadow-emerald-700/20 shadow-md cursor-pointer"
                             : "bg-stone-100 text-stone-400 border border-stone-200 cursor-not-allowed opacity-70"
@@ -349,8 +349,9 @@ export function TripRequestPage({
                             : "도착지를 먼저 검색해 선택하면 날씨를 미리 볼 수 있습니다"
                         }
                       >
-                        <CloudSun className="h-4 w-4 text-amber-300 animate-pulse" />
-                        <span>날씨 미리보기</span>
+                        <CloudSun className="h-4 w-4 text-amber-300 shrink-0" />
+                        <span className="hidden sm:inline">날씨 미리보기</span>
+                        <span className="sm:hidden">날씨 AI</span>
                         <span className="hidden sm:inline-flex rounded-full bg-white/20 text-white text-[10px] px-1.5 py-0.5 font-semibold">
                           AI
                         </span>
