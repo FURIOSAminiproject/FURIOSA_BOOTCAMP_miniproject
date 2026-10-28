@@ -55,8 +55,12 @@ services:
       - APP_ENV=${APP_ENV:-production}
       - PORT=8000
     env_file:
-      - path: ./BackEnd/FastAPI/.env
+      - path: ./BackEnd/FastAPI/.env.${APP_ENV:-production}
         required: false
+      - path: ./BackEnd/.env.${APP_ENV:-production}
+        required: false
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - travel-network
 

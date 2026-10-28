@@ -216,12 +216,9 @@ async def predict_weather_for_request(
             f"{missing_models}"
         )
 
-    project_dir = os.getenv("WEATHER_PROJECT_DIR")
-
-    if not project_dir:
-        raise RuntimeError(
-            "WEATHER_PROJECT_DIR 환경변수가 설정되지 않았습니다."
-        )
+    project_dir = os.getenv("WEATHER_PROJECT_DIR") or str(
+        Path(__file__).resolve().parents[1] / "routers" / "weather_prediction"
+    )
 
     # 모델 ID에는 DB용 지역명이 아닌 기존 합성 지역명을 사용한다.
     return await asyncio.to_thread(

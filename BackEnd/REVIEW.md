@@ -224,3 +224,9 @@ Node 22.23.3에서 기존 npm test 17개(Node 9/Jest 8), 저장소 밖 ORS/DB �
 Node 22.23.3에서 npm test의 Node 60개/Jest 8개, 합계 68개를 통과했다. 이는 모킹된 DB SQL·거리 반환·경로 조립 계약 검사다. 실제 DB 검증용 db:check:postgis는 READ ONLY 트랜잭션에서 스키마와 실제 repository SQL을 실행한다. 이번 PC의 개발 DB 연결은 타임아웃이어서 실제 PostGIS SQL·실행 계획·EC2 종단간 배포는 미검증이다. main push는 기존 백엔드 자동 배포를 시작하지만 이 마이그레이션 SQL을 자동 실행하지 않는다.
 
 후속 지시로 추가 반영 대상은 운영 DB(travel_prod)만으로 확정했다. 마이그레이션에 DB 이름 가드·잠금 대기 5초·문장 제한 120초를 추가했다. 운영 환경 파일이 travel_prod를 선택함을 비밀값 없이 확인했으나 이 PC의 운영 DB 연결도 타임아웃이었다. 아직 운영 DDL은 실행하지 못했고 테스트 DB에 추가 변경은 수행하지 않았다.
+
+## 2026-10-29 FastAPI 공통 운영 DB 환경 연결
+
+사용자 컨테이너 점검에서 DB_HOST/DB_USER/DB_PASSWORD/DB_NAME과 WEATHER_PROJECT_DIR이 모두 미설정임을 확인했다. 500의 실제 로그는 asyncpg의 Connection refused였다. Compose의 FastAPI가 BackEnd/.env.<mode>를 주입하도록 바꾸고 직접 실행도 같은 파일과 시스템 환경 우선순위를 사용한다. 운영에서 .env.local을 읽는 지역 매핑 부수효과를 제거했다. DB 누락은 기동 때 검사하고 PostgreSQL TLS 설정을 반영한다. 모델 경로 생략 시 포함된 소스 경로를 사용한다. DB 스키마 변경은 없다.
+
+환경 로딩/우선순위/잘못된 모드/DB 필수값/모킹 HTTP 계약 6개, Python 구문 검사, Compose 3개 환경 해석을 통과했다. 실제 공통 운영 파일이 travel_prod·호스트·계정·비밀번호 설정을 채움을 값 비노출로 확인했다. 실제 DB 접속·추론 성공과는 별도다. 검증 스크립트는 저장소 밖에 보관했다.

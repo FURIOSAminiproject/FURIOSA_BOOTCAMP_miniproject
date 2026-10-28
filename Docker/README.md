@@ -167,3 +167,7 @@ docker compose down
 - 포트 점유: 호스트 Nginx/IIS/다른 컨테이너를 확인합니다. HTTP만 임시 변경하려면 Compose의 frontend 매핑을 `8080:80` 등으로 바꿀 수 있으나 HTTPS 리다이렉트·443 매핑도 함께 고려합니다.
 - 코드 미반영: `docker compose up -d --build`로 재빌드합니다. 캐시 문제가 확인된 경우에만 `docker compose build --no-cache`를 사용합니다.
 - `unhealthy`: FastAPI 로그와 `/health` 응답을 확인합니다. 상태가 unhealthy라는 이유만으로 자동 재시작하지는 않습니다.
+
+## FastAPI 환경 공유 (2026-10-29)
+
+FastAPI는 BackEnd/FastAPI/.env.<APP_ENV> 다음 BackEnd/.env.<APP_ENV>를 읽고 뒤 파일이 우선한다. APP_ENV 기본은 production이다. 호스트 DB의 host.docker.internal 접근을 위해 host-gateway를 등록했다. 컨테이너 내부 localhost는 EC2 호스트가 아니다. 기존 FastAPI/.env는 더 이상 Compose 입력이 아니다.

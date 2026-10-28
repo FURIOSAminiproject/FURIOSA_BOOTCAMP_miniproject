@@ -74,3 +74,9 @@ Docker 이미지는 Python 3.12 Slim, 비루트 `appuser`로 실행하며 `/heal
 위 샘플 추천과 별개로 현재 소스에는 app/routers/weather.py의 기상 추론 API가 있다. POST /api/v1/weather/predict/request는 target_dates와 locality_name 또는 destination_name/latitude/longitude를 받는다. 지역명이 없으면 Gemini 지역 매핑(실패 시 관측소 거리 기준 매핑)을 수행하고 DB 모델 아티팩트를 불러 실제 추론을 실행한다. WEATHER_PROJECT_DIR와 CSV, 해당 지역 5개 모델 아티팩트가 필요하다. /resolve-locality는 지역 매핑만 제공한다.
 
 전주·2026-10-30~31 운영 요청에서 locality_name 필수 및 destination_name/latitude/longitude 금지 오류를 재현했다. 운영 OpenAPI도 이전 스키마였으므로 모델이 해당 날짜를 거부한 증거가 아니다. 현재 소스와 운영 컨테이너가 달라 FastAPI를 최신 main으로 재배포해야 한다. 프런트나 NestJS의 성공 배포가 FastAPI 배포 성공을 의미하지 않는다. 배포 후 공개 OpenAPI에서 locality_name이 선택이고 /resolve-locality가 존재하는지 확인한 다음 동일 전주 요청으로 실제 매핑·추론을 별도 검증한다. /health만으로 이를 확인할 수 없다. 실제 운영 추론 성공은 아직 확인하지 못했다.
+
+## 공통 DB 환경 파일 (2026-10-29 수정)
+
+FastAPI도 BackEnd/.env.production의 DB 설정을 사용한다. APP_ENV=local/development/production으로 선택하며 기본값은 production이다. 서비스의 .env.<mode> → 상위 BackEnd/.env.<mode> → 시스템 환경 순으로 우선한다. Docker는 Compose가 같은 두 파일을 주입하고, 직접 실행은 app/config.py가 DB·지역 매핑 모듈을 읽기 전에 로드한다. 과거 FastAPI/.env나 BackEnd/.env.local을 운영 실행에서 추가로 읽지 않는다.
+
+DB_HOST/DB_USER/DB_PASSWORD/DB_NAME이 없으면 기동 시 키 이름만 알리고 실패한다. DB_SSL=true는 인증서를 검증하며 false는 비TLS다. Docker의 host.docker.internal을 호스트 게이트웨이에 연결한다. WEATHER_PROJECT_DIR이 없으면 이미지에 포함된 app/routers/weather_prediction을 사용하며 DB 아티팩트·CSV 준비는 별도다. 기존 운영 컨테이너에 DB 환경 4개가 모두 없음을 사용자 출력으로 확인했다. 이 변경 자체가 운영 DB의 모델 등록·추론 성공을 보장하지 않는다.

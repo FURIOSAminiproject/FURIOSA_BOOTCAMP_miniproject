@@ -1,8 +1,9 @@
 
 import os
+import ssl
 from collections.abc import AsyncGenerator
 
-from dotenv import load_dotenv
+from app.config import load_environment
 from sqlalchemy.engine import URL
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -10,13 +11,13 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-load_dotenv()
+load_environment()
 
 DATABASE_URL = URL.create(
     drivername="postgresql+asyncpg",
     username=os.getenv("DB_USER"),
     password=os.getenv("DB_PASSWORD"),
-    host=os.getenv("DB_HOST", "localhost"),
+    host=os.getenv("DB_HOST"),
     port=int(os.getenv("DB_PORT", "5432")),
     database=os.getenv("DB_NAME"),
 )
@@ -25,6 +26,10 @@ engine = create_async_engine(
     DATABASE_URL,
     echo=False,
     pool_pre_ping=True,
+    connect_args={
+        "timeout": 5,
+        "ssl": ssl.create_default_context() if os.getenv("DB_SSL") == "true" else False,
+    },
 )
 
 AsyncSessionLocal = async_sessionmaker(
