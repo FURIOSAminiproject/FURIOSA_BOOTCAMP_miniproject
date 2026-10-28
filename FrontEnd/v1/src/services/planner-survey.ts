@@ -100,11 +100,22 @@ export function scheduleFromText(
   return next;
 }
 
-export function surveyPrompt(step: number): string {
+export function surveyPrompt(step: number, draft: SurveyDraft = {}): string {
   if (step === 1)
     return "출발지와 도착지를 알려주세요. (예: 서울에서 춘천으로)";
-  if (step === 2)
-    return "출발 날짜, 여행 기간(최대 9박 10일), 출발 시각을 알려주세요. (예: 10월 28일, 1박 2일, 오전 9시 30분)";
+  if (step === 2) {
+    const missing = [
+      !validDate(draft.startDate) && "출발 날짜",
+      !draft.durationLabel?.trim() && "여행 기간(최대 9박 10일)",
+      !/^([01]\d|2[0-3]):[0-5]\d$/.test(draft.departureTime || "") &&
+        "출발 시각",
+    ].filter(Boolean);
+    if (missing.length === 1 && missing[0] === "출발 날짜")
+      return `${draft.durationLabel} · ${draft.departureTime} 출발은 기억했어요. 출발 날짜만 알려주세요. (예: 오늘, 내일, 10월 29일)`;
+    if (missing.length)
+      return `다음 정보를 알려주세요: ${missing.join(", ")}. (예: 10월 28일, 1박 2일, 오전 9시 30분)`;
+    return "출발 날짜와 여행 기간을 다시 확인해 주세요.";
+  }
   if (step === 3)
     return "이동 수단을 선택해 주세요. 자동차로 운전하시나요, 도보로 여행하시나요?";
   if (step === 4)

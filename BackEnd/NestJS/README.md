@@ -6,6 +6,8 @@ NestJS 12, TypeScript 6, TypeORM, PostgreSQL 드라이버와 `@google/genai`를 
 
 `POST /api/chat/planner`는 출발·도착지 → 날짜·기간·출발 시각 → 이동 수단 → 취향 순서로 질문합니다. `currentDraft.modeConfirmed=true`와 유효한 자동차/도보 선택이 있어야 이동 수단 확인을 완료합니다. 기본값·모델의 isReady·요청 단계 번호만으로 질문을 생략하지 않습니다. 모호한 답변·대중교통은 자동차로 바꾸지 않고 다시 묻습니다. 기간 답변을 취향으로 저장하지 않습니다. 날짜 계산은 운영체제 시간대와 무관한 달력 날짜를 사용합니다.
 
+날짜 없이 기간·시각만 답하면 서버는 두 값을 유지하고 빠진 출발 날짜만 묻습니다. 이후 날짜 답변과 합쳐 이동 수단 단계로 진행합니다.
+
 `POST /api/travel/destination-itinerary`는 기존 ORS 도착 예상시간과 도착지 주변 TourAPI DB 후보로 **도착 후 날짜별 여행 일정**을 만듭니다. 필수 입력은 `mode`, 직접 좌표 두 개의 `points`, `startDate`, `endDate`, `departureTime`이며 `preference`, `categoryIds`, `includeLunch`, `includeDinner`, `lunchTime`, `dinnerTime`은 선택입니다. 기간은 1~10일입니다. `days`, `arrivalDate/arrivalTime`, `stayOptions`, `warnings`를 반환합니다.
 
 - 관광·문화, 식당·카페, 선택 취향, 숙박을 따로 조회하며 같은 장소 ID를 여러 날 반복 배정하지 않습니다.

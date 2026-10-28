@@ -46,6 +46,27 @@ test('a period answer cannot complete the survey or silently select a car', asyn
   assert.equal(response.extracted.endDate, '2026-10-29');
 });
 
+test('split schedule answers preserve the selected period and time', async () => {
+  const chat = new ChatService();
+  const partial = await chat.planChat({
+    currentStep: 2,
+    message: '2박 3일 일정이고, 오전 8시 30분에 일찍 출발할게요',
+    currentDraft: { originName: '서울', destinationName: '춘천' },
+  });
+  assert.equal(partial.step, 2);
+  assert.match(partial.reply, /출발 날짜만/);
+  assert.equal(partial.extracted.durationLabel, '2박 3일');
+  assert.equal(partial.extracted.departureTime, '08:30');
+  const complete = await chat.planChat({
+    currentStep: 2,
+    message: '2026-10-29',
+    currentDraft: partial.extracted,
+  });
+  assert.equal(complete.step, 3);
+  assert.equal(complete.extracted.endDate, '2026-10-31');
+  assert.equal(complete.extracted.departureTime, '08:30');
+});
+
 test('unsupported and ambiguous transport answers remain at step 3', async () => {
   const chat = new ChatService();
   for (const message of [

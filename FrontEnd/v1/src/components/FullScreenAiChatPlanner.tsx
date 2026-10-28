@@ -27,6 +27,7 @@ import {
   scheduleFromText,
   surveyStep,
   surveyPrompt,
+  validDate,
 } from "../services/planner-survey";
 import { planTrip } from "../services/trip-planning";
 import type { LocationRouteMode } from "../types/location";
@@ -38,6 +39,15 @@ interface ChatMessage {
   timestamp: string;
   step?: number;
   isSummaryCard?: boolean;
+}
+
+function isLatestQuestion(message: ChatMessage, index: number, total: number) {
+  return (
+    message.role === "model" &&
+    !!message.step &&
+    !message.isSummaryCard &&
+    index === total - 1
+  );
 }
 
 interface FullScreenAiChatPlannerProps {
@@ -116,7 +126,7 @@ const STEP_CHIPS: Record<number, StepOption[]> = {
 
 const STEP_LABELS = [
   "출발·도착지",
-  "기간 & 출발시각",
+  "날짜·기간·출발시각",
   "이동 수단",
   "선호 장소",
   "완성 및 경로 생성",
@@ -139,6 +149,7 @@ export function FullScreenAiChatPlanner({
   const [step2SelectedDuration, setStep2SelectedDuration] =
     useState<string>("1박 2일");
   const [step2SelectedTime, setStep2SelectedTime] = useState<string>("09:30");
+  const [step2SelectedDate, setStep2SelectedDate] = useState<string>("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const activeOperation = useRef<AbortController | null>(null);
   useEffect(() => () => activeOperation.current?.abort(), []);
@@ -534,7 +545,7 @@ export function FullScreenAiChatPlanner({
       const reply =
         nextStep === 3 && currentStep === 3 && !explicitTravelMode(userText)
           ? "이동 수단을 임의로 정하지 않았어요. 자동차 또는 도보를 직접 골라 주세요."
-          : surveyPrompt(nextStep);
+          : surveyPrompt(nextStep, updatedDraft);
       const aiMessage: ChatMessage = {
         id: "model-" + Date.now(),
         role: "model",
@@ -571,6 +582,7 @@ export function FullScreenAiChatPlanner({
     localStorage.removeItem("roadfriend_chat_planner_data_v2");
     setStep2SelectedDuration("1박 2일");
     setStep2SelectedTime("09:30");
+    setStep2SelectedDate("");
     setCurrentStep(1);
     setGenerationError(null);
 
@@ -689,8 +701,8 @@ export function FullScreenAiChatPlanner({
                 </span>
               </div>
               <p className="text-[11px] text-emerald-100/80">
-                출발·도착 ➔ 기간·출발시각 ➔ 이동수단 ➔ 선호장소를 차례대로 묻고
-                최적 코스를 완성합니다.
+                출발·도착 ➔ 날짜·기간·출발시각 ➔ 이동수단 ➔ 선호장소를 차례대로
+                묻고 최적 코스를 완성합니다.
               </p>
             </div>
           </div>
@@ -751,7 +763,7 @@ export function FullScreenAiChatPlanner({
 
       {/* 2. 대화 메시지 영역 */}
       <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5 bg-stone-50/50">
-        {messages.map((msg) => (
+        {messages.map((msg, index) => (
           <div
             key={msg.id}
             className={`flex flex-col ${
@@ -773,10 +785,17 @@ export function FullScreenAiChatPlanner({
                       : "bg-white text-stone-800 border border-stone-200/90 rounded-bl-xs"
                   }`}
                 >
-                  <div>{msg.text}</div>
+                  <div>
+                    {msg.role === "model" &&
+                    msg.step === 2 &&
+                    currentStep === 2 &&
+                    index === messages.length - 1
+                      ? surveyPrompt(2, chatDraft)
+                      : msg.text}
+                  </div>
 
                   {/* 챗봇 대화 버블 안의 인터랙티브 선택 버튼들 */}
-                  {msg.role === "model" && msg.step && !msg.isSummaryCard && (
+                  {isLatestQuestion(msg, index, messages.length) && (
                     <div className="mt-3.5 pt-3 border-t border-stone-200/80">
                       {msg.step === 1 && currentStep === 1 && (
                         <div className="space-y-2">
@@ -849,153 +868,209 @@ export function FullScreenAiChatPlanner({
 
                       {msg.step === 2 && currentStep === 2 && (
                         <div className="space-y-3">
-                          <div>
-                            <p className="text-xs font-semibold text-emerald-800 mb-2 flex items-center gap-1.5">
-                              <Clock className="h-3.5 w-3.5 text-amber-500" />
-                              인기 일정 원클릭 선택:
-                            </p>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                              {[
-                                {
-                                  title: "1박 2일 · 오전 09:30 출발",
-                                  badge: "가장 인기",
-                                  desc: "여유로운 1박 2일 힐링 코스",
-                                  value:
-                                    "1박 2일 일정이고, 오전 9시 30분에 출발할게요",
-                                },
-                                {
-                                  title: "당일치기 · 오전 09:00 출발",
-                                  badge: "알찬 하루",
-                                  desc: "하루를 꽉 채우는 근교 당일치기",
-                                  value:
-                                    "당일치기 일정이고, 오전 9시 정각에 출발할게요",
-                                },
-                                {
-                                  title: "2박 3일 · 오전 08:30 출발",
-                                  badge: "여유로운 여행",
-                                  desc: "2박 3일 넉넉한 힐링 투어",
-                                  value:
-                                    "2박 3일 일정이고, 오전 8시 30분에 일찍 출발할게요",
-                                },
-                                {
-                                  title: "1박 2일 · 오전 10:00 출발",
-                                  badge: "브런치 출발",
-                                  desc: "여유롭게 아침 먹고 출발",
-                                  value:
-                                    "1박 2일 일정이고, 오전 10시쯤 여유롭게 출발할게요",
-                                },
-                              ].map((item, idx) => (
+                          {chatDraft.durationLabel &&
+                          chatDraft.departureTime &&
+                          !validDate(chatDraft.startDate) ? (
+                            <div className="space-y-3">
+                              <p className="text-xs font-semibold text-emerald-800">
+                                {chatDraft.durationLabel} ·{" "}
+                                {chatDraft.departureTime} 출발 확인됨
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                {["오늘", "내일", "모레"].map((day) => (
+                                  <button
+                                    key={day}
+                                    type="button"
+                                    disabled={isLoading}
+                                    onClick={() => void handleUserResponse(day)}
+                                    className="rounded-lg border border-emerald-600 px-3 py-2 text-xs font-semibold text-emerald-900 hover:bg-emerald-50 disabled:opacity-50"
+                                  >
+                                    {day} 출발
+                                  </button>
+                                ))}
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <label
+                                  htmlFor="chat-departure-date"
+                                  className="text-xs font-semibold text-stone-600"
+                                >
+                                  직접 날짜 선택
+                                </label>
+                                <input
+                                  id="chat-departure-date"
+                                  type="date"
+                                  value={step2SelectedDate}
+                                  min={new Date(Date.now() + 9 * 3600000)
+                                    .toISOString()
+                                    .slice(0, 10)}
+                                  onChange={(event) =>
+                                    setStep2SelectedDate(event.target.value)
+                                  }
+                                  className="rounded-lg border border-stone-300 bg-white px-2 py-1.5 text-sm text-stone-800"
+                                />
                                 <button
-                                  key={idx}
+                                  type="button"
+                                  disabled={!step2SelectedDate || isLoading}
+                                  onClick={() =>
+                                    void handleUserResponse(step2SelectedDate)
+                                  }
+                                  className="rounded-lg bg-emerald-800 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
+                                >
+                                  이 날짜로 출발
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div>
+                                <p className="text-xs font-semibold text-emerald-800 mb-2 flex items-center gap-1.5">
+                                  <Clock className="h-3.5 w-3.5 text-amber-500" />
+                                  인기 기간·시각 선택:
+                                </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  {[
+                                    {
+                                      title: "1박 2일 · 오전 09:30 출발",
+                                      badge: "가장 인기",
+                                      desc: "여유로운 1박 2일 힐링 코스",
+                                      value:
+                                        "1박 2일 일정이고, 오전 9시 30분에 출발할게요",
+                                    },
+                                    {
+                                      title: "당일치기 · 오전 09:00 출발",
+                                      badge: "알찬 하루",
+                                      desc: "하루를 꽉 채우는 근교 당일치기",
+                                      value:
+                                        "당일치기 일정이고, 오전 9시 정각에 출발할게요",
+                                    },
+                                    {
+                                      title: "2박 3일 · 오전 08:30 출발",
+                                      badge: "여유로운 여행",
+                                      desc: "2박 3일 넉넉한 힐링 투어",
+                                      value:
+                                        "2박 3일 일정이고, 오전 8시 30분에 일찍 출발할게요",
+                                    },
+                                    {
+                                      title: "1박 2일 · 오전 10:00 출발",
+                                      badge: "브런치 출발",
+                                      desc: "여유롭게 아침 먹고 출발",
+                                      value:
+                                        "1박 2일 일정이고, 오전 10시쯤 여유롭게 출발할게요",
+                                    },
+                                  ].map((item, idx) => (
+                                    <button
+                                      key={idx}
+                                      type="button"
+                                      disabled={isLoading}
+                                      onClick={() =>
+                                        void handleUserResponse(item.value)
+                                      }
+                                      className="flex flex-col p-2.5 rounded-xl border border-stone-200 bg-white hover:bg-emerald-50 hover:border-emerald-600 text-left transition shadow-2xs group cursor-pointer disabled:opacity-50"
+                                    >
+                                      <div className="flex items-center justify-between mb-1">
+                                        <span className="font-bold text-xs text-stone-900 group-hover:text-emerald-950">
+                                          {item.title}
+                                        </span>
+                                        <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full shrink-0">
+                                          {item.badge}
+                                        </span>
+                                      </div>
+                                      <span className="text-[11px] text-stone-500">
+                                        {item.desc}
+                                      </span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* 직접 조합 선택 박스 */}
+                              <div className="p-3.5 rounded-xl bg-stone-50/90 border border-stone-200 space-y-3">
+                                <div className="flex items-center justify-between text-xs font-bold text-stone-700">
+                                  <span>또는 기간과 시각을 직접 조합:</span>
+                                  <span className="text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md font-mono text-[11px]">
+                                    {step2SelectedDuration} ·{" "}
+                                    {step2SelectedTime} 출발
+                                  </span>
+                                </div>
+
+                                <div>
+                                  <span className="text-[11px] font-semibold text-stone-500 block mb-1.5">
+                                    여행 기간:
+                                  </span>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {[
+                                      "당일치기",
+                                      "1박 2일",
+                                      "2박 3일",
+                                      "3박 4일",
+                                    ].map((dur) => (
+                                      <button
+                                        key={dur}
+                                        type="button"
+                                        onClick={() =>
+                                          setStep2SelectedDuration(dur)
+                                        }
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                                          step2SelectedDuration === dur
+                                            ? "bg-emerald-800 text-white shadow-2xs"
+                                            : "bg-white border border-stone-200 text-stone-700 hover:border-emerald-500 hover:bg-emerald-50/50"
+                                        }`}
+                                      >
+                                        {dur}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <span className="text-[11px] font-semibold text-stone-500 block mb-1.5">
+                                    출발 시각:
+                                  </span>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {[
+                                      "08:00",
+                                      "08:30",
+                                      "09:00",
+                                      "09:30",
+                                      "10:00",
+                                      "11:00",
+                                      "13:00",
+                                    ].map((t) => (
+                                      <button
+                                        key={t}
+                                        type="button"
+                                        onClick={() => setStep2SelectedTime(t)}
+                                        className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold font-mono transition cursor-pointer ${
+                                          step2SelectedTime === t
+                                            ? "bg-emerald-800 text-white shadow-2xs"
+                                            : "bg-white border border-stone-200 text-stone-700 hover:border-emerald-500 hover:bg-emerald-50/50"
+                                        }`}
+                                      >
+                                        {t}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                <button
                                   type="button"
                                   disabled={isLoading}
                                   onClick={() =>
-                                    void handleUserResponse(item.value)
+                                    void handleUserResponse(
+                                      `${step2SelectedDuration} 일정이고, 오전 ${step2SelectedTime}에 출발할게요`,
+                                    )
                                   }
-                                  className="flex flex-col p-2.5 rounded-xl border border-stone-200 bg-white hover:bg-emerald-50 hover:border-emerald-600 text-left transition shadow-2xs group cursor-pointer disabled:opacity-50"
+                                  className="w-full py-2.5 px-4 rounded-xl bg-[#064e43] hover:bg-[#085a4e] text-white text-xs sm:text-sm font-bold transition flex items-center justify-center gap-2 shadow-xs cursor-pointer disabled:opacity-50"
                                 >
-                                  <div className="flex items-center justify-between mb-1">
-                                    <span className="font-bold text-xs text-stone-900 group-hover:text-emerald-950">
-                                      {item.title}
-                                    </span>
-                                    <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full shrink-0">
-                                      {item.badge}
-                                    </span>
-                                  </div>
-                                  <span className="text-[11px] text-stone-500">
-                                    {item.desc}
+                                  <Check className="h-4 w-4" />
+                                  <span>
+                                    {step2SelectedDuration} ·{" "}
+                                    {step2SelectedTime} 선택하기
                                   </span>
                                 </button>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* 직접 조합 선택 박스 */}
-                          <div className="p-3.5 rounded-xl bg-stone-50/90 border border-stone-200 space-y-3">
-                            <div className="flex items-center justify-between text-xs font-bold text-stone-700">
-                              <span>또는 기간과 시각을 직접 조합:</span>
-                              <span className="text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md font-mono text-[11px]">
-                                {step2SelectedDuration} · {step2SelectedTime}{" "}
-                                출발
-                              </span>
-                            </div>
-
-                            <div>
-                              <span className="text-[11px] font-semibold text-stone-500 block mb-1.5">
-                                여행 기간:
-                              </span>
-                              <div className="flex flex-wrap gap-1.5">
-                                {[
-                                  "당일치기",
-                                  "1박 2일",
-                                  "2박 3일",
-                                  "3박 4일",
-                                ].map((dur) => (
-                                  <button
-                                    key={dur}
-                                    type="button"
-                                    onClick={() =>
-                                      setStep2SelectedDuration(dur)
-                                    }
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                                      step2SelectedDuration === dur
-                                        ? "bg-emerald-800 text-white shadow-2xs"
-                                        : "bg-white border border-stone-200 text-stone-700 hover:border-emerald-500 hover:bg-emerald-50/50"
-                                    }`}
-                                  >
-                                    {dur}
-                                  </button>
-                                ))}
                               </div>
-                            </div>
-
-                            <div>
-                              <span className="text-[11px] font-semibold text-stone-500 block mb-1.5">
-                                출발 시각:
-                              </span>
-                              <div className="flex flex-wrap gap-1.5">
-                                {[
-                                  "08:00",
-                                  "08:30",
-                                  "09:00",
-                                  "09:30",
-                                  "10:00",
-                                  "11:00",
-                                  "13:00",
-                                ].map((t) => (
-                                  <button
-                                    key={t}
-                                    type="button"
-                                    onClick={() => setStep2SelectedTime(t)}
-                                    className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold font-mono transition cursor-pointer ${
-                                      step2SelectedTime === t
-                                        ? "bg-emerald-800 text-white shadow-2xs"
-                                        : "bg-white border border-stone-200 text-stone-700 hover:border-emerald-500 hover:bg-emerald-50/50"
-                                    }`}
-                                  >
-                                    {t}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-
-                            <button
-                              type="button"
-                              disabled={isLoading}
-                              onClick={() =>
-                                void handleUserResponse(
-                                  `${step2SelectedDuration} 일정이고, 오전 ${step2SelectedTime}에 출발할게요`,
-                                )
-                              }
-                              className="w-full py-2.5 px-4 rounded-xl bg-[#064e43] hover:bg-[#085a4e] text-white text-xs sm:text-sm font-bold transition flex items-center justify-center gap-2 shadow-xs cursor-pointer disabled:opacity-50"
-                            >
-                              <Check className="h-4 w-4" />
-                              <span>
-                                {step2SelectedDuration} · {step2SelectedTime}{" "}
-                                출발 확정하기
-                              </span>
-                            </button>
-                          </div>
+                            </>
+                          )}
                         </div>
                       )}
 
@@ -1307,25 +1382,32 @@ export function FullScreenAiChatPlanner({
       </div>
 
       {/* 3. 단계별 빠른 선택 칩 바 */}
-      {currentStep <= 4 && STEP_CHIPS[currentStep] && (
-        <div className="px-5 py-2.5 bg-[#fbf9f5] border-t border-stone-200/80 flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
-          <span className="text-[11px] font-bold text-stone-500 shrink-0 flex items-center gap-1">
-            <Sparkles className="h-3 w-3 text-emerald-700" />
-            빠른 답변:
-          </span>
-          {STEP_CHIPS[currentStep].map((chip, idx) => (
-            <button
-              key={idx}
-              type="button"
-              disabled={isLoading}
-              onClick={() => void handleUserResponse(chip.value)}
-              className="shrink-0 flex items-center gap-1 rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs text-stone-700 hover:border-emerald-600 hover:bg-emerald-50 hover:text-emerald-950 transition shadow-2xs disabled:opacity-40 cursor-pointer"
-            >
-              <span>{chip.label}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      {currentStep <= 4 &&
+        STEP_CHIPS[currentStep] &&
+        !(
+          currentStep === 2 &&
+          chatDraft.durationLabel &&
+          chatDraft.departureTime &&
+          !validDate(chatDraft.startDate)
+        ) && (
+          <div className="px-5 py-2.5 bg-[#fbf9f5] border-t border-stone-200/80 flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
+            <span className="text-[11px] font-bold text-stone-500 shrink-0 flex items-center gap-1">
+              <Sparkles className="h-3 w-3 text-emerald-700" />
+              빠른 답변:
+            </span>
+            {STEP_CHIPS[currentStep].map((chip, idx) => (
+              <button
+                key={idx}
+                type="button"
+                disabled={isLoading}
+                onClick={() => void handleUserResponse(chip.value)}
+                className="shrink-0 flex items-center gap-1 rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs text-stone-700 hover:border-emerald-600 hover:bg-emerald-50 hover:text-emerald-950 transition shadow-2xs disabled:opacity-40 cursor-pointer"
+              >
+                <span>{chip.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
 
       {/* 4. 메시지 입력 영역 */}
       <form
@@ -1354,7 +1436,11 @@ export function FullScreenAiChatPlanner({
             currentStep === 1
               ? "출발지와 도착지를 입력하세요 (예: 서울에서 부산으로)"
               : currentStep === 2
-                ? "여행 기간과 출발 시각을 입력하세요 (예: 1박 2일 오전 9시 30분)"
+                ? chatDraft.durationLabel &&
+                  chatDraft.departureTime &&
+                  !validDate(chatDraft.startDate)
+                  ? "출발 날짜만 입력하세요 (예: 내일 또는 10월 29일)"
+                  : "출발 날짜·기간·시각을 입력하세요 (예: 내일 1박 2일 오전 9시 30분)"
                 : currentStep === 3
                   ? "이동 수단을 입력하세요 (예: 자동차 운전)"
                   : currentStep === 4

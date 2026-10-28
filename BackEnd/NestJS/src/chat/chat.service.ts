@@ -296,7 +296,7 @@ ${contextLines.length ? `\n[현재 생성된 여행 계획 정보]\n${contextLin
       reply:
         step === 3 && currentStep === 3 && !explicitTravelMode(message)
           ? `자동차 또는 도보 중 하나를 직접 선택해 주세요. ${surveyPrompt(3)}`
-          : surveyPrompt(step),
+          : surveyPrompt(step, extracted),
       step,
       extracted,
       isReady: step === 5,
