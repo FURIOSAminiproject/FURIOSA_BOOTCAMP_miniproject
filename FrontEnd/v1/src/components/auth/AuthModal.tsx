@@ -162,28 +162,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <p className="text-xs sm:text-sm text-emerald-100/80 leading-relaxed mb-6">
               I AM YOUR J 계정으로 로그인하고, AI가 설계한 최적 경로와 실시간 맞춤 타임라인을 영구 보관하세요.
             </p>
-
-            {/* Checklist */}
-            <div className="space-y-3 text-xs sm:text-sm text-emerald-50">
-              <div className="flex items-start gap-2.5">
-                <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-300 flex items-center justify-center shrink-0 mt-0.5">
-                  <Check className="w-3.5 h-3.5" />
-                </div>
-                <span>12인 자율운영 AI 멀티에이전트 맞춤 일정</span>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-300 flex items-center justify-center shrink-0 mt-0.5">
-                  <Check className="w-3.5 h-3.5" />
-                </div>
-                <span>대한민국 실제 명소·미식 좌표 100% 검증</span>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-300 flex items-center justify-center shrink-0 mt-0.5">
-                  <Check className="w-3.5 h-3.5" />
-                </div>
-                <span>캘린더(.ics) 내보내기 & 24시 응급안전망 연계</span>
-              </div>
-            </div>
           </div>
 
           <div className="pt-6 mt-6 border-t border-white/10 text-[11px] text-emerald-200/60 flex items-center gap-1.5">
