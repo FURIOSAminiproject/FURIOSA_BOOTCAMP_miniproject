@@ -213,3 +213,14 @@ Node 22.23.3에서 기존 npm test 17개(Node 9/Jest 8), 저장소 밖 ORS/DB �
 최종 Node 22.23.3: 기존 npm test 17개, 저장소 밖 기존 회귀 62개와 추가 심화 50개, 모킹 E2E 1개로 총 130개 통과. 기존/추가 외부 112개를 같은 실행에서 통과시켰다. 운영 빌드·spec noEmit 검사, 장소·경로 타입 기반 lint 오류/경고 0건, 운영 소스 47개 Prettier와 diff --check를 확인했다. PGlite의 실제 SQL/FK/롤백/UUID/후기 보존, 로컬 Nest HTTP 입력, 실제 fetch 본문 타임아웃, 100개 동시 경로 요청 합치기와 만료 시각 경계·오류 후 재시도를 검사했다.
 
 보고서는 NestJS/docs/PLACE_ROUTING_TEST_REPORT_2026-10-26.md에 기록하고 관련 README를 갱신했다. 검증 전용 코드는 사용자 요청대로 저장소 밖이다. 실제 제공자 API·원격 DB 권한/TLS·다중 세션 advisory lock·AWS 배포는 검사하지 않았다. 수동 수집 API의 기존 인증/역할 제한 부재는 별도 미해결 상태로 기록했다. 기존 다른 모듈의 문제를 이번 검사로 해결했다고 표시하지 않는다. 이번 수정은 기존 커밋 이후 작업이며 사용자 요청으로 배포 코드와 결과 문서만 커밋한다. 검증 전용 코드는 제외하고 push·배포는 수행하지 않는다.
+
+
+## 2026-10-29 추가: PostGIS 장소 반경·경로 검색 적용
+
+사용자가 제공한 EC2 로그에서 개발 DB의 PostGIS 3.6.1, places.location 생성 컬럼과 ix_places_location_gist 생성·COMMIT을 확인했다. 장소 1,002건 중 1,001건에 공간 좌표가 있다. 관리자 수동 마이그레이션을 DataBase/migrations/20261029_add_places_postgis.sql에 보관하며 자동 DDL은 추가하지 않았다. 운영 DB는 변경하지 않았다.
+
+배포 대상 NestJS의 ExplorerRepository가 ST_DWithin으로 반경을 필터링하고 ST_Distance 측지거리로 정렬한 다음 LIMIT을 적용한다. 경로는 ORS LineString 전체, 거점·시간대·도착지 일정은 Point를 사용한다. 기존 분류 재귀·유형·활성 조건과 API 응답은 유지하며 JS 경로 거리 계산을 운영 호출에서 제거했다. PostGIS/공간 컬럼 미설정은 명시적 추천 실패로 처리한다. TypeORM DataSource의 매개변수 SQL을 사용하며 추가 의존성은 없다.
+
+Node 22.23.3에서 npm test의 Node 60개/Jest 8개, 합계 68개를 통과했다. 이는 모킹된 DB SQL·거리 반환·경로 조립 계약 검사다. 실제 DB 검증용 db:check:postgis는 READ ONLY 트랜잭션에서 스키마와 실제 repository SQL을 실행한다. 이번 PC의 개발 DB 연결은 타임아웃이어서 실제 PostGIS SQL·실행 계획·EC2 종단간 배포는 미검증이다. main push는 기존 백엔드 자동 배포를 시작하지만 이 마이그레이션 SQL을 자동 실행하지 않는다.
+
+후속 지시로 추가 반영 대상은 운영 DB(travel_prod)만으로 확정했다. 마이그레이션에 DB 이름 가드·잠금 대기 5초·문장 제한 120초를 추가했다. 운영 환경 파일이 travel_prod를 선택함을 비밀값 없이 확인했으나 이 PC의 운영 DB 연결도 타임아웃이었다. 아직 운영 DDL은 실행하지 못했고 테스트 DB에 추가 변경은 수행하지 않았다.

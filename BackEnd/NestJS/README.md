@@ -247,3 +247,9 @@ docker run -d --name travel-backend --env-file .env.production --add-host host.d
 코드 주석에는 작성자 이름을 반복해서 넣지 않습니다. 작성자와 변경 이력은 Git 기록을 기준으로 확인하며, 팀의 기능 담당자 명단이 필요하면 README에서 별도로 관리합니다.
 
 장소·경로의 추가 경계값 검사에서 발견한 입력·페이지 누락·요금·캐시 오류를 수정했다. [2026-10-26 심화 검증 보고서](docs/PLACE_ROUTING_TEST_REPORT_2026-10-26.md)에 재현 사례, 수정, 전체 130개 통과 결과와 운영 확인 범위를 기록했다.
+
+## PostGIS 장소 검색 (2026-10-29)
+
+경로 주변·거점 주변·시간대·도착지 일정의 DB 장소 조회는 `ST_DWithin`과 `ST_Distance`를 사용한다. PostGIS 확장, 위도·경도에서 생성되는 `places.location geography(Point,4326)` 컬럼, GiST 인덱스가 필요하다. 관리자용 [수동 적용 SQL](../../DataBase/migrations/20261029_add_places_postgis.sql)을 운영 DB(`travel_prod`)에서만 적용하며 TypeORM의 자동 DDL은 계속 비활성화한다. 사용자 로그에서 개발 DB 적용과 공간 좌표 1,001건/전체 1,002건을 확인했다. 운영 DB 적용은 별도다.
+
+이 폴더에서 `npm run build` 후 `npm run db:check:postgis -- production`로 실제 DB를 읽기 전용 점검한다. 기본 모드는 production이며 기존 환경 파일 규칙을 따른다. 이 PC에서는 운영 DB 접속도 타임아웃이 발생해 운영 DDL은 아직 적용하지 못했다. API 응답 필드는 유지하며 경로 거리는 PostGIS 측지거리(m)다. [검색 구조·검증 한계](src/route-explorer/README.md)를 참고한다.

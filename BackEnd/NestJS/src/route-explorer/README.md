@@ -40,15 +40,15 @@
 - 분류 조회 응답의 `contentTypes`는 이전 클라이언트 호환용 메타데이터이며 새 화면에서 상위 카테고리로 사용하지 않는다. `categories`의 `level`·`parentId`로 대·중·소 계층을 구성하고 DB 조회 실패 시 임의 상위 목록으로 대체하지 않는다.
 - `radiusMeters`: 기본 1,000, 허용 100~5,000m. `limit`: 경로별 기본 10개, 허용 1~20개.
 - `routes[]`: `preference`, 기존 [경로 응답](../routing-cache/README.md)의 `route`, `places`, `routeError`, `recommendationError`, `candidateLimitReached`.
-- 장소는 ID·이름·주소·좌표·유형·분류명과 `distanceToRouteMeters`를 포함한다. 경로 선까지의 **지역 평면 투영에 의한 근사 직선거리**이며, 실제 진입로·도보 접근 가능 여부·우회거리·우회시간을 계산한 결과가 아니다.
+- 장소는 ID·이름·주소·좌표·유형·분류명과 `distanceToRouteMeters`를 포함한다. PostGIS `geography`로 계산한 경로 선까지의 **최단 측지거리(m)**이며, 실제 진입로·도보 접근 가능 여부·우회거리·우회시간을 계산한 결과가 아니다.
 - 권장/최단 중 한쪽이 실패하면 다른 경로를 표시하고 실패 이유를 구분한다. 양쪽 모두 실패하면 HTTP 오류다. 추천 DB 조회만 실패하면 정상 경로는 보존하고 추천 오류를 표시한다.
 - DB 상세 분류를 못 읽으면 기본 카테고리는 제공하고 `warning`으로 알린다. 장소 테이블이 없거나 권한이 없으면 추천 오류가 표시된다. 수집 장소가 없을 때 임의 장소를 만들어 추천하지 않는다.
 
 ## 운영과 자원
 
-기존 `places`, `place_categories`, `ors_route_cache` 테이블을 재사용한다. 새 테이블·PostGIS·DDL 자동 실행·추가 컨테이너는 없다. 신규 DB 준비는 [장소 DDL](../../../../DataBase/place_schema_v2.sql)과 [ORS 캐시 안내](../routing-cache/README.md)를 따르며 기존 테이블이 있으면 생성 SQL을 재실행하지 않는다.
+기존 `places`, `place_categories`, `ors_route_cache` 테이블을 재사용한다. 장소 검색에는 PostGIS 확장과 `places.location geography(Point,4326)`, GiST 인덱스가 필요하다. 새 테이블·DDL 자동 실행·추가 컨테이너는 없다. 관리자 수동 적용 SQL은 [PostGIS 마이그레이션](../../../../DataBase/migrations/20261029_add_places_postgis.sql)이다. 개발 DB에는 사용자 실행 로그로 적용을 확인했으며 운영 DB는 적용 여부를 별도로 확인해야 한다. 신규 DB 준비는 [장소 DDL](../../../../DataBase/place_schema_v2.sql)과 [ORS 캐시 안내](../routing-cache/README.md)를 따르며 기존 테이블이 있으면 생성 SQL을 재실행하지 않는다.
 
-장소 후보는 유형/분류·좌표 경계상자로 제한하고 경로별 최대 2,000개를 처리한다. 넘으면 `candidateLimitReached=true`로 일부 후보만 비교했음을 화면에 알린다. 전체 전국 장소를 전부 비교한 최적 추천이라는 의미가 아니다. 경로 꼭짓점만 검사하지 않고 원래 선분의 중간까지 거리 계산하며, 격자 색인으로 인접 선분만 검사한다. 매우 긴/복잡한 경로는 추천 계산만 제한하고 경로 자체는 보존한다.
+경로 조회는 ORS 좌표 전체를 GeoJSON LineString으로 전달하고, 거점 조회는 경도·위도로 Point를 만든다. `ST_DWithin`으로 미터 반경 안의 활성 장소를 필터링하고 `ST_Distance`와 장소 ID로 정렬한 다음 LIMIT을 적용한다. 분류 재귀 조회와 콘텐츠 유형 필터는 유지한다. 경로 후보는 거리순 최대 2,000개이며 초과하면 `candidateLimitReached=true`다. 거점·시간대·도착지 일정도 같은 PostGIS 거점 조회를 사용한다. `location`은 기존 위도·경도에서 자동 생성되므로 수집 INSERT/UPDATE를 수정할 필요가 없다. 좌표 없는 장소는 제외한다. PostGIS 설정이나 권한 오류 시 기존 수식으로 조용히 대체하지 않고 추천 오류를 반환하며 정상 경로는 보존한다. GiST 인덱스 활용 여부는 데이터 규모와 실행 계획에 따라 달라진다.
 
 프론트는 기존 검색 API를 입력 후 600ms 대기하는 자동완성으로 사용한다. 한글 조합 중에는 요청하지 않으며 새 입력/화면 이탈 시 이전 응답을 폐기한다. 서버는 동일 검색을 1시간/최대 200개 메모리 캐시하고 진행 중인 같은 요청을 합친다. 동시 검색은 프로세스당 8개로 제한한다. 이 캐시는 재시작하면 사라지며 ORS 경로의 DB 캐시와 별개다. 서비스 전체의 분산 호출 한도를 보장하지 않으며, 외부 API의 한도 초과는 오류로 처리한다.
 
@@ -72,4 +72,10 @@ ORS 운영진은 [Standard 플랜의 상용 이용을 허용](https://ask.openro
 
 두 여행 화면의 커스터마이징에서는 이 API 계약과 백엔드 코드를 변경하지 않았다. 가짜 일정 대신 빈 초기 상태, 입력/결과 공유, 조건 변경 시 결과 폐기, 조회 취소·오류 안내를 추가했다. 실제 외부 검색 결과와 자동차/도보 권장·최단 응답을 기록한 뒤 격리된 테스트 API에서 재생해 화면을 확인했으며, 추천 장소는 명시적으로 표시한 검증용 데이터다. 운영 DB의 실제 TourAPI 추천과 배포 검증은 여전히 별도다. [화면 분석·검증 기록](../../../../FrontEnd/docs/TRIP_UI_CUSTOMIZATION.md)을 참고한다.
 
-구현 위치: `GeocodingProvider`(검색), `ExplorerRepository`(장소/분류 읽기), `RouteProximity`(거리), `ExplorerService`(조립), `ExplorerController`(HTTP), `ExplorerModule`(의존성 연결). 프론트는 `services/route-explorer.ts`(HTTP/검증), `services/trip-workspace.ts`·`TripWorkspaceContext.tsx`(공유 상태), `RouteExplorerPage.tsx`(조건), `TripResultsPage.tsx`(결과), `MapPlaceSearch.tsx`(검색), `RouteExplorerMap.tsx`(지도)다. 기존 일정 지도 소스는 유지하지만 새 주요 여행 화면에서는 사용하지 않는다.
+구현 위치: `GeocodingProvider`(검색), `ExplorerRepository`(장소/분류 읽기), `ExplorerService`(조립), `ExplorerController`(HTTP), `ExplorerModule`(의존성 연결). 프론트는 `services/route-explorer.ts`(HTTP/검증), `services/trip-workspace.ts`·`TripWorkspaceContext.tsx`(공유 상태), `RouteExplorerPage.tsx`(조건), `TripResultsPage.tsx`(결과), `MapPlaceSearch.tsx`(검색), `RouteExplorerMap.tsx`(지도)다. 기존 일정 지도 소스는 유지하지만 새 주요 여행 화면에서는 사용하지 않는다.
+
+## PostGIS 변경 검증 (2026-10-29)
+
+Node 22.23.3에서 Node 테스트 60개와 Jest 8개, 총 68개를 통과했다. 이 결과는 DB를 모킹한 SQL·반경·정렬·후보 제한·오류 계약 검사이며 실제 PostGIS 엔진의 공간 계산 성공을 의미하지 않는다. `RouteProximity`는 기존 독립 테스트용으로 남아 있으나 운영 추천 경로에서 호출하지 않는다.
+
+실제 DB 읽기 전용 검증은 이 폴더에서 `npm run build` 후 `npm run db:check:postgis -- production`로 실행한다. `.env.production`의 기존 환경 로더를 공유하며 확장·생성 컬럼·인덱스와 실제 거점/경로/분류 SQL을 READ ONLY 트랜잭션으로 확인한다. 좌표가 있는 활성 장소가 최소 1개 필요하다. 사용자 지시에 따라 운영 DB에만 반영한다. 수동 마이그레이션은 travel_prod 외 DB에서 오류를 내며 종료한다. 이번 PC에서는 운영 DB 접속이 타임아웃이어서 실제 SQL 검증과 EC2 배포는 완료하지 못했다.

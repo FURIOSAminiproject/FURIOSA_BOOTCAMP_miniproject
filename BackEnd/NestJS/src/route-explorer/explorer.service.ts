@@ -1,7 +1,6 @@
 import type { RoutePlanner } from '../routing-cache/routing.ports';
 import { RoutingError } from '../routing-cache/routing.errors';
 import type { ExplorerRepository } from './explorer.repository';
-import { RouteProximity } from './route-proximity';
 import { DestinationCurator } from './destination-curator';
 import { LiveLodgingProvider } from './live-lodging.provider';
 import {
@@ -176,25 +175,17 @@ export class ExplorerService {
         if (!request.contentTypeIds.length && !request.categoryIds.length)
           return result;
         try {
-          const proximity = new RouteProximity(
-            result.route.geometry.coordinates,
-            request.radiusMeters,
-          );
           const candidates = await this.places.candidates(
             request,
-            proximity.bounds,
+            result.route.geometry.coordinates,
           );
           result.candidateLimitReached = candidates.limited;
           result.places = candidates.places
-            .map((place) => ({
-              ...place,
-              distanceToRouteMeters: proximity.distance([
-                place.longitude,
-                place.latitude,
-              ]),
-            }))
             .filter(
-              (place) => place.distanceToRouteMeters <= request.radiusMeters,
+              (place) =>
+                Number.isFinite(place.distanceToRouteMeters) &&
+                place.distanceToRouteMeters >= 0 &&
+                place.distanceToRouteMeters <= request.radiusMeters,
             )
             .sort(
               (a, b) =>
