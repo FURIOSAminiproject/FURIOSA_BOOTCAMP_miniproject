@@ -417,20 +417,21 @@ def generate_slide_03():
         "  if (!draft.modeConfirmed || !validModes.includes(draft.mode || ''))",
         "    return 3;",
         "  ",
-        "  // 4단계: 여행 취향 및 테마 검증",
-        "  if (!draft.preferences?.trim()) return 4;",
-        "  return 5; // 5단계: 완료 -> 플래너 생성 가능",
+        "  // 4단계: 여행 취향 복수 선택 및 '선택 완료' 확정 검증",
+        "  if (!draft.preferences?.trim() || draft.preferencesConfirmed !== true)",
+        "    return 4;",
+        "  return 5; // 5단계: 모든 조건 완료 -> 플래너 생성",
         "}",
         "",
-        "// 2. Gemini 2.5 Flash 연동 및 JSON 스키마 강제 반환",
-        "const response = await gemini.ai.models.generateContent({",
-        "  model: 'gemini-2.5-flash',",
-        "  contents: JSON.stringify({ todayInKorea, step, message }),",
-        "  config: {",
-        "    systemInstruction: 'JSON 객체 형식으로만 응답 반환',",
-        "    responseMimeType: 'application/json'",
-        "  }",
-        "});"
+        "// 2. 취향 복수 누적(Set) 병합 및 '선택 완료' 즉시 확정",
+        "if (completingPreferences) {",
+        "  extracted.preferencesConfirmed = !!draft.preferences?.trim();",
+        "} else if (currentStep === 4 && message) {",
+        "  extracted.preferences = previous ? `${previous}, ${message}` : message;",
+        "  extracted.selectedCategoryIds = [",
+        "    ...new Set([...(draft.categoryIds || []), ...incoming.categoryIds])",
+        "  ];",
+        "}"
     ]
     render_code_window(ax, 3.0, 9.5, 47.0, 73.0, "planner-survey.ts & chat.service.ts", code, lang="typescript")
     
@@ -460,11 +461,11 @@ def generate_slide_03():
             ]
         },
         {
-            "title": "4. Gemini 2.5 Flash 구조화 JSON & 로컬 폴백",
+            "title": "4. 취향 다중 누적 및 확정 바이패스 (Multi-Preferences)",
             "accent": "#7C3AED", "border": "#DDD6FE", "bg": "#F5F3FF",
             "items": [
-                "responseMimeType='application/json'으로 스키마 강제 반환",
-                "외부 API 장애/지연 시 정규식 기반 fallbackPlanChat 즉시 대체"
+                "취향 복수 선택 시 Set 합집합으로 카테고리 ID 누적 병합",
+                "'선택 완료' 클릭 시 LLM 호출 우회해 지연 0ms로 즉시 확정"
             ]
         }
     ]
@@ -472,7 +473,7 @@ def generate_slide_03():
     
     render_slide_footer(
         ax, 3, 8,
-        "LLM의 환각을 배제하고 결정론적 상태 머신(surveyStep)과 구조화 JSON으로 대화형 일정을 안전하게 완성합니다."
+        "취향 다중 선택 누적과 명시적 '선택 완료' 상태 머신으로 사용자 의도를 정밀하게 반영합니다."
     )
     save_and_copy_slide(fig, "slide_03_backups_manifest.png")
 
@@ -553,7 +554,7 @@ def generate_slide_04():
             "title": "4. 도착지 거점 카테고리별 병렬 수집 (Spot Gathering)",
             "accent": "#D97706", "border": "#FDE68A", "bg": "#FFFBEB",
             "items": [
-                "관광·문화, 맛집, 숙박 4개 카테고리 동시 병렬 쿼리 수행",
+                "관광·맛집·숙박 병렬 쿼리 & 숙박(32)은 관광 필터와 분리 탐색",
                 "3km->5km, 10km->20km 자동 확장 및 도착시각 기반 큐레이션"
             ]
         }
