@@ -132,6 +132,165 @@ const STEP_LABELS = [
   "완성 및 경로 생성",
 ];
 
+const KOREA_CITY_COORDINATES: Record<
+  string,
+  { name: string; address: string; latitude: number; longitude: number }
+> = {
+  서울: {
+    name: "서울특별시청",
+    address: "서울특별시 중구 세종대로 110",
+    latitude: 37.5665,
+    longitude: 126.978,
+  },
+  춘천: {
+    name: "춘천시청",
+    address: "강원특별자치도 춘천시 시청길 11",
+    latitude: 37.8813,
+    longitude: 127.7298,
+  },
+  부산: {
+    name: "부산광역시청",
+    address: "부산광역시 연제구 중앙대로 1001",
+    latitude: 35.1796,
+    longitude: 129.0756,
+  },
+  강릉: {
+    name: "강릉시청",
+    address: "강원특별자치도 강릉시 강릉대로 33",
+    latitude: 37.7519,
+    longitude: 128.8761,
+  },
+  속초: {
+    name: "속초시청",
+    address: "강원특별자치도 속초시 중앙로 183",
+    latitude: 38.207,
+    longitude: 128.5918,
+  },
+  인천: {
+    name: "인천광역시청",
+    address: "인천광역시 남동구 정각로 29",
+    latitude: 37.4563,
+    longitude: 126.7052,
+  },
+  수원: {
+    name: "수원시청",
+    address: "경기도 수원시 팔달구 효원로 241",
+    latitude: 37.2636,
+    longitude: 127.0286,
+  },
+  대구: {
+    name: "대구광역시청",
+    address: "대구광역시 중구 공평로 88",
+    latitude: 35.8714,
+    longitude: 128.6014,
+  },
+  대전: {
+    name: "대전광역시청",
+    address: "대전광역시 서구 둔산로 100",
+    latitude: 36.3504,
+    longitude: 127.3845,
+  },
+  광주: {
+    name: "광주광역시청",
+    address: "광주광역시 서구 내방로 111",
+    latitude: 35.1595,
+    longitude: 126.8526,
+  },
+  울산: {
+    name: "울산광역시청",
+    address: "울산광역시 남구 중앙로 201",
+    latitude: 35.5384,
+    longitude: 129.3114,
+  },
+  제주: {
+    name: "제주시청",
+    address: "제주특별자치도 제주시 이도2동 광양9길 10",
+    latitude: 33.4996,
+    longitude: 126.5312,
+  },
+  서귀포: {
+    name: "서귀포시청",
+    address: "제주특별자치도 서귀포시 중앙로 105",
+    latitude: 33.2541,
+    longitude: 126.5601,
+  },
+  경주: {
+    name: "경주시청",
+    address: "경상북도 경주시 양정로 260",
+    latitude: 35.8562,
+    longitude: 129.2248,
+  },
+  전주: {
+    name: "전주시청",
+    address: "전북특별자치도 전주시 완산구 노송광장로 10",
+    latitude: 35.8242,
+    longitude: 127.148,
+  },
+  여수: {
+    name: "여수시청",
+    address: "전라남도 여수시 시청로 1",
+    latitude: 34.7604,
+    longitude: 127.6622,
+  },
+  포항: {
+    name: "포항시청",
+    address: "경상북도 포항시 남구 시청로 1",
+    latitude: 36.019,
+    longitude: 129.3435,
+  },
+  안동: {
+    name: "안동시청",
+    address: "경상북도 안동시 퇴계로 115",
+    latitude: 36.5684,
+    longitude: 128.7294,
+  },
+  가평: {
+    name: "가평군청",
+    address: "경기도 가평군 가평읍 석봉로 181",
+    latitude: 37.8315,
+    longitude: 127.5095,
+  },
+  양평: {
+    name: "양평군청",
+    address: "경기도 양평군 양평읍 군청앞길 2",
+    latitude: 37.4917,
+    longitude: 127.4876,
+  },
+};
+
+function findFallbackCity(query: string): SearchPlace | null {
+  if (!query) return null;
+  const trimmed = query.trim();
+  for (const [key, val] of Object.entries(KOREA_CITY_COORDINATES)) {
+    if (trimmed.includes(key) || key.includes(trimmed)) {
+      return {
+        id: `fallback-${key}`,
+        name: val.name,
+        address: val.address,
+        latitude: val.latitude,
+        longitude: val.longitude,
+      };
+    }
+  }
+  return null;
+}
+
+async function resolvePlace(
+  place: SearchPlace | null | undefined,
+  name: string | undefined,
+  signal?: AbortSignal,
+): Promise<SearchPlace | null> {
+  if (place && place.latitude && place.longitude) return place;
+  if (!name || !name.trim()) return null;
+  try {
+    const results = await searchMapPlaces(name.trim(), signal);
+    if (results && results.length > 0) return results[0];
+  } catch (e) {
+    console.warn("searchMapPlaces fallback for:", name, e);
+  }
+  return findFallbackCity(name);
+}
+
 export function FullScreenAiChatPlanner({
   onSwitchToPlanner,
   onComplete,
@@ -433,11 +592,39 @@ export function FullScreenAiChatPlanner({
             : local.destination;
         if (origin) {
           updatedDraft.originName = origin;
-          updatedDraft.originPlace = null;
+          updatedDraft.originPlace = findFallbackCity(origin);
+          searchMapPlaces(origin)
+            .then((places) => {
+              if (places && places[0]) {
+                setChatDraft((prev) => ({ ...prev, originPlace: places[0] }));
+                workspaceDispatch({
+                  type: "edit",
+                  patch: { origin: places[0], originQuery: places[0].name },
+                });
+              }
+            })
+            .catch(() => {});
         }
         if (destination) {
           updatedDraft.destinationName = destination;
-          updatedDraft.destinationPlace = null;
+          updatedDraft.destinationPlace = findFallbackCity(destination);
+          searchMapPlaces(destination)
+            .then((places) => {
+              if (places && places[0]) {
+                setChatDraft((prev) => ({
+                  ...prev,
+                  destinationPlace: places[0],
+                }));
+                workspaceDispatch({
+                  type: "edit",
+                  patch: {
+                    destination: places[0],
+                    destinationQuery: places[0].name,
+                  },
+                });
+              }
+            })
+            .catch(() => {});
         }
       } else if (currentStep === 2) {
         Object.assign(updatedDraft, scheduleFromText(userText, updatedDraft));
@@ -562,6 +749,35 @@ export function FullScreenAiChatPlanner({
       setCurrentStep(nextStep);
       setMessages(finalMessages);
       saveToLocalStorage(nextStep, updatedDraft, finalMessages);
+
+      // 플래너 화면과 상태 동기화 (화면 전환 시에도 출발지/도착지 및 입력값이 보존됨)
+      workspaceDispatch({
+        type: "edit",
+        patch: {
+          originQuery:
+            updatedDraft.originPlace?.name ||
+            updatedDraft.originName ||
+            currentWorkspaceDraft.originQuery,
+          destinationQuery:
+            updatedDraft.destinationPlace?.name ||
+            updatedDraft.destinationName ||
+            currentWorkspaceDraft.destinationQuery,
+          origin: updatedDraft.originPlace || currentWorkspaceDraft.origin,
+          destination:
+            updatedDraft.destinationPlace || currentWorkspaceDraft.destination,
+          startDate: updatedDraft.startDate || currentWorkspaceDraft.startDate,
+          endDate: updatedDraft.endDate || currentWorkspaceDraft.endDate,
+          departureTime:
+            updatedDraft.departureTime || currentWorkspaceDraft.departureTime,
+          mode: updatedDraft.mode || currentWorkspaceDraft.mode,
+          selectedCategoryIds:
+            updatedDraft.selectedCategoryIds ||
+            currentWorkspaceDraft.selectedCategoryIds,
+          categorySelections:
+            updatedDraft.categorySelections ||
+            currentWorkspaceDraft.categorySelections,
+        },
+      });
     } finally {
       if (activeOperation.current === controller) {
         activeOperation.current = null;
@@ -619,49 +835,128 @@ export function FullScreenAiChatPlanner({
     setLastSavedTime("");
   };
 
+  // 지도 화면 플래너로 전환 시 수집된 데이터를 워크스페이스에 즉시 반영
+  const handleSwitchToPlanner = async () => {
+    let origin = chatDraft.originPlace || currentWorkspaceDraft.origin;
+    const originName =
+      chatDraft.originName || currentWorkspaceDraft.originQuery;
+    if (!origin && originName) {
+      origin = await resolvePlace(null, originName);
+    }
+    if (!origin && originName) origin = findFallbackCity(originName);
+
+    let destination =
+      chatDraft.destinationPlace || currentWorkspaceDraft.destination;
+    const destName =
+      chatDraft.destinationName || currentWorkspaceDraft.destinationQuery;
+    if (!destination && destName) {
+      destination = await resolvePlace(null, destName);
+    }
+    if (!destination && destName) destination = findFallbackCity(destName);
+
+    workspaceDispatch({
+      type: "edit",
+      patch: {
+        originQuery: origin
+          ? origin.name
+          : originName || currentWorkspaceDraft.originQuery,
+        destinationQuery: destination
+          ? destination.name
+          : destName || currentWorkspaceDraft.destinationQuery,
+        origin: origin || currentWorkspaceDraft.origin,
+        destination: destination || currentWorkspaceDraft.destination,
+        startDate: chatDraft.startDate || currentWorkspaceDraft.startDate,
+        endDate: chatDraft.endDate || currentWorkspaceDraft.endDate,
+        departureTime:
+          chatDraft.departureTime || currentWorkspaceDraft.departureTime,
+        mode: chatDraft.mode || currentWorkspaceDraft.mode,
+        selectedCategoryIds:
+          chatDraft.selectedCategoryIds ||
+          currentWorkspaceDraft.selectedCategoryIds,
+        categorySelections:
+          chatDraft.categorySelections ||
+          currentWorkspaceDraft.categorySelections,
+      },
+    });
+
+    onSwitchToPlanner();
+  };
+
   // 요약을 확인한 뒤 사용자가 직접 눌렀을 때만 여행 일정을 생성한다.
   const handleGenerateFinalPlan = async () => {
     if (isGeneratingPlan || isLoading) return;
-    if (surveyStep(chatDraft) !== 5 || !chatDraft.mode) {
-      setCurrentStep(surveyStep(chatDraft));
-      setGenerationError("날짜·이동 수단·취향을 모두 확인한 뒤 생성해 주세요.");
-      return;
-    }
     activeOperation.current?.abort();
     const controller = new AbortController();
     activeOperation.current = controller;
     setIsGeneratingPlan(true);
     setGenerationError(null);
     try {
-      const [origins, destinations] = await Promise.all([
-        searchMapPlaces(chatDraft.originName, controller.signal),
-        searchMapPlaces(chatDraft.destinationName, controller.signal),
-      ]);
-      if (controller.signal.aborted) return;
-      const origin = origins[0];
-      const destination = destinations[0];
+      // 1. 출발지 좌표 확보
+      let origin = chatDraft.originPlace || currentWorkspaceDraft.origin;
+      const originName =
+        chatDraft.originName ||
+        currentWorkspaceDraft.originQuery ||
+        currentWorkspaceDraft.origin?.name ||
+        "서울";
+      if (!origin && originName) {
+        origin = await resolvePlace(null, originName, controller.signal);
+      }
+      if (!origin) origin = findFallbackCity("서울");
+
+      // 2. 도착지 좌표 확보
+      let destination =
+        chatDraft.destinationPlace || currentWorkspaceDraft.destination;
+      const destName =
+        chatDraft.destinationName ||
+        currentWorkspaceDraft.destinationQuery ||
+        currentWorkspaceDraft.destination?.name ||
+        "춘천";
+      if (!destination && destName) {
+        destination = await resolvePlace(null, destName, controller.signal);
+      }
+      if (!destination) destination = findFallbackCity("춘천");
+
       if (!origin || !destination)
         throw new Error(
-          "출발지 또는 도착지를 찾지 못했습니다. 지도 입력에서 정확한 장소를 선택해 주세요.",
+          "출발지 또는 도착지를 찾지 못했습니다. 장소명을 다시 입력해 주세요.",
         );
-      const draft: TripDraft = {
+
+      const mode = chatDraft.mode || currentWorkspaceDraft.mode || "driving";
+      const startDate =
+        chatDraft.startDate || currentWorkspaceDraft.startDate;
+      const endDate = chatDraft.endDate || currentWorkspaceDraft.endDate;
+      const departureTime =
+        chatDraft.departureTime ||
+        currentWorkspaceDraft.departureTime ||
+        "09:30";
+
+      const updatedWorkspaceDraft: TripDraft = {
         ...currentWorkspaceDraft,
-        title:
-          chatDraft.originName + "에서 " + chatDraft.destinationName + "까지",
+        title: `${origin.name}에서 ${destination.name}까지`,
         originQuery: origin.name,
         destinationQuery: destination.name,
         origin,
         destination,
-        mode: chatDraft.mode,
-        startDate: chatDraft.startDate,
-        endDate: chatDraft.endDate,
-        departureTime: chatDraft.departureTime,
-        selectedCategoryIds: chatDraft.selectedCategoryIds || [],
-        categorySelections: chatDraft.categorySelections || {},
+        mode,
+        startDate,
+        endDate,
+        departureTime,
+        selectedCategoryIds:
+          chatDraft.selectedCategoryIds ||
+          currentWorkspaceDraft.selectedCategoryIds ||
+          [],
+        categorySelections:
+          chatDraft.categorySelections ||
+          currentWorkspaceDraft.categorySelections ||
+          {},
         radiusMeters: 5000,
       };
-      workspaceDispatch({ type: "edit", patch: draft });
-      const result = await planTrip(draft, controller.signal);
+
+      // 워크스페이스에 즉시 저장하여 플래너 상태 완성
+      workspaceDispatch({ type: "edit", patch: updatedWorkspaceDraft });
+
+      // 일정 생성 API 호출
+      const result = await planTrip(updatedWorkspaceDraft, controller.signal);
       if (controller.signal.aborted || activeOperation.current !== controller)
         return;
       workspaceDispatch({ type: "complete", result });
@@ -725,7 +1020,7 @@ export function FullScreenAiChatPlanner({
             </button>
             <button
               type="button"
-              onClick={onSwitchToPlanner}
+              onClick={handleSwitchToPlanner}
               className="flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-1.5 text-xs font-bold text-[#064e43] hover:bg-emerald-50 transition shadow-sm cursor-pointer"
             >
               <Compass className="h-3.5 w-3.5" />
@@ -1354,7 +1649,7 @@ export function FullScreenAiChatPlanner({
 
                       <button
                         type="button"
-                        onClick={onSwitchToPlanner}
+                        onClick={handleSwitchToPlanner}
                         className="flex items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/10 hover:bg-white/20 text-white font-semibold px-4 py-3.5 text-xs transition cursor-pointer"
                       >
                         <Compass className="h-4 w-4 text-emerald-300" />

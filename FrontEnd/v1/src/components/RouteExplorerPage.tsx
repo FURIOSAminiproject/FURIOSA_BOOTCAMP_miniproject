@@ -254,18 +254,19 @@ export function TripRequestPage({
         <p className="text-xs text-stone-500 px-3 sm:px-0 text-center sm:text-right font-medium">
           {planMode === "planner"
             ? "지도에서 경로와 주변 명소를 직접 선택하고 설계합니다."
-            : "AI 여행 비서 길벗과 실시간으로 대화하며 추천 코스를 완성합니다."}
+            : "AI 여행 비서 I AM YOUR J와 실시간으로 대화하며 추천 코스를 완성합니다."}
         </p>
       </div>
 
-      {planMode === "chat" ? (
+      <div style={{ display: planMode === "chat" ? "block" : "none" }}>
         <FullScreenAiChatPlanner
           onSwitchToPlanner={() => setPlanMode("planner")}
           onComplete={onComplete}
         />
-      ) : (
-        <>
-          <header className="space-y-3">
+      </div>
+
+      <div style={{ display: planMode === "planner" ? "block" : "none" }}>
+        <header className="space-y-3">
             <p className="text-xs font-bold tracking-widest text-emerald-800">
               나의 동선에서 시작하는 국내 여행
             </p>
@@ -774,8 +775,7 @@ export function TripRequestPage({
             </aside>
           </div>
           <RouteAttribution />
-        </>
-      )}
+        </div>
       {modalCategory && (
         <CategoryDetailModal
           key={modalCategory.id}

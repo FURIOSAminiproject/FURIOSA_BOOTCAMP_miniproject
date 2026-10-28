@@ -151,16 +151,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <Compass className="w-5 h-5 text-emerald-300" />
               </div>
               <span className="text-sm font-semibold tracking-wide text-emerald-200 uppercase">
-                길벗 AI 여행사
+                I AM YOUR J
               </span>
             </div>
 
             <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight leading-snug mb-3">
-              출발부터 귀국까지,<br />
-              <span className="text-emerald-300">완벽한 맞춤 일정</span>
+              I AM YOUR J<br />
+              <span className="text-emerald-300">완벽한 맞춤 여정</span>
             </h2>
             <p className="text-xs sm:text-sm text-emerald-100/80 leading-relaxed mb-6">
-              구글 등 소셜 계정으로 1초 만에 로그인하고, 12인의 AI 멀티에이전트가 설계한 전용 일정을 영구 보관하세요.
+              I AM YOUR J 계정으로 로그인하고, AI가 설계한 최적 경로와 실시간 맞춤 타임라인을 영구 보관하세요.
             </p>
 
             {/* Checklist */}
@@ -198,7 +198,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-xl sm:text-2xl font-bold text-stone-900">
-                {mode === 'login' ? '로그인' : '회원가입'}
+                {mode === 'login' ? 'I AM YOUR J 로그인' : 'I AM YOUR J 회원가입'}
               </h3>
               {/* Tab Toggle */}
               <div className="flex bg-stone-200/80 p-0.5 rounded-xl text-xs font-medium text-stone-600">
@@ -225,7 +225,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <p className="text-xs sm:text-sm text-stone-500">
               {mode === 'login'
                 ? '소셜 계정 또는 이메일로 간편하게 시작하세요.'
-                : '길벗 AI 여행사 회원이 되어 나만의 일정을 관리해보세요.'}
+                : 'I AM YOUR J 회원이 되어 나만의 여행 계획을 완성해보세요.'}
             </p>
           </div>
 
@@ -433,7 +433,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     onChange={(e) => setAgreeTerms(e.target.checked)}
                     className="w-3.5 h-3.5 text-[#064e43] rounded-xs border-stone-300"
                   />
-                  <span>[필수] 길벗 AI 여행사 이용약관 및 개인정보 처리방침 동의</span>
+                  <span>[필수] I AM YOUR J 서비스 이용약관 및 개인정보 처리방침 동의</span>
                 </label>
               </div>
 
