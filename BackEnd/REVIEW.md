@@ -234,3 +234,7 @@ Node 22.23.3에서 npm test의 Node 60개/Jest 8개, 합계 68개를 통과했�
 ## 2026-10-29 추론의 CLI 전용 DB 드라이버 분리
 
 공통 운영 환경 적용 후 DB 접속에 성공했고 서비스 계정에 4개 모델 테이블 SELECT 권한을 부여했다. 다음 실패는 predict_weather.py 전역의 psycopg2 누락이었다. API는 SQLAlchemy/asyncpg로 복원한 파일을 받아 예측하므로 해당 import를 CLI 복원 함수 내부로 한정했다. CI와 Docker에 실제 추론 모듈 import 검사를 추가했다. 이 검사는 모델 정확도나 운영 추론 성공 검증과 구분한다.
+
+## 2026-10-29 모델 CSV 경로의 OS 호환 수정
+
+최신 운영 로그에서 강릉_강원특별자치도\\LSTM_TA_AVG.csv가 Linux에서 하나의 파일명으로 취급되어 FileNotFoundError가 발생한 것을 확인했다. 단일·다중 날짜 추론에 공통 경로 해석기를 적용하고 새 학습 메타데이터는 as_posix로 저장한다. CI와 Docker가 실제 포함된 CSV의 Windows 형식 상대 경로를 확인한다. 모델 아티팩트·DB 데이터는 변경하지 않았다.

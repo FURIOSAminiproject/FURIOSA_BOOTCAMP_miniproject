@@ -147,6 +147,16 @@ def restore_model_from_db(model_id, model_path):
             conn.close()
 
 
+def resolve_dataset_path(data_dir, relative_csv_path):
+    """Windows 학습 메타데이터의 역슬래시도 실행 OS의 경로로 해석한다."""
+    root = Path(data_dir).resolve()
+    relative_path = Path(str(relative_csv_path).replace("\\", "/"))
+    csv_path = (root / relative_path).resolve()
+    if not csv_path.is_relative_to(root):
+        raise ValueError("CSV 상대 경로가 데이터셋 디렉터리를 벗어납니다.")
+    return csv_path
+
+
 def predict_one_dataset(
     model_id,
     target_date,
@@ -192,7 +202,7 @@ def predict_one_dataset(
     # 2. 원본 CSV 로드
     # -----------------------------------------------------
 
-    csv_path = data_dir / metadata["relative_csv_path"]
+    csv_path = resolve_dataset_path(data_dir, metadata["relative_csv_path"])
 
     if not csv_path.exists():
         raise FileNotFoundError(
@@ -370,7 +380,7 @@ def predict_many_dates(
     y_scaler = metadata["y_scaler"]
     lookback = metadata["lookback"]
 
-    csv_path = data_dir / metadata["relative_csv_path"]
+    csv_path = resolve_dataset_path(data_dir, metadata["relative_csv_path"])
     if not csv_path.exists():
         raise FileNotFoundError(f"원본 CSV가 없습니다: {csv_path}")
 

@@ -84,3 +84,7 @@ DB_HOST/DB_USER/DB_PASSWORD/DB_NAME이 없으면 기동 시 키 이름만 알리
 ## 추론 모듈 의존성 검사 (2026-10-29)
 
 운영 DB 조회 권한을 부여한 뒤 추론 진입점의 전역 psycopg2 import에서 실패한 것을 확인했다. API는 이미 asyncpg로 모델 아티팩트를 읽으므로 psycopg2 import를 별도 CLI의 restore_model_from_db 함수 내부로 옮겼다. 동기 CLI 복원 기능을 사용할 때만 별도로 psycopg2가 필요하다. CI와 Docker 이미지 빌드에서 predict_many_dates를 실제 import해 DB 접속 없이 추론 런타임의 누락 의존성을 검사한다.
+
+## Windows 학습 경로의 Linux 호환 (2026-10-29)
+
+DB 메타데이터에 저장된 relative_csv_path가 Windows 역슬래시를 포함해 Linux에서 원본 CSV를 찾지 못한 오류를 수정했다. 단일·다중 날짜 추론 모두 경로 구분자를 정규화하고 데이터셋 루트 내부 파일만 허용한다. 향후 학습 메타데이터는 POSIX 상대 경로로 저장한다. 기존 DB 모델을 다시 학습하거나 수정할 필요가 없다. CI·Docker 빌드는 실제 포함된 CSV에 대해 Windows 형식의 경로 해석도 검사한다.

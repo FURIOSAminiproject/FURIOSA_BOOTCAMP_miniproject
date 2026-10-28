@@ -18,7 +18,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # 실제 추론 모듈의 런타임 의존성을 검사한다. DB 접속과 모델 추론은 실행하지 않는다.
-RUN python -c "import sys; sys.path.insert(0, 'app/routers/weather_prediction'); from predict_weather import predict_many_dates"
+RUN python -c "import sys; from pathlib import Path; sys.path.insert(0, 'app/routers/weather_prediction'); from predict_weather import predict_many_dates, resolve_dataset_path; root = Path('app/routers/weather_prediction/6_dataset'); sample = next(root.rglob('LSTM_*.csv')); relative = sample.relative_to(root).as_posix(); assert resolve_dataset_path(root, relative.replace('/', chr(92))) == sample.resolve()"
 
 # 비루트 사용자 설정 (보안 강화)
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
