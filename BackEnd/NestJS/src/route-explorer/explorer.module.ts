@@ -7,6 +7,7 @@ import { ExplorerController } from './explorer.controller';
 import { ExplorerRepository } from './explorer.repository';
 import { ExplorerService } from './explorer.service';
 import { GeocodingProvider } from './geocoding.provider';
+import { DestinationCurator } from './destination-curator';
 
 /** 기존 ORS 캐시/DB 연결을 공유하며 별도 서버나 스케줄러를 만들지 않는다. */
 @Module({
@@ -20,10 +21,18 @@ import { GeocodingProvider } from './geocoding.provider';
       inject: [DataSource],
     },
     {
+      provide: DestinationCurator,
+      useFactory: (db: DataSource) => new DestinationCurator(db),
+      inject: [DataSource],
+    },
+    {
       provide: ExplorerService,
-      useFactory: (planner: RoutingService, places: ExplorerRepository) =>
-        new ExplorerService(planner, places),
-      inject: [RoutingService, ExplorerRepository],
+      useFactory: (
+        planner: RoutingService,
+        places: ExplorerRepository,
+        curator: DestinationCurator,
+      ) => new ExplorerService(planner, places, curator),
+      inject: [RoutingService, ExplorerRepository, DestinationCurator],
     },
   ],
 })

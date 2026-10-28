@@ -43,6 +43,8 @@ export interface TripDraft {
   endDate: string;
   /** 출발 시각 (HH:mm, 예: 09:30) */
   departureTime: string;
+  /** 대화에서 확인한 여행 취향. AI 일정 큐레이터에 전달한다. */
+  travelStyle?: string;
   /** 점심 식사 시간대 추천 포함 여부 및 시각 */
   includeLunch: boolean;
   lunchTime: string;

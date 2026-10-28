@@ -379,9 +379,15 @@ export function FullScreenAiChatPlanner({
         setChatDraft(restoredDraft);
         if (parsed.messages.length)
           setMessages(
-            parsed.messages.map((message: ChatMessage) => ({
+            parsed.messages.map((message: ChatMessage, index: number) => ({
               ...message,
               isSummaryCard: restoredStep === 5 && message.isSummaryCard,
+              text:
+                index === parsed.messages.length - 1 &&
+                restoredStep === 2 &&
+                message.role === "model"
+                  ? surveyPrompt(2, restoredDraft)
+                  : message.text,
             })),
           );
         if (parsed.savedAt) setLastSavedTime(parsed.savedAt);
@@ -553,6 +559,8 @@ export function FullScreenAiChatPlanner({
     setIsLoading(true);
     let updatedDraft = { ...chatDraft };
     let extracted: Record<string, any> = {};
+    let agentReply = "";
+    let agentStep: number | null = null;
     try {
       try {
         const response = await fetch("/api/chat/planner", {
@@ -575,6 +583,9 @@ export function FullScreenAiChatPlanner({
           const data = await response.json();
           if (data.extracted && typeof data.extracted === "object")
             extracted = data.extracted;
+          if (typeof data.reply === "string" && data.reply.length <= 600)
+            agentReply = data.reply;
+          if (Number.isInteger(data.step)) agentStep = data.step;
         }
       } catch {
         /* 연결 실패 시 같은 단계의 로컬 파서로 진행한다. */
@@ -628,8 +639,32 @@ export function FullScreenAiChatPlanner({
         }
       } else if (currentStep === 2) {
         Object.assign(updatedDraft, scheduleFromText(userText, updatedDraft));
+        if (validDate(extracted.startDate))
+          updatedDraft.startDate = extracted.startDate;
+        const duration =
+          typeof extracted.durationLabel === "string"
+            ? extracted.durationLabel.match(/^(\d+)박 (\d{1,2})일$/)
+            : null;
+        if (
+          extracted.durationLabel === "당일치기" ||
+          (duration &&
+            Number(duration[2]) === Number(duration[1]) + 1 &&
+            Number(duration[2]) <= 10)
+        )
+          updatedDraft.durationLabel = extracted.durationLabel;
+        if (
+          typeof extracted.departureTime === "string" &&
+          /^([01]\d|2[0-3]):[0-5]\d$/.test(extracted.departureTime)
+        )
+          updatedDraft.departureTime = extracted.departureTime;
+        Object.assign(updatedDraft, scheduleFromText("", updatedDraft));
       } else if (currentStep === 3) {
-        const mode = explicitTravelMode(userText);
+        const mode =
+          explicitTravelMode(userText) ||
+          (extracted.modeConfirmed === true &&
+          (extracted.mode === "driving" || extracted.mode === "walking")
+            ? extracted.mode
+            : null);
         if (mode) {
           updatedDraft.mode = mode;
           updatedDraft.modeConfirmed = true;
@@ -731,8 +766,14 @@ export function FullScreenAiChatPlanner({
       const nextStep = surveyStep(updatedDraft);
       const reply =
         nextStep === 3 && currentStep === 3 && !explicitTravelMode(userText)
-          ? "이동 수단을 임의로 정하지 않았어요. 자동차 또는 도보를 직접 골라 주세요."
-          : surveyPrompt(nextStep, updatedDraft);
+          ? updatedDraft.modeConfirmed
+            ? agentStep === nextStep && agentReply
+              ? agentReply
+              : surveyPrompt(nextStep, updatedDraft)
+            : "이동 수단을 임의로 정하지 않았어요. 자동차 또는 도보를 직접 골라 주세요."
+          : agentStep === nextStep && agentReply
+            ? agentReply
+            : surveyPrompt(nextStep, updatedDraft);
       const aiMessage: ChatMessage = {
         id: "model-" + Date.now(),
         role: "model",
@@ -769,6 +810,8 @@ export function FullScreenAiChatPlanner({
           endDate: updatedDraft.endDate || currentWorkspaceDraft.endDate,
           departureTime:
             updatedDraft.departureTime || currentWorkspaceDraft.departureTime,
+          travelStyle:
+            updatedDraft.preferences || currentWorkspaceDraft.travelStyle,
           mode: updatedDraft.mode || currentWorkspaceDraft.mode,
           selectedCategoryIds:
             updatedDraft.selectedCategoryIds ||
@@ -869,6 +912,7 @@ export function FullScreenAiChatPlanner({
         endDate: chatDraft.endDate || currentWorkspaceDraft.endDate,
         departureTime:
           chatDraft.departureTime || currentWorkspaceDraft.departureTime,
+        travelStyle: chatDraft.preferences || currentWorkspaceDraft.travelStyle,
         mode: chatDraft.mode || currentWorkspaceDraft.mode,
         selectedCategoryIds:
           chatDraft.selectedCategoryIds ||
@@ -922,8 +966,7 @@ export function FullScreenAiChatPlanner({
         );
 
       const mode = chatDraft.mode || currentWorkspaceDraft.mode || "driving";
-      const startDate =
-        chatDraft.startDate || currentWorkspaceDraft.startDate;
+      const startDate = chatDraft.startDate || currentWorkspaceDraft.startDate;
       const endDate = chatDraft.endDate || currentWorkspaceDraft.endDate;
       const departureTime =
         chatDraft.departureTime ||
@@ -941,6 +984,7 @@ export function FullScreenAiChatPlanner({
         startDate,
         endDate,
         departureTime,
+        travelStyle: chatDraft.preferences,
         selectedCategoryIds:
           chatDraft.selectedCategoryIds ||
           currentWorkspaceDraft.selectedCategoryIds ||
@@ -1080,14 +1124,7 @@ export function FullScreenAiChatPlanner({
                       : "bg-white text-stone-800 border border-stone-200/90 rounded-bl-xs"
                   }`}
                 >
-                  <div>
-                    {msg.role === "model" &&
-                    msg.step === 2 &&
-                    currentStep === 2 &&
-                    index === messages.length - 1
-                      ? surveyPrompt(2, chatDraft)
-                      : msg.text}
-                  </div>
+                  <div>{msg.text}</div>
 
                   {/* 챗봇 대화 버블 안의 인터랙티브 선택 버튼들 */}
                   {isLatestQuestion(msg, index, messages.length) && (

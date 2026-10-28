@@ -30,6 +30,7 @@ export function DestinationItineraryView({
             ? "당일 여행"
             : `${itinerary.days.length - 1}박 ${itinerary.days.length}일`}{" "}
           · 도착해서 즐기는 여행
+          {itinerary.curationSource === "ai" && " · AI 취향 큐레이션"}
         </p>
         <h2 className="mt-2 text-xl sm:text-2xl font-bold">
           도착 후, 하루하루의 여행 계획

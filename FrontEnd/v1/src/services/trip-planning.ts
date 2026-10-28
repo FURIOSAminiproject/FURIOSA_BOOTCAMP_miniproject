@@ -76,6 +76,7 @@ export async function planTrip(
         startDate: draft.startDate,
         endDate: draft.endDate,
         departureTime: draft.departureTime,
+        travelStyle: draft.travelStyle,
         categoryIds: input.categoryIds,
         includeLunch: draft.includeLunch,
         includeDinner: draft.includeDinner,

@@ -1,11 +1,13 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { GoogleGenAI } from '@google/genai';
+import { configuredGeminiClient } from './gemini-client';
 import {
   explicitTravelMode,
   scheduleFromText,
   surveyStep,
   surveyPrompt,
+  validDate,
 } from './planner-survey';
 
 export interface ChatMessageDto {
@@ -87,46 +89,7 @@ export class ChatService {
     ai: GoogleGenAI;
     modelName: string;
   } | null> {
-    let apiKey = process.env.GEMINI_API_KEY;
-    let rawModel = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
-
-    if (this.dataSource) {
-      try {
-        let rows: any[] | null = null;
-        try {
-          rows = await this.dataSource.query(
-            `SELECT model_name, api_key FROM app_model_config WHERE is_active = true AND provider = 'google' ORDER BY id DESC LIMIT 1`,
-          );
-        } catch {
-          rows = null;
-        }
-
-        if (!rows || rows.length === 0) {
-          try {
-            rows = await this.dataSource.query(
-              `SELECT model_name, api_key FROM ai_model_config WHERE is_active = true AND provider = 'google' ORDER BY id DESC LIMIT 1`,
-            );
-          } catch {
-            rows = null;
-          }
-        }
-
-        if (rows && rows.length > 0) {
-          if (rows[0].api_key) apiKey = String(rows[0].api_key).trim();
-          if (rows[0].model_name) rawModel = String(rows[0].model_name).trim();
-        }
-      } catch (dbErr: any) {
-        this.logger.warn(`DB 모델 설정 조회 실패: ${dbErr.message}`);
-      }
-    }
-
-    if (!apiKey) {
-      return null;
-    }
-
-    const modelName = rawModel.toLowerCase().replace(/\s+/g, '-');
-    const ai = new GoogleGenAI({ apiKey, httpOptions: { timeout: 30000 } });
-    return { ai, modelName };
+    return configuredGeminiClient(this.dataSource);
   }
 
   async chat(dto: ChatRequestDto): Promise<ChatResponseDto> {
@@ -247,22 +210,14 @@ ${contextLines.length ? `\n[현재 생성된 여행 계획 정보]\n${contextLin
   async planChat(dto: PlannerChatRequestDto): Promise<PlannerChatResponseDto> {
     const message =
       typeof dto?.message === 'string' ? dto.message.trim().slice(0, 5000) : '';
-    const currentStep =
-      Number.isInteger(dto?.currentStep) &&
-      dto.currentStep! >= 1 &&
-      dto.currentStep! <= 5
-        ? dto.currentStep!
-        : 1;
     const draft = { ...dto?.currentDraft };
-    const result =
-      currentStep === 1
-        ? await this.generatePlanChat({
-            ...dto,
-            message,
-            currentStep,
-            currentDraft: draft,
-          })
-        : this.fallbackPlanChat(message, draft, currentStep);
+    const currentStep = surveyStep(draft);
+    const result = await this.generatePlanChat({
+      ...dto,
+      message,
+      currentStep,
+      currentDraft: draft,
+    });
     let extracted: PlannerChatResponseDto['extracted'] = {
       ...draft,
       mode:
@@ -281,22 +236,65 @@ ${contextLines.length ? `\n[현재 생성된 여행 계획 정보]\n${contextLin
       }
     } else if (currentStep === 2) {
       extracted = scheduleFromText(message, extracted) as typeof extracted;
+      if (result.modelUsed !== 'local-nlp-fallback') {
+        for (const key of [
+          'startDate',
+          'durationLabel',
+          'departureTime',
+        ] as const) {
+          const value = result.extracted[key];
+          if (typeof value === 'string' && value.trim()) extracted[key] = value;
+        }
+        extracted = scheduleFromText('', extracted) as typeof extracted;
+      }
     } else if (currentStep === 3) {
-      const mode = explicitTravelMode(message);
+      const directMode = explicitTravelMode(message);
+      const hasTransportChoice =
+        /차|운전|걸|걷|도보|뚜벅|렌트|드라이브|walking|driving/i.test(
+          message,
+        ) &&
+        !/아무거나|상관없|알아서|대중교통|버스|기차|지하철|택시|비행기/.test(
+          message,
+        );
+      const mode =
+        directMode ||
+        (result.modelUsed !== 'local-nlp-fallback' &&
+        hasTransportChoice &&
+        result.extracted.modeConfirmed === true
+          ? result.extracted.mode
+          : null);
       if (mode) {
         extracted.mode = mode;
         extracted.modeConfirmed = true;
       }
     } else if (currentStep === 4 && message) {
       extracted.preferences = message;
-      Object.assign(extracted, this.extractCategories(message));
+      Object.assign(
+        extracted,
+        result.modelUsed !== 'local-nlp-fallback' &&
+          result.extracted.selectedCategoryIds
+          ? {
+              selectedCategoryIds: result.extracted.selectedCategoryIds,
+              categorySelections: result.extracted.categorySelections,
+              categoryNames: result.extracted.categoryNames,
+            }
+          : this.extractCategories(message),
+      );
     }
     const step = surveyStep(extracted);
+    const acknowledgment =
+      result.modelUsed !== 'local-nlp-fallback' &&
+      typeof result.reply === 'string' &&
+      result.reply.length <= 160 &&
+      !/[\r\n]/.test(result.reply)
+        ? result.reply.trim()
+        : '';
+    const prompt =
+      step === 3 && currentStep === 3 && !extracted.modeConfirmed
+        ? `자동차 또는 도보 중 하나를 직접 선택해 주세요. ${surveyPrompt(3)}`
+        : surveyPrompt(step, extracted);
     return {
-      reply:
-        step === 3 && currentStep === 3 && !explicitTravelMode(message)
-          ? `자동차 또는 도보 중 하나를 직접 선택해 주세요. ${surveyPrompt(3)}`
-          : surveyPrompt(step, extracted),
+      reply: acknowledgment ? `${acknowledgment}\n\n${prompt}` : prompt,
       step,
       extracted,
       isReady: step === 5,
@@ -304,39 +302,130 @@ ${contextLines.length ? `\n[현재 생성된 여행 계획 정보]\n${contextLin
     };
   }
 
-  /** 장소 표현만 AI로 해석하고 단계 결정은 planChat에서 검사한다. */
+  /** 각 단계의 자연어와 취향을 AI가 해석한다. 완료 여부는 검증된 초안으로 계산한다. */
   private async generatePlanChat(
     dto: PlannerChatRequestDto,
   ): Promise<PlannerChatResponseDto> {
     const fallback = this.fallbackPlanChat(
       dto.message || '',
       dto.currentDraft || {},
-      1,
+      dto.currentStep || 1,
     );
+    if (!dto.message?.trim() || dto.currentStep === 5) return fallback;
     const gemini = await this.getGeminiClient();
     if (!gemini) return fallback;
     try {
+      const today = new Date(Date.now() + 9 * 3600000)
+        .toISOString()
+        .slice(0, 10);
       const response = await gemini.ai.models.generateContent({
         model: gemini.modelName,
         contents: JSON.stringify({
+          todayInKorea: today,
+          step: dto.currentStep,
           message: dto.message,
-          previous: dto.currentDraft,
+          previous: {
+            originName: dto.currentDraft?.originName,
+            destinationName: dto.currentDraft?.destinationName,
+            startDate: dto.currentDraft?.startDate,
+            durationLabel: dto.currentDraft?.durationLabel,
+            departureTime: dto.currentDraft?.departureTime,
+            mode: dto.currentDraft?.mode,
+            preferences: dto.currentDraft?.preferences,
+          },
+          history: dto.history
+            ?.slice(-6)
+            .filter((item) => item?.role === 'user' || item?.role === 'model')
+            .map((item) => ({
+              role: item.role,
+              content: String(item.content).slice(0, 500),
+            })),
         }),
         config: {
           systemInstruction:
-            '출발지와 도착지의 실제 지명만 추출하세요. JSON {originName: string|null, destinationName: string|null}으로 답하세요. 모르는 지명은 만들지 마세요.',
+            '당신은 국내 여행 상담 에이전트입니다. 최신 사용자 답변을 기존 대화와 초안에 비추어 해석하세요. 현재 step의 정보만 새로 추출하고, 답변에 없는 날짜·기간·시각·교통수단을 추측해 채우지 마세요. 출발지/도착지는 실제 지명만 추출하세요. step 2: startDate는 한국 달력 YYYY-MM-DD, durationDays는 1~10 정수, departureTime은 24시간제 HH:mm로 정규화하세요. 말한 항목만 출력하세요. step 3: 사용자가 자동차/도보를 명확하게 선택한 경우에만 mode를 driving/walking으로 출력하세요. 모호한 답변 또는 대중교통은 null입니다. step 4: 취향에 맞는 categoryThemes를 cafe, food, nature, culture, activity 중 1~4개 고르세요. acknowledgment는 사용자의 답변을 이해했다는 짧은 한 문장만 쓰고 질문이나 확인되지 않은 사실은 넣지 마세요. JSON 객체 {originName?, destinationName?, startDate?, durationDays?, departureTime?, mode?, categoryThemes?, acknowledgment?}만 반환하세요.',
           responseMimeType: 'application/json',
         },
       });
       const parsed: unknown = JSON.parse(response.text || '{}');
-      if (parsed && typeof parsed === 'object') {
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+        return fallback;
+      const fields = parsed as Record<string, unknown>;
+      if (dto.currentStep === 1) {
         for (const key of ['originName', 'destinationName'] as const) {
-          const value = (parsed as Record<string, unknown>)[key];
+          const value = fields[key];
           if (typeof value === 'string' && value.trim() && value.length <= 100)
             fallback.extracted[key] = value.trim();
         }
+      } else if (dto.currentStep === 2) {
+        const withoutDuration = (dto.message || '').replace(
+          /\d+\s*박\s*\d+\s*일/g,
+          '',
+        );
+        const mentionsDate =
+          /\d{4}-\d{2}-\d{2}|\d{1,2}월\s*\d{1,2}일|\d{1,2}일|오늘|내일|모레|이번\s*주|다음\s*주|주말|[월화수목금토일]요일/.test(
+            withoutDuration,
+          );
+        if (
+          mentionsDate &&
+          typeof fields.startDate === 'string' &&
+          validDate(fields.startDate)
+        )
+          fallback.extracted.startDate = fields.startDate;
+        if (
+          /박|당일|하루|이틀|사흘|주말|며칠/.test(dto.message || '') &&
+          typeof fields.durationDays === 'number' &&
+          Number.isInteger(fields.durationDays) &&
+          fields.durationDays >= 1 &&
+          fields.durationDays <= 10
+        )
+          fallback.extracted.durationLabel =
+            fields.durationDays === 1
+              ? '당일치기'
+              : `${fields.durationDays - 1}박 ${fields.durationDays}일`;
+        if (
+          /시|:\d{2}|오전|오후|새벽|아침|저녁/.test(dto.message || '') &&
+          typeof fields.departureTime === 'string' &&
+          /^([01]\d|2[0-3]):[0-5]\d$/.test(fields.departureTime)
+        )
+          fallback.extracted.departureTime = fields.departureTime;
+      } else if (dto.currentStep === 3) {
+        if (fields.mode === 'driving' || fields.mode === 'walking') {
+          fallback.extracted.mode = fields.mode;
+          fallback.extracted.modeConfirmed = true;
+        }
+      } else if (
+        dto.currentStep === 4 &&
+        Array.isArray(fields.categoryThemes)
+      ) {
+        const labels: Record<string, string> = {
+          cafe: '카페',
+          food: '한식 맛집',
+          nature: '자연',
+          culture: '문화',
+          activity: '체험',
+        };
+        const themes = fields.categoryThemes
+          .filter((value): value is string => typeof value === 'string')
+          .filter((value) => value in labels)
+          .slice(0, 4);
+        if (themes.length)
+          Object.assign(
+            fallback.extracted,
+            this.extractCategories(
+              themes.map((value) => labels[value]).join(' '),
+            ),
+          );
       }
-      return { ...fallback, modelUsed: gemini.modelName };
+      const acknowledgment = fields.acknowledgment;
+      return {
+        ...fallback,
+        reply:
+          typeof acknowledgment === 'string' && acknowledgment.length <= 160
+            ? acknowledgment.trim()
+            : '',
+        modelUsed: gemini.modelName,
+      };
     } catch {
       return fallback;
     }

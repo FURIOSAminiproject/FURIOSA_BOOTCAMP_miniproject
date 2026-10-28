@@ -26,4 +26,5 @@ export interface DestinationItinerary {
   }[];
   stayOptions: DestinationPlace[];
   warnings: string[];
+  curationSource: "ai" | "local";
 }

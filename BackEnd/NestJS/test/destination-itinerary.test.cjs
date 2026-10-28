@@ -2,11 +2,15 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const {
   buildDestinationItinerary,
+  parseCuratedDays,
 } = require('../dist/route-explorer/destination-itinerary');
 const {
   destinationItineraryRequest,
 } = require('../dist/route-explorer/explorer.validation');
 const { ExplorerService } = require('../dist/route-explorer/explorer.service');
+const {
+  DestinationCurator,
+} = require('../dist/route-explorer/destination-curator');
 const request = {
   mode: 'driving',
   preference: 'recommended',
@@ -111,8 +115,184 @@ test('meal switches and configured times are respected', () => {
   }
 });
 
+test('curator can prioritize real candidates while invalid IDs and arrival limits stay guarded', () => {
+  const result = buildDestinationItinerary(
+    request,
+    { durationSeconds: 5400 },
+    candidates,
+    [],
+    [
+      {
+        date: '2026-10-28',
+        title: '호수와 미식의 첫날',
+        placeIds: ['invented-place', 'sight7', 'food7'],
+      },
+    ],
+  );
+  assert.equal(result.days[0].title, '호수와 미식의 첫날');
+  assert.ok(result.days[0].visits.some((visit) => visit.place.id === 'sight7'));
+  assert.ok(
+    result.days[0].visits.every((visit) => visit.place.id !== 'invented-place'),
+  );
+  assert.ok(
+    result.days[0].visits.every((visit) => minutes(visit.time) >= 11 * 60),
+  );
+  const ids = result.days.flatMap((day) =>
+    day.visits.map((visit) => visit.place.id),
+  );
+  assert.equal(new Set(ids).size, ids.length);
+});
+
+test('curator output accepts only itinerary dates and registered place IDs', () => {
+  const choices = parseCuratedDays(
+    [
+      {
+        date: '2026-10-28',
+        title: '호수 여행',
+        placeIds: ['sight7', 'fake', 'sight7'],
+      },
+      { date: '2026-10-28', title: '중복', placeIds: ['food1'] },
+      { date: '2026-11-10', title: '범위 밖', placeIds: ['sight0'] },
+    ],
+    request,
+    candidates,
+  );
+  assert.deepEqual(choices, [
+    { date: '2026-10-28', title: '호수 여행', placeIds: ['sight7'] },
+  ]);
+});
+
+test('AI visit times are shifted after arrival and cannot overlap or repeat a place', () => {
+  const result = buildDestinationItinerary(
+    request,
+    { durationSeconds: 5400 },
+    candidates,
+    [],
+    [
+      {
+        date: '2026-10-28',
+        placeIds: [],
+        visits: [
+          {
+            placeId: 'sight0',
+            kind: 'sightseeing',
+            time: '09:00',
+            durationMinutes: 90,
+          },
+          {
+            placeId: 'food0',
+            kind: 'lunch',
+            time: '10:00',
+            durationMinutes: 60,
+          },
+          {
+            placeId: 'sight0',
+            kind: 'sightseeing',
+            time: '15:00',
+            durationMinutes: 60,
+          },
+        ],
+      },
+    ],
+  );
+  const visits = result.days[0].visits;
+  assert.equal(visits.length, 2);
+  assert.ok(minutes(visits[0].time) >= 11 * 60 + 30);
+  assert.ok(
+    minutes(visits[1].time) >=
+      minutes(visits[0].endTime) + visits[1].travelMinutes,
+  );
+});
+
+test('Gemini curator choices affect the real candidate itinerary', async () => {
+  const curator = new DestinationCurator();
+  let sent;
+  curator.getGeminiClient = async () => ({
+    modelName: 'stub-gemini',
+    ai: {
+      models: {
+        generateContent: async (input) => {
+          sent = JSON.parse(input.contents);
+          return {
+            text: JSON.stringify({
+              days: [
+                {
+                  date: '2026-10-28',
+                  title: '호수와 미식',
+                  placeIds: ['sight7', 'food7', 'fake'],
+                  visits: [
+                    {
+                      placeId: 'sight7',
+                      kind: 'sightseeing',
+                      time: '11:45',
+                      durationMinutes: 75,
+                    },
+                    {
+                      placeId: 'food7',
+                      kind: 'lunch',
+                      time: '13:30',
+                      durationMinutes: 60,
+                    },
+                    {
+                      placeId: 'fake',
+                      kind: 'cafe',
+                      time: '16:00',
+                      durationMinutes: 45,
+                    },
+                  ],
+                },
+                {
+                  date: '2026-10-29',
+                  title: '문화 산책',
+                  placeIds: ['sight6', 'food6'],
+                  visits: [
+                    {
+                      placeId: 'sight6',
+                      kind: 'sightseeing',
+                      time: '09:45',
+                      durationMinutes: 120,
+                    },
+                  ],
+                },
+              ],
+            }),
+          };
+        },
+      },
+    },
+  });
+  const choices = await curator.choose(
+    { ...request, travelStyle: '호수와 문화가 좋아요' },
+    5400,
+    candidates,
+  );
+  const itinerary = buildDestinationItinerary(
+    request,
+    { durationSeconds: 5400 },
+    candidates,
+    [],
+    choices,
+  );
+  assert.equal(itinerary.curationSource, 'ai');
+  assert.equal(itinerary.days[0].title, '호수와 미식');
+  assert.ok(
+    itinerary.days[0].visits.some((visit) => visit.place.id === 'sight7'),
+  );
+  assert.equal(itinerary.days[0].visits[0].time, '11:45');
+  assert.equal(itinerary.days[0].visits[0].durationMinutes, 75);
+  assert.equal(itinerary.days[1].visits[0].time, '09:45');
+  assert.ok(!choices.some((day) => day.placeIds.includes('fake')));
+  assert.equal(sent.travelStyle, '호수와 문화가 좋아요');
+  assert.ok(sent.places.every((place) => !('latitude' in place)));
+});
+
 test('destination validation rejects invalid dates, overlong trips and unsupported transport', () => {
   assert.equal(destinationItineraryRequest(request).endDate, '2026-10-29');
+  assert.equal(
+    destinationItineraryRequest({ ...request, travelStyle: '호수 산책' })
+      .travelStyle,
+    '호수 산책',
+  );
   for (const patch of [
     { mode: 'transit' },
     { startDate: '2026-02-30' },
@@ -120,6 +300,7 @@ test('destination validation rejects invalid dates, overlong trips and unsupport
     { endDate: '2026-11-10' },
     { departureTime: '24:30' },
     { includeLunch: 'false' },
+    { travelStyle: 'x'.repeat(501) },
   ])
     assert.throws(() => destinationItineraryRequest({ ...request, ...patch }));
 });

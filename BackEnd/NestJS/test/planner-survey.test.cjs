@@ -149,3 +149,88 @@ test('overnight dates are stable across time zones and split answers', () => {
     else process.env.TZ = original;
   }
 });
+
+test('AI interprets natural schedule wording and keeps missing fields guarded', async () => {
+  const chat = new ChatService();
+  let sent;
+  chat.getGeminiClient = async () => ({
+    modelName: 'stub-gemini',
+    ai: {
+      models: {
+        generateContent: async (input) => {
+          sent = JSON.parse(input.contents);
+          return {
+            text: JSON.stringify({
+              startDate: '2026-10-31',
+              durationDays: 3,
+              departureTime: '07:00',
+              acknowledgment: '여유 있는 주말 여행이군요.',
+            }),
+          };
+        },
+      },
+    },
+  });
+  const result = await chat.planChat({
+    currentStep: 2,
+    message: '이번 주말 2박 3일, 아침 일곱시쯤 떠날래',
+    currentDraft: { originName: '서울', destinationName: '춘천' },
+    history: [{ role: 'user', content: '서울에서 춘천으로' }],
+  });
+  assert.equal(result.modelUsed, 'stub-gemini');
+  assert.equal(result.extracted.startDate, '2026-10-31');
+  assert.equal(result.extracted.endDate, '2026-11-02');
+  assert.equal(result.extracted.departureTime, '07:00');
+  assert.equal(result.step, 3);
+  assert.match(result.reply, /여유 있는 주말 여행/);
+  assert.equal(sent.history.length, 1);
+  assert.equal(sent.step, 2);
+});
+
+test('AI can understand an explicit walking synonym but cannot invent a transport choice', async () => {
+  const chat = new ChatService();
+  chat.getGeminiClient = async () => ({
+    modelName: 'stub-gemini',
+    ai: {
+      models: { generateContent: async () => ({ text: '{"mode":"walking"}' }) },
+    },
+  });
+  const walk = await chat.planChat({
+    currentStep: 3,
+    message: '뚜벅이로 갈래',
+    currentDraft: schedule,
+  });
+  assert.equal(walk.extracted.mode, 'walking');
+  assert.equal(walk.step, 4);
+  const vague = await chat.planChat({
+    currentStep: 3,
+    message: '아무거나',
+    currentDraft: schedule,
+  });
+  assert.equal(vague.step, 3);
+  assert.notEqual(vague.extracted.modeConfirmed, true);
+});
+
+test('AI selects preference themes rather than fixed keyword defaults', async () => {
+  const chat = new ChatService();
+  chat.getGeminiClient = async () => ({
+    modelName: 'stub-gemini',
+    ai: {
+      models: {
+        generateContent: async () => ({
+          text: '{"categoryThemes":["culture","nature"]}',
+        }),
+      },
+    },
+  });
+  const result = await chat.planChat({
+    currentStep: 4,
+    message: '조용한 시간을 보내고 싶어요',
+    currentDraft: { ...schedule, mode: 'walking', modeConfirmed: true },
+  });
+  assert.equal(result.step, 5);
+  assert.deepEqual(result.extracted.selectedCategoryIds, [
+    '6486b07a-4e08-4f42-9942-eec0b631592b',
+    '1cd55dd3-084a-4f30-aa37-b9f772807d90',
+  ]);
+});

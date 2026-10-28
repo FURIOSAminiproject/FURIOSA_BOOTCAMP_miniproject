@@ -429,6 +429,7 @@ export function parseDestinationItinerary(data: unknown): DestinationItinerary {
     days,
     stayOptions: data.stayOptions.map(place),
     warnings: data.warnings,
+    curationSource: data.curationSource === "ai" ? "ai" : "local",
   } as DestinationItinerary;
 }
 
@@ -440,6 +441,7 @@ export async function getDestinationItinerary(
     startDate: string;
     endDate: string;
     departureTime: string;
+    travelStyle?: string;
     categoryIds: string[];
     includeLunch?: boolean;
     includeDinner?: boolean;

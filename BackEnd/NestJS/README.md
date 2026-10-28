@@ -8,12 +8,15 @@ NestJS 12, TypeScript 6, TypeORM, PostgreSQL 드라이버와 `@google/genai`를 
 
 날짜 없이 기간·시각만 답하면 서버는 두 값을 유지하고 빠진 출발 날짜만 묻습니다. 이후 날짜 답변과 합쳐 이동 수단 단계로 진행합니다.
 
+모델이 설정되어 있으면 같은 Gemini 설정으로 각 대화 단계의 자연어와 취향 테마를 해석합니다. 최근 메시지 최대 6개와 필요한 여행 초안 필드만 전송하며 좌표·장소 객체는 대화 요청에서 제외합니다. AI의 짧은 이해 문장 뒤에 현재 단계에서 빠진 질문을 서버가 붙입니다. 날짜·기간·시각의 형식, 명시적인 자동차/도보 선택과 단계 완료는 서버가 다시 확인합니다. 모델이 없거나 응답이 잘못되면 기존 로컬 파서로 진행합니다.
+
 `POST /api/travel/destination-itinerary`는 기존 ORS 도착 예상시간과 도착지 주변 TourAPI DB 후보로 **도착 후 날짜별 여행 일정**을 만듭니다. 필수 입력은 `mode`, 직접 좌표 두 개의 `points`, `startDate`, `endDate`, `departureTime`이며 `preference`, `categoryIds`, `includeLunch`, `includeDinner`, `lunchTime`, `dinnerTime`은 선택입니다. 기간은 1~10일입니다. `days`, `arrivalDate/arrivalTime`, `stayOptions`, `warnings`를 반환합니다.
 
 - 관광·문화, 식당·카페, 선택 취향, 숙박을 따로 조회하며 같은 장소 ID를 여러 날 반복 배정하지 않습니다.
 - 첫날 도착 이후와 둘째 날 이후를 구분하고 식사·관광·휴식 체류 시간을 배정합니다. 늦은 도착을 첫날 오전 일정으로 표시하지 않습니다.
 - 자동차는 도착지 10km, 도보는 3km에서 찾고 후보가 없으면 각각 20km/5km까지 확장합니다. 도보 일정에서 약 45분보다 먼 다음 장소는 배정하지 않습니다.
 - 장소 부족·일부 DB 조회 실패는 빈 시간과 안내로 남깁니다. 가상의 명소·식당·숙소를 만들지 않습니다. 숙박 후보는 예약 결과가 아닙니다.
+- `travelStyle`(최대 500자)이 있으면 AI 일정 큐레이터가 등록 후보의 이름·분류·ID와 취향·도착 시각을 보고 날짜별 방문 순서, 시각, 체류 시간을 제안합니다. 서버는 실제 후보 ID, 도착 이후, 이동 여유, 중복, 식사 설정과 20시 종료를 검증한 뒤 적용합니다. 모델을 사용할 수 없거나 유효한 제안이 없으면 기존 거리 기반 일정으로 이어집니다. 응답의 `curationSource`는 `ai` 또는 `local`입니다.
 - 장소 사이 시간은 직선거리 기반 추정입니다. 영업시간·휴무·실제 도로 이동시간·귀가 경로는 별도 확인 대상입니다. 새 테이블·자동 DDL·FastAPI 호출은 추가하지 않습니다.
 
 구현은 `src/chat/planner-survey.ts`, `src/route-explorer/destination-itinerary.ts`, `ExplorerService.destinationItinerary`를 참고합니다. 기존 `/api/travel/plans`의 B01~B03 문제를 모두 수정한 기능은 아닙니다.

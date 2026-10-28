@@ -9,6 +9,7 @@ export interface DestinationItineraryRequest {
   endDate: string;
   departureTime: string;
   categoryIds: string[];
+  travelStyle?: string;
   includeLunch?: boolean;
   includeDinner?: boolean;
   lunchTime?: string;
@@ -36,6 +37,93 @@ export interface DestinationItinerary {
   days: DestinationDay[];
   stayOptions: SpotPlace[];
   warnings: string[];
+  curationSource: 'ai' | 'local';
+}
+
+/** AI가 추천한 DB 장소 ID의 우선순위. 시간·이동 가능성과 장소 존재 여부는 별도로 검사한다. */
+export interface CuratedDayChoices {
+  date: string;
+  title?: string;
+  placeIds: string[];
+  visits?: {
+    placeId: string;
+    kind: DestinationVisit['kind'];
+    time: string;
+    durationMinutes: number;
+  }[];
+}
+
+export function parseCuratedDays(
+  value: unknown,
+  request: DestinationItineraryRequest,
+  candidates: { sights: SpotPlace[]; food: SpotPlace[]; themed: SpotPlace[] },
+): CuratedDayChoices[] {
+  if (!Array.isArray(value)) return [];
+  const allowed = new Set(
+    [...candidates.sights, ...candidates.food, ...candidates.themed].map(
+      (place) => place.id,
+    ),
+  );
+  const result: CuratedDayChoices[] = [];
+  for (const item of value.slice(0, 10)) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const day = item as Record<string, unknown>;
+    if (
+      typeof day.date !== 'string' ||
+      day.date < request.startDate ||
+      day.date > request.endDate ||
+      result.some((existing) => existing.date === day.date)
+    )
+      continue;
+    const placeIds = Array.isArray(day.placeIds)
+      ? [...new Set(day.placeIds)]
+          .filter(
+            (id): id is string => typeof id === 'string' && allowed.has(id),
+          )
+          .slice(0, 20)
+      : [];
+    const title =
+      typeof day.title === 'string' &&
+      day.title.trim().length >= 2 &&
+      day.title.trim().length <= 60 &&
+      !/[\r\n]/.test(day.title)
+        ? day.title.trim()
+        : undefined;
+    const kinds = ['sightseeing', 'lunch', 'cafe', 'dinner'];
+    const visits = Array.isArray(day.visits)
+      ? day.visits
+          .slice(0, 6)
+          .filter(
+            (entry): entry is Record<string, unknown> =>
+              !!entry && typeof entry === 'object' && !Array.isArray(entry),
+          )
+          .filter(
+            (entry) =>
+              typeof entry.placeId === 'string' &&
+              allowed.has(entry.placeId) &&
+              kinds.includes(entry.kind as string) &&
+              typeof entry.time === 'string' &&
+              /^([01]\d|2[0-3]):[0-5]\d$/.test(entry.time) &&
+              typeof entry.durationMinutes === 'number' &&
+              Number.isInteger(entry.durationMinutes) &&
+              entry.durationMinutes >= 30 &&
+              entry.durationMinutes <= 180,
+          )
+          .map((entry) => ({
+            placeId: entry.placeId as string,
+            kind: entry.kind as DestinationVisit['kind'],
+            time: entry.time as string,
+            durationMinutes: entry.durationMinutes as number,
+          }))
+      : undefined;
+    result.push({
+      date: day.date,
+      title,
+      placeIds,
+      ...(visits ? { visits } : {}),
+    });
+  }
+  return result;
 }
 
 const clock = (minutes: number) =>
@@ -74,6 +162,7 @@ export function buildDestinationItinerary(
     stays: SpotPlace[];
   },
   warnings: string[] = [],
+  curatedDays: CuratedDayChoices[] = [],
 ): DestinationItinerary {
   const [hour, minute] = request.departureTime.split(':').map(Number);
   const arrival = hour * 60 + minute + Math.ceil(route.durationSeconds / 60);
@@ -122,15 +211,19 @@ export function buildDestinationItinerary(
     )
     .sort((a, b) => a.time - b.time) as typeof slots;
   for (let day = 0; day < count; day++) {
+    const currentDate = dateAt(request.startDate, day);
+    const curated = curatedDays.find((item) => item.date === currentDate);
     const result: DestinationDay = {
-      date: dateAt(request.startDate, day),
+      date: currentDate,
       dayNumber: day + 1,
       title:
         day < arrivalDay
           ? '목적지로 이동'
-          : day === arrivalDay
-            ? '도착 후 여행'
-            : '도착지에서 보내는 하루',
+          : curated?.title && curated.title.trim().length <= 60
+            ? curated.title.trim()
+            : day === arrivalDay
+              ? '도착 후 여행'
+              : '도착지에서 보내는 하루',
       visits: [],
       notes: [],
     };
@@ -143,52 +236,115 @@ export function buildDestinationItinerary(
     }
     let available = day === arrivalDay ? (arrival % 1440) + 30 : 9 * 60;
     let previous = request.points[request.points.length - 1];
-    for (const slot of slots) {
-      // 이미 지난 식사 시간이나 관광 시간대를 다음 날 일정처럼 되풀이하지 않는다.
-      if (day === arrivalDay && slot.time + 90 < available) continue;
-      const pool =
-        slot.kind === 'sightseeing'
-          ? sights
-          : slot.kind === 'cafe'
-            ? food.filter(cafe)
-            : food.filter((p) => !cafe(p));
-      const nearest = pool
-        .filter((p) => !used.has(p.id))
-        .sort((a, b) => distance(previous, a) - distance(previous, b))[0];
-      if (!nearest) {
-        result.notes.push(
-          `${slot.kind === 'sightseeing' ? '관광' : slot.kind === 'cafe' ? '카페' : slot.kind === 'lunch' ? '점심' : '저녁'} 후보가 부족해 이 시간은 자유 일정으로 남겼습니다.`,
-        );
-        continue;
-      }
-      const travelMinutes = Math.max(
+    const travelFor = (place: SpotPlace) =>
+      Math.max(
         5,
         Math.ceil(
-          (distance(previous, nearest) /
+          (distance(previous, place) /
             (request.mode === 'walking' ? 4000 : 25000)) *
             60,
         ),
       );
-      // 도보는 하루 이동 부담을 제한하고 자정 이후로 일정을 밀어 넣지 않는다.
-      if (request.mode === 'walking' && travelMinutes > 45) {
-        result.notes.push(
-          '도보 이동 부담이 큰 후보는 제외했습니다. 가까운 장소를 추가로 찾아보세요.',
-        );
+    const allowedPlaces = new Map([...sights, ...food].map((p) => [p.id, p]));
+    for (const proposed of [...(curated?.visits || [])].sort((a, b) =>
+      a.time.localeCompare(b.time),
+    )) {
+      const place = allowedPlaces.get(proposed.placeId);
+      if (!place || used.has(place.id)) continue;
+      if (
+        proposed.kind === 'sightseeing'
+          ? [32, 39].includes(place.contentTypeId)
+          : proposed.kind === 'cafe'
+            ? place.contentTypeId !== 39 || !cafe(place)
+            : place.contentTypeId !== 39 || cafe(place)
+      )
         continue;
-      }
-      const start = Math.max(slot.time, available + travelMinutes);
-      if (start + slot.duration > 20 * 60) continue;
+      if (
+        (proposed.kind === 'lunch' && request.includeLunch === false) ||
+        (proposed.kind === 'dinner' && request.includeDinner === false) ||
+        (proposed.kind !== 'sightseeing' &&
+          result.visits.some((visit) => visit.kind === proposed.kind))
+      )
+        continue;
+      const requestedMeal =
+        proposed.kind === 'lunch'
+          ? request.lunchTime
+          : proposed.kind === 'dinner'
+            ? request.dinnerTime
+            : undefined;
+      const proposedMinutes = proposed.time
+        .split(':')
+        .reduce((hours, minutes) => hours * 60 + Number(minutes), 0);
+      if (
+        requestedMeal &&
+        Math.abs(proposedMinutes - mealTime(requestedMeal, proposedMinutes)) >
+          90
+      )
+        continue;
+      const travelMinutes = travelFor(place);
+      if (request.mode === 'walking' && travelMinutes > 45) continue;
+      const start = Math.max(proposedMinutes, available + travelMinutes);
+      if (
+        requestedMeal &&
+        Math.abs(start - mealTime(requestedMeal, proposedMinutes)) > 90
+      )
+        continue;
+      if (start + proposed.durationMinutes > 20 * 60) continue;
       result.visits.push({
-        kind: slot.kind,
+        kind: proposed.kind,
         time: clock(start),
-        endTime: clock(start + slot.duration),
-        place: nearest,
+        endTime: clock(start + proposed.durationMinutes),
+        place,
         travelMinutes,
-        durationMinutes: slot.duration,
+        durationMinutes: proposed.durationMinutes,
       });
-      used.add(nearest.id);
-      previous = nearest;
-      available = start + slot.duration;
+      used.add(place.id);
+      previous = place;
+      available = start + proposed.durationMinutes;
+    }
+    if (!result.visits.length) {
+      for (const slot of slots) {
+        // 이미 지난 식사 시간이나 관광 시간대를 다음 날 일정처럼 되풀이하지 않는다.
+        if (day === arrivalDay && slot.time + 90 < available) continue;
+        const pool =
+          slot.kind === 'sightseeing'
+            ? sights
+            : slot.kind === 'cafe'
+              ? food.filter(cafe)
+              : food.filter((p) => !cafe(p));
+        const availablePlaces = pool
+          .filter((p) => !used.has(p.id))
+          .sort((a, b) => distance(previous, a) - distance(previous, b));
+        const eligible = availablePlaces.filter(
+          (place) => request.mode !== 'walking' || travelFor(place) <= 45,
+        );
+        const preferred = curated?.placeIds
+          .map((id) => eligible.find((place) => place.id === id))
+          .find((place): place is SpotPlace => !!place);
+        const selected = preferred || eligible[0];
+        if (!selected) {
+          result.notes.push(
+            availablePlaces.length && request.mode === 'walking'
+              ? '도보 이동 부담이 큰 후보는 제외했습니다. 가까운 장소를 추가로 찾아보세요.'
+              : `${slot.kind === 'sightseeing' ? '관광' : slot.kind === 'cafe' ? '카페' : slot.kind === 'lunch' ? '점심' : '저녁'} 후보가 부족해 이 시간은 자유 일정으로 남겼습니다.`,
+          );
+          continue;
+        }
+        const travelMinutes = travelFor(selected);
+        const start = Math.max(slot.time, available + travelMinutes);
+        if (start + slot.duration > 20 * 60) continue;
+        result.visits.push({
+          kind: slot.kind,
+          time: clock(start),
+          endTime: clock(start + slot.duration),
+          place: selected,
+          travelMinutes,
+          durationMinutes: slot.duration,
+        });
+        used.add(selected.id);
+        previous = selected;
+        available = start + slot.duration;
+      }
     }
     if (!result.visits.length)
       result.notes.push(
@@ -219,5 +375,6 @@ export function buildDestinationItinerary(
     days,
     stayOptions: count > 1 ? unique(candidates.stays).slice(0, 3) : [],
     warnings,
+    curationSource: curatedDays.length ? 'ai' : 'local',
   };
 }

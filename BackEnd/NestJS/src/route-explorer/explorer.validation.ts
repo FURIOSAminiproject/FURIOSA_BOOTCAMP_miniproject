@@ -26,6 +26,7 @@ export function destinationItineraryRequest(
           'endDate',
           'departureTime',
           'categoryIds',
+          'travelStyle',
           'includeLunch',
           'includeDinner',
           'lunchTime',
@@ -70,6 +71,13 @@ export function destinationItineraryRequest(
     !TIME_REGEX.test(value.departureTime)
   )
     return invalid('departureTime');
+  if (
+    value.travelStyle !== undefined &&
+    (typeof value.travelStyle !== 'string' ||
+      value.travelStyle.length > 500 ||
+      /[\u0000-\u001f\u007f]/.test(value.travelStyle))
+  )
+    return invalid('travelStyle (최대 500자)');
   for (const key of ['includeLunch', 'includeDinner'] as const)
     if (value[key] !== undefined && typeof value[key] !== 'boolean')
       return invalid(key);
@@ -87,6 +95,7 @@ export function destinationItineraryRequest(
     endDate: value.endDate as string,
     departureTime: value.departureTime,
     categoryIds: comparison.categoryIds,
+    travelStyle: value.travelStyle as string | undefined,
     includeLunch: value.includeLunch as boolean | undefined,
     includeDinner: value.includeDinner as boolean | undefined,
     lunchTime: value.lunchTime as string | undefined,

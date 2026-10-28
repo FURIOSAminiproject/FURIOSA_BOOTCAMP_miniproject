@@ -2,6 +2,7 @@ import type { RoutePlanner } from '../routing-cache/routing.ports';
 import { RoutingError } from '../routing-cache/routing.errors';
 import type { ExplorerRepository } from './explorer.repository';
 import { RouteProximity } from './route-proximity';
+import { DestinationCurator } from './destination-curator';
 import {
   buildDestinationItinerary,
   type DestinationItineraryRequest,
@@ -30,6 +31,7 @@ export class ExplorerService {
       ExplorerRepository,
       'candidates' | 'placesAroundSpot'
     >,
+    private readonly curator?: DestinationCurator,
   ) {}
 
   /** 경로 위 후보와 별도로 도착지 주변 관광·식사·숙박 후보를 수집한다. */
@@ -79,11 +81,16 @@ export class ExplorerService {
         ? find('숙박', [32])
         : Promise.resolve([]),
     ]);
+    const candidates = { sights, food, themed, stays };
+    const curatedDays = this.curator
+      ? await this.curator.choose(request, route.durationSeconds, candidates)
+      : [];
     return buildDestinationItinerary(
       request,
       route,
-      { sights, food, themed, stays },
+      candidates,
       warnings,
+      curatedDays,
     );
   }
 
