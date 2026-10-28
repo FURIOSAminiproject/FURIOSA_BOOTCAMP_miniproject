@@ -80,3 +80,7 @@ Docker 이미지는 Python 3.12 Slim, 비루트 `appuser`로 실행하며 `/heal
 FastAPI도 BackEnd/.env.production의 DB 설정을 사용한다. APP_ENV=local/development/production으로 선택하며 기본값은 production이다. 서비스의 .env.<mode> → 상위 BackEnd/.env.<mode> → 시스템 환경 순으로 우선한다. Docker는 Compose가 같은 두 파일을 주입하고, 직접 실행은 app/config.py가 DB·지역 매핑 모듈을 읽기 전에 로드한다. 과거 FastAPI/.env나 BackEnd/.env.local을 운영 실행에서 추가로 읽지 않는다.
 
 DB_HOST/DB_USER/DB_PASSWORD/DB_NAME이 없으면 기동 시 키 이름만 알리고 실패한다. DB_SSL=true는 인증서를 검증하며 false는 비TLS다. Docker의 host.docker.internal을 호스트 게이트웨이에 연결한다. WEATHER_PROJECT_DIR이 없으면 이미지에 포함된 app/routers/weather_prediction을 사용하며 DB 아티팩트·CSV 준비는 별도다. 기존 운영 컨테이너에 DB 환경 4개가 모두 없음을 사용자 출력으로 확인했다. 이 변경 자체가 운영 DB의 모델 등록·추론 성공을 보장하지 않는다.
+
+## 추론 모듈 의존성 검사 (2026-10-29)
+
+운영 DB 조회 권한을 부여한 뒤 추론 진입점의 전역 psycopg2 import에서 실패한 것을 확인했다. API는 이미 asyncpg로 모델 아티팩트를 읽으므로 psycopg2 import를 별도 CLI의 restore_model_from_db 함수 내부로 옮겼다. 동기 CLI 복원 기능을 사용할 때만 별도로 psycopg2가 필요하다. CI와 Docker 이미지 빌드에서 predict_many_dates를 실제 import해 DB 접속 없이 추론 런타임의 누락 의존성을 검사한다.

@@ -10,7 +10,6 @@ import os
 import hashlib
 import tempfile
 
-import psycopg2
 from dotenv import load_dotenv
 
 from weather_model import (
@@ -24,6 +23,9 @@ def restore_model_from_db(model_id, model_path):
     PostgreSQL weather_models 테이블에서 모델 아티팩트를 읽어
     model_path에 복원하고 SHA-256 체크섬을 검증한다.
     """
+    # psycopg2는 CLI의 동기 DB 복원에서만 필요하다. API는 asyncpg로 복원한다.
+    import psycopg2
+
     env_path = Path(__file__).resolve().parent / ".env"
     load_dotenv(env_path)
 

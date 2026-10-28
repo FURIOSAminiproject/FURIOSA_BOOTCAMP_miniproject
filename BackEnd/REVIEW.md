@@ -230,3 +230,7 @@ Node 22.23.3에서 npm test의 Node 60개/Jest 8개, 합계 68개를 통과했�
 사용자 컨테이너 점검에서 DB_HOST/DB_USER/DB_PASSWORD/DB_NAME과 WEATHER_PROJECT_DIR이 모두 미설정임을 확인했다. 500의 실제 로그는 asyncpg의 Connection refused였다. Compose의 FastAPI가 BackEnd/.env.<mode>를 주입하도록 바꾸고 직접 실행도 같은 파일과 시스템 환경 우선순위를 사용한다. 운영에서 .env.local을 읽는 지역 매핑 부수효과를 제거했다. DB 누락은 기동 때 검사하고 PostgreSQL TLS 설정을 반영한다. 모델 경로 생략 시 포함된 소스 경로를 사용한다. DB 스키마 변경은 없다.
 
 환경 로딩/우선순위/잘못된 모드/DB 필수값/모킹 HTTP 계약 6개, Python 구문 검사, Compose 3개 환경 해석을 통과했다. 실제 공통 운영 파일이 travel_prod·호스트·계정·비밀번호 설정을 채움을 값 비노출로 확인했다. 실제 DB 접속·추론 성공과는 별도다. 검증 스크립트는 저장소 밖에 보관했다.
+
+## 2026-10-29 추론의 CLI 전용 DB 드라이버 분리
+
+공통 운영 환경 적용 후 DB 접속에 성공했고 서비스 계정에 4개 모델 테이블 SELECT 권한을 부여했다. 다음 실패는 predict_weather.py 전역의 psycopg2 누락이었다. API는 SQLAlchemy/asyncpg로 복원한 파일을 받아 예측하므로 해당 import를 CLI 복원 함수 내부로 한정했다. CI와 Docker에 실제 추론 모듈 import 검사를 추가했다. 이 검사는 모델 정확도나 운영 추론 성공 검증과 구분한다.

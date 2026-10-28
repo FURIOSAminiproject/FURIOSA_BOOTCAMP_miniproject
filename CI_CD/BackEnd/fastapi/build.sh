@@ -32,4 +32,7 @@ python3 -m py_compile main.py
 echo "===== [4/4] FastAPI 모듈 로드 검증 ====="
 python3 -c "from main import app; print('>> FastAPI App Loaded Successfully: ' + app.title)"
 
+echo "===== 추론 모듈 런타임 의존성 확인 (DB/모델 호출 없음) ====="
+python3 -c "import sys; sys.path.insert(0, 'app/routers/weather_prediction'); from predict_weather import predict_many_dates; print('>> Prediction module loaded successfully')"
+
 echo ">> FastAPI AI 엔진 빌드 및 검증 성공 완료!"

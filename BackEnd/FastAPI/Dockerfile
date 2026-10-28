@@ -17,6 +17,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 소스코드 복사
 COPY . .
 
+# 실제 추론 모듈의 런타임 의존성을 검사한다. DB 접속과 모델 추론은 실행하지 않는다.
+RUN python -c "import sys; sys.path.insert(0, 'app/routers/weather_prediction'); from predict_weather import predict_many_dates"
+
 # 비루트 사용자 설정 (보안 강화)
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
