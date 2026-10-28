@@ -7,7 +7,6 @@ interface WeatherPredictionWidgetProps {
   initialStartDate?: string;
   initialEndDate?: string;
   onApplyToTripRequest?: (dest: string, start: string, end: string) => void;
-  onOpenWeatherStudio?: () => void;
 }
 
 export const WeatherPredictionWidget: React.FC<WeatherPredictionWidgetProps> = ({
@@ -15,7 +14,6 @@ export const WeatherPredictionWidget: React.FC<WeatherPredictionWidgetProps> = (
   initialStartDate = '2026-11-20',
   initialEndDate = '2026-11-23',
   onApplyToTripRequest,
-  onOpenWeatherStudio
 }) => {
   const [destination, setDestination] = useState(initialDestination);
   const [startDate, setStartDate] = useState(initialStartDate);
@@ -116,16 +114,6 @@ export const WeatherPredictionWidget: React.FC<WeatherPredictionWidgetProps> = (
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                 {report.modelName} (신뢰도 {report.inferenceConfidence}%)
               </span>
-              {onOpenWeatherStudio && (
-                <button
-                  onClick={onOpenWeatherStudio}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400 hover:bg-amber-300 text-stone-950 font-bold text-xs shadow-xs transition-all cursor-pointer"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-stone-900" />
-                  <span>기상예보 기술 분석 스튜디오</span>
-                  <ArrowRight className="w-3 h-3 text-stone-900" />
-                </button>
-              )}
             </div>
           </div>
 

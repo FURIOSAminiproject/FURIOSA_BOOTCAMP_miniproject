@@ -624,3 +624,72 @@ export function generateWeatherAgentReport(
     smartPackingItems
   };
 }
+
+export interface LocalityMappingResponse {
+  status: string;
+  destination: {
+    name: string;
+    latitude: number;
+    longitude: number;
+  };
+  locality_name: string;
+  station_name: string;
+  province: string;
+  method: 'gemini_flash' | 'haversine_closest' | 'fallback';
+  confidence?: number;
+  distance_km?: number;
+  reason?: string;
+}
+
+/**
+ * 목적지 3가지 정보(이름, 위도, 경도)를 전달하여
+ * FastAPI의 Gemini Flash AI 매핑 엔드포인트(/fastapi/api/v1/weather/resolve-locality)를 호출한다.
+ */
+export async function resolveDestinationLocality(
+  destinationName: string,
+  latitude: number,
+  longitude: number
+): Promise<LocalityMappingResponse> {
+  try {
+    const res = await fetch('/fastapi/api/v1/weather/resolve-locality', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        destination_name: destinationName,
+        latitude,
+        longitude,
+      }),
+    });
+    if (res.ok) {
+      return (await res.json()) as LocalityMappingResponse;
+    }
+  } catch (err) {
+    console.warn('FastAPI Gemini Flash 지역 매핑 요청 실패, 로컬 폴백 수행:', err);
+  }
+
+  // 기본 강릉/제주/부산 휴리스틱 폴백
+  let locality_name = '강릉_강원특별자치도';
+  let station_name = '강릉';
+  let province = '강원특별자치도';
+
+  if (destinationName.includes('부산')) {
+    locality_name = '부산_부산광역시';
+    station_name = '부산';
+    province = '부산광역시';
+  } else if (destinationName.includes('제주')) {
+    locality_name = '제주_제주특별자치도';
+    station_name = '제주';
+    province = '제주특별자치도';
+  }
+
+  return {
+    status: 'fallback',
+    destination: { name: destinationName, latitude, longitude },
+    locality_name,
+    station_name,
+    province,
+    method: 'fallback',
+    reason: '오프라인 휴리스틱 매핑',
+  };
+}
+

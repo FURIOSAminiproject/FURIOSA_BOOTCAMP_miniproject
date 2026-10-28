@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { useTripWorkspace } from "./TripWorkspaceContext";
 import { searchMapPlaces, type SearchPlace } from "../services/route-explorer";
-import type { TripDraft } from "../services/trip-workspace";
+import { calculateTripDuration, type TripDraft } from "../services/trip-workspace";
 import {
   explicitTravelMode,
   scheduleFromText,
@@ -331,19 +331,32 @@ export function FullScreenAiChatPlanner({
     categorySelections?: Record<string, string[]>;
     categoryNames?: string[];
   }>(() => {
+    const duration = calculateTripDuration(
+      currentWorkspaceDraft.startDate,
+      currentWorkspaceDraft.endDate,
+    );
     return {
-      originName: currentWorkspaceDraft.origin?.name || "",
-      destinationName: currentWorkspaceDraft.destination?.name || "",
+      originName:
+        currentWorkspaceDraft.origin?.name ||
+        currentWorkspaceDraft.originQuery ||
+        "",
+      destinationName:
+        currentWorkspaceDraft.destination?.name ||
+        currentWorkspaceDraft.destinationQuery ||
+        "",
       originPlace: currentWorkspaceDraft.origin,
       destinationPlace: currentWorkspaceDraft.destination,
-      durationLabel: "",
-      departureTime: "",
-      startDate: "",
-      endDate: "",
-      mode: null,
-      modeConfirmed: false,
-      preferences: "",
-      preferencesConfirmed: false,
+      durationLabel:
+        currentWorkspaceDraft.startDate && currentWorkspaceDraft.endDate
+          ? duration.label
+          : "",
+      departureTime: currentWorkspaceDraft.departureTime || "",
+      startDate: currentWorkspaceDraft.startDate || "",
+      endDate: currentWorkspaceDraft.endDate || "",
+      mode: currentWorkspaceDraft.mode || null,
+      modeConfirmed: !!currentWorkspaceDraft.mode,
+      preferences: currentWorkspaceDraft.travelStyle || "",
+      preferencesConfirmed: !!currentWorkspaceDraft.travelStyle,
       selectedCategoryIds: currentWorkspaceDraft.selectedCategoryIds || [],
       categorySelections: currentWorkspaceDraft.categorySelections || {},
       categoryNames: [],
@@ -379,6 +392,12 @@ export function FullScreenAiChatPlanner({
         const restoredStep = surveyStep(restoredDraft);
         setCurrentStep(restoredStep);
         setChatDraft(restoredDraft);
+        if (restoredDraft.durationLabel)
+          setStep2SelectedDuration(restoredDraft.durationLabel);
+        if (restoredDraft.departureTime)
+          setStep2SelectedTime(restoredDraft.departureTime);
+        if (restoredDraft.startDate)
+          setStep2SelectedDate(restoredDraft.startDate);
         if (parsed.messages.length) {
           const restoredMessages = parsed.messages.map(
             (message: ChatMessage, index: number) => ({
@@ -438,6 +457,16 @@ export function FullScreenAiChatPlanner({
       console.warn("로컬 캐시 저장 오류:", e);
     }
   };
+
+  // 플래너 입력값 변경 시 로컬 스토리지 실시간 자동 보존
+  const isHydrated = useRef(false);
+  useEffect(() => {
+    if (!isHydrated.current) {
+      isHydrated.current = true;
+      return;
+    }
+    saveToLocalStorage(currentStep, chatDraft, messages);
+  }, [chatDraft, currentStep, messages]);
 
   // 스크롤 맨 아래로 이동
   useEffect(() => {

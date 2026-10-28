@@ -1,10 +1,11 @@
 import React from "react";
-import { Calendar, MapPin, Clock, BedDouble, ArrowUpRight } from "lucide-react";
+import { Calendar, MapPin, Clock, BedDouble, ArrowUpRight, CloudSun } from "lucide-react";
 import type {
   DestinationItinerary,
   DestinationVisit,
 } from "../types/destination-itinerary";
 import type { SearchPlace } from "../services/route-explorer";
+import type { DailyWeatherInference } from "../services/weatherPredictionService";
 
 const LABELS: Record<DestinationVisit["kind"], string> = {
   sightseeing: "관광·산책",
@@ -18,10 +19,14 @@ export function DestinationItineraryView({
   itinerary,
   destinationName,
   onFocusPlace,
+  weatherForecast,
+  onOpenWeather,
 }: {
   itinerary: DestinationItinerary;
   destinationName: string;
   onFocusPlace: (place: SearchPlace) => void;
+  weatherForecast?: DailyWeatherInference[];
+  onOpenWeather?: () => void;
 }) {
   const stayLookupFailed = itinerary.warnings.some((warning) =>
     warning.startsWith("숙박 후보를 조회하지 못했습니다"),
@@ -48,22 +53,39 @@ export function DestinationItineraryView({
         </p>
       </header>
       <div className="grid gap-5 lg:grid-cols-2">
-        {itinerary.days.map((day) => (
-          <article
-            key={day.date}
-            className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 space-y-5 shadow-xs"
-          >
-            <header className="flex items-start gap-3">
-              <span className="rounded-xl bg-emerald-50 px-3 py-2 font-bold text-emerald-900 text-sm">
-                DAY {day.dayNumber}
-              </span>
-              <div>
-                <p className="text-xs text-stone-500">{day.date}</p>
-                <h3 className="mt-1 text-lg font-bold text-stone-900">
-                  {day.title}
-                </h3>
-              </div>
-            </header>
+        {itinerary.days.map((day, idx) => {
+          const dayWeather = weatherForecast && weatherForecast[idx];
+          return (
+            <article
+              key={day.date}
+              className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 space-y-5 shadow-xs"
+            >
+              <header className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <span className="rounded-xl bg-emerald-50 px-3 py-2 font-bold text-emerald-900 text-sm">
+                    DAY {day.dayNumber}
+                  </span>
+                  <div>
+                    <p className="text-xs text-stone-500">{day.date}</p>
+                    <h3 className="mt-1 text-lg font-bold text-stone-900">
+                      {day.title}
+                    </h3>
+                  </div>
+                </div>
+                {dayWeather && onOpenWeather && (
+                  <button
+                    type="button"
+                    onClick={onOpenWeather}
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/70 px-2.5 py-1.5 text-xs font-semibold text-emerald-900 hover:bg-emerald-100 transition shadow-2xs"
+                    title="해당 일자 날씨 및 패킹 가이드 보기"
+                  >
+                    <CloudSun className="h-3.5 w-3.5 text-emerald-700" />
+                    <span>
+                      {dayWeather.conditionLabel} {dayWeather.avgTemp}°C
+                    </span>
+                  </button>
+                )}
+              </header>
             <ol className="space-y-4">
               {day.visits.map((visit) => (
                 <li
@@ -113,7 +135,8 @@ export function DestinationItineraryView({
               </ul>
             )}
           </article>
-        ))}
+          );
+        })}
       </div>
       {itinerary.days.length > 1 && (
         <div className="rounded-2xl border border-stone-200 bg-white p-5 space-y-3">

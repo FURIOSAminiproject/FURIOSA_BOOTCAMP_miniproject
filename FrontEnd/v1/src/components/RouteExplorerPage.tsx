@@ -6,6 +6,7 @@ import {
   Calendar,
   Check,
   Clock,
+  CloudSun,
   Compass,
   MapPin,
   Route,
@@ -40,6 +41,7 @@ import {
   categoryTrail,
   MAX_CATEGORY_FILTERS,
 } from "../services/trip-categories";
+import { DestinationWeatherPreviewModal } from "./DestinationWeatherPreviewModal";
 
 function addDays(dateStr: string, days: number): string {
   try {
@@ -86,6 +88,7 @@ export function TripRequestPage({
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoryRetry, setCategoryRetry] = useState(0);
+  const [weatherModalOpen, setWeatherModalOpen] = useState(false);
   const request = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -326,6 +329,33 @@ export function TripRequestPage({
                       edit({ destinationQuery, destination: null })
                     }
                     onSelect={(place) => choose("destination", place)}
+                    actionButton={
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (draft.destination) {
+                            setWeatherModalOpen(true);
+                          }
+                        }}
+                        disabled={!draft.destination}
+                        className={`flex items-center gap-1.5 px-3.5 py-3 rounded-xl font-bold text-xs sm:text-sm transition-all shadow-xs shrink-0 whitespace-nowrap active:scale-95 ${
+                          draft.destination
+                            ? "bg-gradient-to-r from-teal-600 via-emerald-600 to-emerald-700 text-white hover:from-teal-700 hover:to-emerald-800 shadow-emerald-700/20 shadow-md cursor-pointer"
+                            : "bg-stone-100 text-stone-400 border border-stone-200 cursor-not-allowed opacity-70"
+                        }`}
+                        title={
+                          draft.destination
+                            ? `${draft.destination.name}의 예상 날씨를 Gemini Flash로 미리 확인합니다`
+                            : "도착지를 먼저 검색해 선택하면 날씨를 미리 볼 수 있습니다"
+                        }
+                      >
+                        <CloudSun className="h-4 w-4 text-amber-300 animate-pulse" />
+                        <span>날씨 미리보기</span>
+                        <span className="hidden sm:inline-flex rounded-full bg-white/20 text-white text-[10px] px-1.5 py-0.5 font-semibold">
+                          AI
+                        </span>
+                      </button>
+                    }
                   />
                 </div>
               </section>
@@ -807,6 +837,13 @@ export function TripRequestPage({
           }}
         />
       )}
+      <DestinationWeatherPreviewModal
+        isOpen={weatherModalOpen}
+        onClose={() => setWeatherModalOpen(false)}
+        destination={draft.destination}
+        startDate={draft.startDate}
+        endDate={draft.endDate}
+      />
     </div>
   );
 }
