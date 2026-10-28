@@ -77,7 +77,7 @@ export function DestinationItineraryView({
                     type="button"
                     onClick={onOpenWeather}
                     className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/70 px-2.5 py-1.5 text-xs font-semibold text-emerald-900 hover:bg-emerald-100 transition shadow-2xs"
-                    title="해당 일자 날씨 및 패킹 가이드 보기"
+                    title="해당 일자 날씨 보기"
                   >
                     <CloudSun className="h-3.5 w-3.5 text-emerald-700" />
                     <span>

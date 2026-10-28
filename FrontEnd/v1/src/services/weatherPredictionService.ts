@@ -4,6 +4,7 @@ export interface DailyWeatherInference {
   date: string;
   dayOfWeek: string;
   dayNumber: number;
+  isTripDay?: boolean; // 해당 일자가 실제 여행 기간 내에 포함되는지 여부
   condition: 'SUNNY' | 'PARTLY_CLOUDY' | 'CLOUDY' | 'RAIN' | 'SHOWER' | 'WINDY';
   conditionLabel: string;
   iconName: string;
@@ -166,7 +167,9 @@ export function inferLongTermWeatherAndPacking(
 
   const start = new Date(startDateStr);
   const end = new Date(endDateStr);
-  const diffDays = Math.max(1, Math.min(10, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1));
+  const tripDurationDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+  // 기상청 중기예보 및 딥러닝 앙상블 모델 기준 최대 2주치(14일) 전체 생성
+  const diffDays = Math.max(14, tripDurationDays);
 
   const dailyForecast: DailyWeatherInference[] = [];
   let totalMin = 0;
@@ -244,6 +247,7 @@ export function inferLongTermWeatherAndPacking(
       date: dateStr,
       dayOfWeek: dayKo,
       dayNumber: i + 1,
+      isTripDay: i < tripDurationDays,
       condition,
       conditionLabel,
       iconName,

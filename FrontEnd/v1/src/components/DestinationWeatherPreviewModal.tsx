@@ -242,7 +242,7 @@ export const DestinationWeatherPreviewModal: React.FC<
                           </span>
                         </div>
                         <p className="text-xs text-stone-500 mt-0.5">
-                          10개년 기후 빅데이터 & 2-Stage LSTM 앙상블 추론
+                          10개년 기후 빅데이터
                         </p>
                       </div>
                     </div>

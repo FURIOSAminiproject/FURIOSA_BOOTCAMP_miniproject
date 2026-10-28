@@ -4,6 +4,8 @@ import {
   ArrowUpRight,
   Calendar,
   Clock,
+  Cloud,
+  CloudRain,
   CloudSun,
   Coffee,
   Compass,
@@ -14,7 +16,11 @@ import {
   RefreshCw,
   Route,
   Sparkles,
+  Sun,
+  Thermometer,
+  Umbrella,
   Utensils,
+  Wind,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { type Preference, type SearchPlace } from "../services/route-explorer";
@@ -61,6 +67,8 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
   const [weatherLoading, setWeatherLoading] = useState(false);
   const [weatherMapping, setWeatherMapping] = useState<LocalityMappingResponse | null>(null);
   const [weatherReport, setWeatherReport] = useState<WeatherPredictionReport | null>(null);
+  const [selectedWeatherDayIdx, setSelectedWeatherDayIdx] = useState(0);
+  const [showAll14Days, setShowAll14Days] = useState(false);
 
   const targetDestination = state.result
     ? state.result.request.points[1]
@@ -245,7 +253,7 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
               type="button"
               onClick={() => setWeatherModalOpen(true)}
               className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2.5 text-xs font-bold text-emerald-900 hover:bg-emerald-100 transition shadow-2xs"
-              title="도착지 AI 날씨 예보 및 패킹 가이드"
+              title="도착지 AI 날씨 예보"
             >
               <CloudSun className="h-4 w-4 text-emerald-700" />
               도착지 날씨 AI
@@ -286,25 +294,26 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
           />
         </div>
 
-        {/* 도착지 맞춤 기상 예측 AI 카드 */}
+        {/* 도착지 맞춤 기상 예측 AI 탭 카드 */}
         {destination && (
           <section
             aria-label="도착지 날씨 예보"
-            className="rounded-2xl border border-emerald-200/90 bg-gradient-to-br from-emerald-50/50 via-teal-50/30 to-white p-4 sm:p-5 shadow-xs"
+            className="rounded-3xl border border-emerald-200/90 bg-gradient-to-br from-emerald-50/40 via-teal-50/20 to-white p-5 sm:p-6 shadow-sm space-y-4"
           >
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            {/* 1. 상단 타이틀 & 뷰 모드 탭 */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-emerald-100/80 pb-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr from-[#064e43] to-emerald-600 text-white shadow-md">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr from-[#064e43] to-emerald-600 text-white shadow-md">
                   <CloudSun className="h-6 w-6 text-emerald-200" />
                 </div>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                     <span className="text-xs font-bold text-emerald-900 flex items-center gap-1">
                       <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-                      도착지 기상 예측 AI
+                      도착지 2주(14일) 기상 예측 AI
                     </span>
                     {weatherMapping && (
-                      <span className="rounded-full bg-emerald-100/90 px-2 py-0.5 text-[11px] font-semibold text-emerald-900 border border-emerald-200">
+                      <span className="rounded-full bg-emerald-100/90 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-900 border border-emerald-200">
                         {weatherMapping.method === "gemini_flash"
                           ? `✨ Gemini Flash 매핑: ${weatherMapping.locality_name}`
                           : `📍 관측소: ${weatherMapping.locality_name}`}
@@ -312,62 +321,187 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
                       </span>
                     )}
                   </div>
-                  <h3 className="mt-0.5 text-sm sm:text-base font-bold text-stone-900 truncate">
+                  <h3 className="mt-0.5 text-base sm:text-lg font-bold text-stone-900 truncate">
                     {destination.name}의 여행 날씨 예보
                   </h3>
                 </div>
               </div>
 
+              {/* 2주치 예보 펼치기 토글 버튼 */}
               <button
                 type="button"
-                onClick={() => setWeatherModalOpen(true)}
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#064e43] px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-[#085a4e] transition shrink-0"
+                onClick={() => setShowAll14Days(!showAll14Days)}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-white px-3 py-2 text-xs font-bold text-emerald-900 hover:bg-emerald-50 transition shadow-2xs shrink-0"
               >
-                <CloudSun className="h-3.5 w-3.5" />
-                상세 예보 & 패킹 AI 보기
-                <ArrowUpRight className="h-3 w-3" />
+                <Calendar className="h-3.5 w-3.5 text-emerald-700" />
+                {showAll14Days ? "여행 기간만 보기" : "2주(14일) 전체 예보 탭 펼치기 →"}
               </button>
             </div>
 
-            {weatherReport && weatherReport.dailyForecast.length > 0 ? (
-              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 border-t border-emerald-100/80 pt-3">
-                <div className="rounded-xl bg-white/90 p-2.5 border border-emerald-100 shadow-2xs">
-                  <p className="text-[11px] font-medium text-stone-500">예상 날씨</p>
-                  <p className="mt-0.5 text-sm font-bold text-stone-900 flex items-center gap-1.5">
-                    <span>{weatherReport.dailyForecast[0].conditionLabel}</span>
-                  </p>
-                </div>
-                <div className="rounded-xl bg-white/90 p-2.5 border border-emerald-100 shadow-2xs">
-                  <p className="text-[11px] font-medium text-stone-500">기온 (평균 / 최저·최고)</p>
-                  <p className="mt-0.5 text-sm font-bold text-stone-900">
-                    {weatherReport.dailyForecast[0].avgTemp}°C{" "}
-                    <span className="text-xs font-normal text-stone-500">
-                      ({weatherReport.dailyForecast[0].minTemp}° ~ {weatherReport.dailyForecast[0].maxTemp}°)
+            {weatherLoading ? (
+              <div className="py-8 flex flex-col items-center justify-center gap-2 text-xs font-semibold text-emerald-800 animate-pulse">
+                <RefreshCw className="h-5 w-5 animate-spin text-emerald-700" />
+                <p>AI가 목적지 좌표와 관측소를 매핑하고 2주치 기상 데이터를 분석 중입니다...</p>
+              </div>
+            ) : weatherReport && weatherReport.dailyForecast.length > 0 ? (
+              <>
+                {/* 2. 일자 선택 탭 (가로 스크롤 탭 바) */}
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-1 text-xs text-stone-600">
+                    <span className="font-semibold flex items-center gap-1">
+                      <Calendar className="h-3.5 w-3.5 text-emerald-700" />
+                      원하는 날짜를 클릭하면 해당 일자의 날씨로 바로 전환됩니다:
                     </span>
-                  </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowAll14Days(!showAll14Days)}
+                      className="font-bold text-emerald-800 hover:text-emerald-950 underline flex items-center gap-0.5"
+                    >
+                      {showAll14Days ? "여행 기간만 축소 보기" : "2주(14일) 전체 예보 탭 펼치기 →"}
+                    </button>
+                  </div>
+
+                  {/* 탭 버튼 가로 스크롤 컨테이너 */}
+                  <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 scrollbar-thin">
+                    {(showAll14Days
+                      ? weatherReport.dailyForecast
+                      : weatherReport.dailyForecast.filter((d) => d.isTripDay ?? true)
+                    ).map((day) => {
+                      const dayIdx = weatherReport.dailyForecast.findIndex((item) => item.date === day.date);
+                      const isSelected = dayIdx === selectedWeatherDayIdx;
+                      return (
+                        <button
+                          key={day.date}
+                          type="button"
+                          onClick={() => setSelectedWeatherDayIdx(dayIdx)}
+                          className={`flex flex-col items-center min-w-[90px] px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all shrink-0 border cursor-pointer ${
+                            isSelected
+                              ? "bg-[#064e43] text-white border-[#064e43] shadow-md scale-[1.03] ring-2 ring-emerald-300/60"
+                              : "bg-white text-stone-700 border-stone-200 hover:border-emerald-300 hover:bg-emerald-50/60 shadow-2xs"
+                          }`}
+                        >
+                          <span className={`text-[10px] font-bold ${isSelected ? "text-emerald-200" : "text-emerald-800"}`}>
+                            {day.isTripDay ? `${day.dayNumber}일차 (여행)` : `+${day.dayNumber}일`}
+                          </span>
+                          <span className="mt-0.5 text-xs font-extrabold tracking-tight">
+                            {day.date.slice(5).replace("-", "/")} ({day.dayOfWeek})
+                          </span>
+                          <span className={`mt-1 flex items-center gap-1 text-[11px] ${isSelected ? "text-white font-bold" : "text-stone-700"}`}>
+                            {day.conditionLabel}
+                          </span>
+                          <span className={`mt-0.5 text-[10px] font-mono ${isSelected ? "text-emerald-200" : "text-stone-500"}`}>
+                            {day.minTemp}° ~ {day.maxTemp}°
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div className="rounded-xl bg-white/90 p-2.5 border border-emerald-100 shadow-2xs">
-                  <p className="text-[11px] font-medium text-stone-500">강수 확률</p>
-                  <p className="mt-0.5 text-sm font-bold text-blue-700">
-                    {weatherReport.dailyForecast[0].precipProbability}%
-                  </p>
-                </div>
-                <div className="rounded-xl bg-white/90 p-2.5 border border-emerald-100 shadow-2xs">
-                  <p className="text-[11px] font-medium text-stone-500">AI 안심 추천</p>
-                  <p className="mt-0.5 text-xs font-semibold text-emerald-900 truncate">
-                    {weatherReport.climateHighlights.rainWarning
-                      ? "우산 필수 지참"
-                      : weatherReport.climateHighlights.diurnalWarning
-                        ? "외투 챙기기 (일교차 주의)"
-                        : "쾌적한 야외 활동 가능"}
-                  </p>
-                </div>
-              </div>
-            ) : weatherLoading ? (
-              <div className="mt-3 flex items-center gap-2 text-xs text-emerald-800 animate-pulse">
-                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                AI가 목적지 좌표(위·경도)와 기상 관측소를 매핑하고 날씨를 예측하는 중입니다...
-              </div>
+
+                {/* 3. 메인 콘텐츠: 선택된 일자별 상세 날씨 */}
+                <div className="space-y-3 animate-in fade-in duration-150">
+                    {(() => {
+                      const cur = weatherReport.dailyForecast[selectedWeatherDayIdx] || weatherReport.dailyForecast[0];
+                      return (
+                        <>
+                          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-emerald-100/70 px-4 py-2.5 text-xs font-semibold text-emerald-950 border border-emerald-200/80">
+                            <span className="flex items-center gap-2 font-bold text-sm">
+                              <Calendar className="h-4 w-4 text-emerald-800" />
+                              <span>선택 날짜:</span>
+                              <span className="text-emerald-900 underline font-extrabold">
+                                {cur.date} ({cur.dayOfWeek}요일) · {cur.isTripDay ? `여행 ${cur.dayNumber}일차` : `${cur.dayNumber}일차 예보`}
+                              </span>
+                            </span>
+                            <span className="text-xs font-bold text-emerald-800">
+                              강수확률 {cur.precipProbability}% · 일교차 {cur.diurnalRange}°C
+                            </span>
+                          </div>
+
+                          {/* 4대 주요 기상 지표 카드 */}
+                          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                            <div className="rounded-2xl bg-white p-4 border border-emerald-100 shadow-2xs">
+                              <p className="text-[11px] font-medium text-stone-500">예상 날씨</p>
+                              <p className="mt-1 text-lg font-extrabold text-stone-900">
+                                {cur.conditionLabel}
+                              </p>
+                              <p className="mt-1 text-[11px] text-stone-500">
+                                {cur.precipProbability >= 40 ? "강수 가능성 높음" : "야외활동 양호"}
+                              </p>
+                            </div>
+
+                            <div className="rounded-2xl bg-white p-4 border border-emerald-100 shadow-2xs">
+                              <p className="text-[11px] font-medium text-stone-500">기온 (평균 / 최저·최고)</p>
+                              <p className="mt-1 text-lg font-extrabold text-stone-900">
+                                {cur.avgTemp}°C
+                              </p>
+                              <p className="mt-1 text-[11px] text-stone-500 font-mono">
+                                최저 {cur.minTemp}°C ~ 최고 {cur.maxTemp}°C
+                              </p>
+                            </div>
+
+                            <div className="rounded-2xl bg-white p-4 border border-emerald-100 shadow-2xs">
+                              <p className="text-[11px] font-medium text-stone-500">강수 확률</p>
+                              <p className="mt-1 text-lg font-extrabold text-blue-700">
+                                {cur.precipProbability}%
+                              </p>
+                              <p className="mt-1 text-[11px] text-blue-900/80">
+                                {cur.precipProbability >= 30 ? "우산 챙기기 권장 ☔" : "비 소식 없음 ☀️"}
+                              </p>
+                            </div>
+
+                            <div className="rounded-2xl bg-white p-4 border border-emerald-100 shadow-2xs">
+                              <p className="text-[11px] font-medium text-stone-500">AI 안심 추천</p>
+                              <p className="mt-1 text-xs font-bold text-emerald-950 truncate">
+                                {cur.precipProbability >= 45
+                                  ? "우산 필수 지참"
+                                  : cur.diurnalRange >= 8.5
+                                    ? "외투 챙기기 (일교차 주의)"
+                                    : "쾌적한 야외 활동 가능"}
+                              </p>
+                              <p className="mt-1 text-[11px] text-stone-500">
+                                {cur.diurnalRange >= 8.5 ? `일교차 ${cur.diurnalRange}°C 대비` : "자외선/풍속 안정"}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* 보조 지표 스트립 (바람, 습도, 자외선, 10년 기후 대비) */}
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1">
+                            <div className="flex items-center gap-2 rounded-xl bg-white/80 px-3 py-2 border border-stone-200/80 shadow-2xs">
+                              <Wind className="h-4 w-4 text-teal-600 shrink-0" />
+                              <div>
+                                <p className="text-[10px] text-stone-500">풍속</p>
+                                <p className="font-bold text-stone-800">{cur.windSpeed} m/s</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 rounded-xl bg-white/80 px-3 py-2 border border-stone-200/80 shadow-2xs">
+                              <Cloud className="h-4 w-4 text-sky-600 shrink-0" />
+                              <div>
+                                <p className="text-[10px] text-stone-500">습도</p>
+                                <p className="font-bold text-stone-800">{cur.humidity}%</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 rounded-xl bg-white/80 px-3 py-2 border border-stone-200/80 shadow-2xs">
+                              <Sun className="h-4 w-4 text-amber-500 shrink-0" />
+                              <div>
+                                <p className="text-[10px] text-stone-500">자외선 지수</p>
+                                <p className="font-bold text-stone-800">{cur.uvIndex} / 10</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 rounded-xl bg-white/80 px-3 py-2 border border-stone-200/80 shadow-2xs">
+                              <Thermometer className="h-4 w-4 text-rose-600 shrink-0" />
+                              <div>
+                                <p className="text-[10px] text-stone-500">10년 기후 편차</p>
+                                <p className="font-bold text-stone-800">
+                                  {cur.anomalyVs10Yr > 0 ? `+${cur.anomalyVs10Yr}°C` : `${cur.anomalyVs10Yr}°C`}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+              </>
             ) : null}
           </section>
         )}
