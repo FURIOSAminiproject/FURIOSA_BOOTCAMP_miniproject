@@ -10,7 +10,6 @@ import os
 import hashlib
 import tempfile
 
-import psycopg2
 from dotenv import load_dotenv
 
 from weather_model import (
@@ -24,6 +23,9 @@ def restore_model_from_db(model_id, model_path):
     PostgreSQL weather_models 테이블에서 모델 아티팩트를 읽어
     model_path에 복원하고 SHA-256 체크섬을 검증한다.
     """
+    # psycopg2는 CLI의 동기 DB 복원에서만 필요하다. API는 asyncpg로 복원한다.
+    import psycopg2
+
     env_path = Path(__file__).resolve().parent / ".env"
     load_dotenv(env_path)
 
@@ -145,6 +147,16 @@ def restore_model_from_db(model_id, model_path):
             conn.close()
 
 
+def resolve_dataset_path(data_dir, relative_csv_path):
+    """Windows 학습 메타데이터의 역슬래시도 실행 OS의 경로로 해석한다."""
+    root = Path(data_dir).resolve()
+    relative_path = Path(str(relative_csv_path).replace("\\", "/"))
+    csv_path = (root / relative_path).resolve()
+    if not csv_path.is_relative_to(root):
+        raise ValueError("CSV 상대 경로가 데이터셋 디렉터리를 벗어납니다.")
+    return csv_path
+
+
 def predict_one_dataset(
     model_id,
     target_date,
@@ -190,7 +202,7 @@ def predict_one_dataset(
     # 2. 원본 CSV 로드
     # -----------------------------------------------------
 
-    csv_path = data_dir / metadata["relative_csv_path"]
+    csv_path = resolve_dataset_path(data_dir, metadata["relative_csv_path"])
 
     if not csv_path.exists():
         raise FileNotFoundError(
@@ -368,7 +380,7 @@ def predict_many_dates(
     y_scaler = metadata["y_scaler"]
     lookback = metadata["lookback"]
 
-    csv_path = data_dir / metadata["relative_csv_path"]
+    csv_path = resolve_dataset_path(data_dir, metadata["relative_csv_path"])
     if not csv_path.exists():
         raise FileNotFoundError(f"원본 CSV가 없습니다: {csv_path}")
 

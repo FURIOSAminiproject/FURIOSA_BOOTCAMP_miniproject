@@ -68,3 +68,23 @@ curl http://127.0.0.1:8000/health
 Compose는 호스트 루프백 `127.0.0.1:8000`에만 포트를 공개합니다. 프론트 Nginx가 실행 중이면 `/fastapi/health`, `/fastapi/api/v1/recommend`로 접근할 수 있습니다. Nginx가 `/fastapi/` 접두사를 제거합니다. Vite 개발 서버에는 이 프록시가 없습니다. Nginx 경유 Swagger UI는 OpenAPI URL 접두사 별도 설정이 없어 같은 호스트에서 직접 접속하는 `http://localhost:8000/docs`를 사용합니다. 원격 EC2의 Swagger UI를 로컬 브라우저에서 보려면 SSH 포트 포워딩 등 별도 접속 경로가 필요합니다.
 
 Docker 이미지는 Python 3.12 Slim, 비루트 `appuser`로 실행하며 `/health`를 확인하는 Docker HEALTHCHECK를 포함합니다. [CI/CD 안내](../../CI_CD/BackEnd/fastapi/README.md)를 참고합니다.
+
+## 현재 기상 API와 운영 배포 확인 (2026-10-29)
+
+위 샘플 추천과 별개로 현재 소스에는 app/routers/weather.py의 기상 추론 API가 있다. POST /api/v1/weather/predict/request는 target_dates와 locality_name 또는 destination_name/latitude/longitude를 받는다. 지역명이 없으면 Gemini 지역 매핑(실패 시 관측소 거리 기준 매핑)을 수행하고 DB 모델 아티팩트를 불러 실제 추론을 실행한다. WEATHER_PROJECT_DIR와 CSV, 해당 지역 5개 모델 아티팩트가 필요하다. /resolve-locality는 지역 매핑만 제공한다.
+
+전주·2026-10-30~31 운영 요청에서 locality_name 필수 및 destination_name/latitude/longitude 금지 오류를 재현했다. 운영 OpenAPI도 이전 스키마였으므로 모델이 해당 날짜를 거부한 증거가 아니다. 현재 소스와 운영 컨테이너가 달라 FastAPI를 최신 main으로 재배포해야 한다. 프런트나 NestJS의 성공 배포가 FastAPI 배포 성공을 의미하지 않는다. 배포 후 공개 OpenAPI에서 locality_name이 선택이고 /resolve-locality가 존재하는지 확인한 다음 동일 전주 요청으로 실제 매핑·추론을 별도 검증한다. /health만으로 이를 확인할 수 없다. 실제 운영 추론 성공은 아직 확인하지 못했다.
+
+## 공통 DB 환경 파일 (2026-10-29 수정)
+
+FastAPI도 BackEnd/.env.production의 DB 설정을 사용한다. APP_ENV=local/development/production으로 선택하며 기본값은 production이다. 서비스의 .env.<mode> → 상위 BackEnd/.env.<mode> → 시스템 환경 순으로 우선한다. Docker는 Compose가 같은 두 파일을 주입하고, 직접 실행은 app/config.py가 DB·지역 매핑 모듈을 읽기 전에 로드한다. 과거 FastAPI/.env나 BackEnd/.env.local을 운영 실행에서 추가로 읽지 않는다.
+
+DB_HOST/DB_USER/DB_PASSWORD/DB_NAME이 없으면 기동 시 키 이름만 알리고 실패한다. DB_SSL=true는 인증서를 검증하며 false는 비TLS다. Docker의 host.docker.internal을 호스트 게이트웨이에 연결한다. WEATHER_PROJECT_DIR이 없으면 이미지에 포함된 app/routers/weather_prediction을 사용하며 DB 아티팩트·CSV 준비는 별도다. 기존 운영 컨테이너에 DB 환경 4개가 모두 없음을 사용자 출력으로 확인했다. 이 변경 자체가 운영 DB의 모델 등록·추론 성공을 보장하지 않는다.
+
+## 추론 모듈 의존성 검사 (2026-10-29)
+
+운영 DB 조회 권한을 부여한 뒤 추론 진입점의 전역 psycopg2 import에서 실패한 것을 확인했다. API는 이미 asyncpg로 모델 아티팩트를 읽으므로 psycopg2 import를 별도 CLI의 restore_model_from_db 함수 내부로 옮겼다. 동기 CLI 복원 기능을 사용할 때만 별도로 psycopg2가 필요하다. CI와 Docker 이미지 빌드에서 predict_many_dates를 실제 import해 DB 접속 없이 추론 런타임의 누락 의존성을 검사한다.
+
+## Windows 학습 경로의 Linux 호환 (2026-10-29)
+
+DB 메타데이터에 저장된 relative_csv_path가 Windows 역슬래시를 포함해 Linux에서 원본 CSV를 찾지 못한 오류를 수정했다. 단일·다중 날짜 추론 모두 경로 구분자를 정규화하고 데이터셋 루트 내부 파일만 허용한다. 향후 학습 메타데이터는 POSIX 상대 경로로 저장한다. 기존 DB 모델을 다시 학습하거나 수정할 필요가 없다. CI·Docker 빌드는 실제 포함된 CSV에 대해 Windows 형식의 경로 해석도 검사한다.

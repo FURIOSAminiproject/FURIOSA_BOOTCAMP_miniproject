@@ -7,7 +7,6 @@ import { AgentLog, AgentSupervisorReport, DayItinerary, FullTravelPlan, TravelPl
 import { postJson } from './api';
 import { generatePoeticReview } from './poetryService';
 import { auditPlanGisMapping, generateMapPushLinks } from './mapIntegrationService';
-import { generateWeatherAgentReport } from './weatherPredictionService';
 import { generateSafetyAgentReport } from './safetyService';
 
 export interface AgentInfo {
@@ -1503,9 +1502,7 @@ function generateProceduralKoreanPlan(
         supervisorReport,
         gisMapAudit: gisAuditResult.audit,
         days,
-        literaryReviews,
-        weatherAgentReport: generateWeatherAgentReport(request.destination, request.startDate, request.endDate, days),
-        safetyAgentReport: generateSafetyAgentReport(request.destination, days.flatMap(d => d.places), days)
+        literaryReviews,        safetyAgentReport: generateSafetyAgentReport(request.destination, days.flatMap(d => d.places), days)
       };
     });
 }

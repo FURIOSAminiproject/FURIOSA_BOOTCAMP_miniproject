@@ -52,6 +52,7 @@ const candidate = (name, longitude, latitude) => ({
   address: '',
   contentTypeId: 12,
   categoryName: null,
+  distanceToRouteMeters: 0,
 });
 
 test('comparison validation rejects extra fields, invalid categories, radius and nonnumeric coordinates', () => {
@@ -213,15 +214,27 @@ test('each route gets its own nearby recommendations, ordered and limited by dis
     },
   };
   const places = {
-    candidates: async () => ({
-      limited: false,
-      places: [
-        candidate('south', 127.5, 37.001),
-        candidate('north', 127.5, 38.001),
-        candidate('far', 130, 40),
-        candidate('nearer', 127.5, 37),
-      ],
-    }),
+    candidates: async (request, coordinates) => {
+      assert.equal(request.radiusMeters, 1000);
+      return {
+        limited: false,
+        places:
+          coordinates[0][1] === 37
+            ? [
+                {
+                  ...candidate('south', 127.5, 37.001),
+                  distanceToRouteMeters: 111.1,
+                },
+                { ...candidate('nearer', 127.5, 37), distanceToRouteMeters: 0 },
+              ]
+            : [
+                {
+                  ...candidate('north', 127.5, 38.001),
+                  distanceToRouteMeters: 111.1,
+                },
+              ],
+      };
+    },
   };
   const result = await new ExplorerService(planner, places).compare(
     explorerRequest({ ...body, limit: 1 }),
@@ -305,19 +318,28 @@ test('place repository uses parameterized filters, active coordinates and safe c
           latitude: '37.1',
           longitude: '127.1',
           content_type_id: 12,
+          distance_meters: 12.5,
         },
         { place_id: id, name: 'broken', latitude: null, longitude: null },
       ];
     },
   });
   const request = explorerRequest({ ...body, categoryIds: [id] });
-  const result = await repository.candidates(request, {
-    minLat: 37,
-    maxLat: 38,
-    minLon: 127,
-    maxLon: 128,
-  });
-  assert.deepEqual(params, [[id], [12], 37, 38, 127, 128, CANDIDATE_LIMIT + 1]);
+  const coordinates = [
+    [127, 37],
+    [128, 38],
+  ];
+  const result = await repository.candidates(request, coordinates);
+  assert.deepEqual(params, [
+    [id],
+    [12],
+    JSON.stringify({ type: 'LineString', coordinates }),
+    1000,
+    CANDIDATE_LIMIT + 1,
+  ]);
+  assert.ok(query.includes('ST_DWithin(p.location,q.location'));
+  assert.ok(query.includes('ST_Distance(p.location,q.location)'));
+  assert.ok(query.includes('ORDER BY distance_meters ASC,p.place_id LIMIT'));
   assert.ok(query.includes('p.is_active=true'));
   assert.ok(query.includes('WITH RECURSIVE'));
   assert.equal(query.includes(id), false);

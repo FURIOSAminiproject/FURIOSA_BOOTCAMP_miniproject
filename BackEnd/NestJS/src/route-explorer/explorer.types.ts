@@ -40,7 +40,7 @@ export interface PlaceCandidate extends SearchPlace {
   categoryName: string | null;
 }
 export interface RecommendedPlace extends PlaceCandidate {
-  /** 경로 선까지의 근사 직선거리(m). 해당 장소로의 실제 우회 이동거리가 아니다. */
+  /** PostGIS geography로 계산한 경로 선까지의 최단 측지거리(m). 실제 우회 이동거리가 아니다. */
   distanceToRouteMeters: number;
 }
 export interface ExplorerRoute {
@@ -120,4 +120,3 @@ export interface NearbyPlacesResponse {
   places: SpotPlace[];
   candidateLimitReached: boolean;
 }
-

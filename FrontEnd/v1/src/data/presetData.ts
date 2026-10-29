@@ -1,6 +1,5 @@
 import { FullTravelPlan, TravelRequest, AgencyStats } from '../types/travel';
 import { generateMapPushLinks, auditPlanGisMapping } from '../services/mapIntegrationService';
-import { generateWeatherAgentReport } from '../services/weatherPredictionService';
 import { generateSafetyAgentReport } from '../services/safetyService';
 
 export const INITIAL_AGENCY_STATS: AgencyStats = {
@@ -670,12 +669,7 @@ function enrichPlanWithMapVerification(plan: FullTravelPlan): FullTravelPlan {
     ],
     approvalRecommendation: '일정 무결성 및 GIS 좌표 검증 통과. 관리자 인가 승인 권장'
   };
-  plan.weatherAgentReport = generateWeatherAgentReport(
-    plan.request.destination,
-    plan.request.startDate,
-    plan.request.endDate,
-    plan.days
-  );
+  delete plan.weatherAgentReport;
   plan.safetyAgentReport = generateSafetyAgentReport(
     plan.request.destination,
     plan.days.flatMap(d => d.places),

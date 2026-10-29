@@ -54,7 +54,7 @@ export function DestinationItineraryView({
       </header>
       <div className="grid gap-5 lg:grid-cols-2">
         {itinerary.days.map((day, idx) => {
-          const dayWeather = weatherForecast && weatherForecast[idx];
+          const dayWeather = weatherForecast?.find(forecast => forecast.date === day.date);
           return (
             <article
               key={day.date}
@@ -81,7 +81,7 @@ export function DestinationItineraryView({
                   >
                     <CloudSun className="h-3.5 w-3.5 text-emerald-700" />
                     <span>
-                      {dayWeather.conditionLabel} {dayWeather.avgTemp}°C
+                      모델 예측 {dayWeather.avgTemp.toFixed(1)}°C
                     </span>
                   </button>
                 )}

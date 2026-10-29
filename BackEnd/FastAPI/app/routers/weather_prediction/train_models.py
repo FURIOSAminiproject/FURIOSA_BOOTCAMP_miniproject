@@ -357,7 +357,7 @@ def train_one_csv(csv_path, data_root, output_root, start_date, date_column, loo
 
     metadata = {
         "model_id": model_id,
-        "relative_csv_path": str(csv_path.relative_to(data_root)),
+        "relative_csv_path": csv_path.relative_to(data_root).as_posix(),
         "x_columns": x_columns,
         "target_column": target_column,
         "date_column": data["date_column"],

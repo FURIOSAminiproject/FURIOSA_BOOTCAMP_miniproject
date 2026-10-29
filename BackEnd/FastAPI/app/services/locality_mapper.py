@@ -13,15 +13,12 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 import pandas as pd
-from dotenv import load_dotenv
+from app.config import load_environment
 
 logger = logging.getLogger(__name__)
 
-# 환경 변수 로드 (FastAPI 및 프로젝트 루트)
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-load_dotenv(BASE_DIR / ".env")
-load_dotenv(BASE_DIR.parent / ".env.local")
-load_dotenv(BASE_DIR.parent / ".env")
+# 지역 매핑도 DB와 동일한 선택 환경만 사용한다.
+load_environment()
 
 METADATA_FILE = Path(__file__).resolve().parent.parent / "routers" / "weather_prediction" / "META_관측지점정보.csv"
 DATASET_DIR = Path(__file__).resolve().parent.parent / "routers" / "weather_prediction" / "6_dataset"

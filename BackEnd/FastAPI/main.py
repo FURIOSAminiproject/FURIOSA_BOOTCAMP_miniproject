@@ -9,13 +9,13 @@ from typing import List, Optional
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from dotenv import load_dotenv
+from app.config import load_environment, validate_database_configuration
+
+# DB 엔진·지역 매핑 모듈을 가져오기 전에 선택한 공통 환경을 읽는다.
+load_environment()
 from app.routers.weather import router as weather_router
 
-# 환경 변수 로드
-load_dotenv()
-
-APP_ENV = os.getenv("APP_ENV", "development")
+APP_ENV = os.getenv("APP_ENV", "production")
 PORT = int(os.getenv("PORT", "8000"))
 CORS_ORIGINS = os.getenv(
     "CORS_ORIGINS",
@@ -25,6 +25,7 @@ CORS_ORIGINS = os.getenv(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    validate_database_configuration()
     # 애플리케이션 시작 시 초기화 (예: AI 모델 가중치 로드, NPU 디바이스 초기화 등)
     print(f"🚀 [FastAPI Engine] Initializing service in {APP_ENV} mode...")
     yield

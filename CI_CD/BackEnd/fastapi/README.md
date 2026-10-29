@@ -41,3 +41,7 @@ docker compose logs --tail=100 fastapi
 단일 컨테이너 교체 방식이라 중단이 발생할 수 있으며 자동 롤백은 없습니다. 백업은 checkout 이후 작업 폴더이므로 이전 운영 버전 복원을 보장하지 않습니다. 정상 커밋·이미지와 환경 파일을 별도로 보관해 복구합니다.
 
 동시성 그룹은 `fastapi-production`, `cancel-in-progress: false`입니다. 다른 서비스의 배포와 동시에 실행될 수 있습니다. [인프라 안내](../../README.md)를 함께 확인합니다.
+
+## 추론 import 검사 추가 (2026-10-29)
+
+빌드에서 main 앱뿐 아니라 app/routers/weather_prediction의 predict_many_dates도 import한다. Docker 이미지도 같은 검사를 수행하므로 CPU 아키텍처별 누락 런타임 라이브러리가 있으면 이미지 빌드를 중단한다. DB 접속·Gemini 호출·학습/모델 추론은 수행하지 않는다. FastAPI 공통 운영 DB 환경은 현재 BackEnd/.env.<APP_ENV>를 사용한다.
