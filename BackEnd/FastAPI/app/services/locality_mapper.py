@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 import pandas as pd
-from app.config import load_environment
+from app.config import load_environment, weather_data_directory
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 load_environment()
 
 METADATA_FILE = Path(__file__).resolve().parent.parent / "routers" / "weather_prediction" / "META_관측지점정보.csv"
-DATASET_DIR = Path(__file__).resolve().parent.parent / "routers" / "weather_prediction" / "6_dataset"
+DATASET_DIR = weather_data_directory()
 
 # 전역 관측소 캐시
 _STATIONS_CACHE: Optional[List[Dict[str, Any]]] = None

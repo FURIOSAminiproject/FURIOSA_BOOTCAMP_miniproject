@@ -9,6 +9,7 @@ from pathlib import Path
 
 from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.config import weather_data_directory
 
 
 MODEL_CODES = [
@@ -70,12 +71,7 @@ def _run_prediction(
     target_dates,
 ):
     project_dir = Path(project_dir).resolve()
-    data_dir = Path(
-        os.getenv(
-            "WEATHER_DATA_DIR",
-            str(project_dir / "6_dataset"),
-        )
-    ).resolve()
+    data_dir = weather_data_directory(project_dir)
 
     if not project_dir.is_dir():
         raise FileNotFoundError(

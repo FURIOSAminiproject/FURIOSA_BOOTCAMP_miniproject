@@ -133,15 +133,10 @@ export class TourDbSession implements IngestionGate, SqlSession {
         if (
           rows.length !== 3 ||
           rows.some(
-            /**
-             * 테이블 한 개의 컬럼 수가 기대와 다른지 확인한다.
-             *
-             * 입력: row: table_name과 count.
-             * @returns 기대한 컬럼 수와 다르면 true.
-             * @example
-             * // {table_name:"places",count:31} → true (기대 32)
-             */
-            (row) => expected[row.table_name] !== row.count,
+            (row) =>
+              row.table_name === 'places'
+                ? row.count !== 32 && row.count !== 33
+                : expected[row.table_name] !== row.count,
           )
         )
           throw new TourStoreError('SCHEMA_V2_REQUIRED');
