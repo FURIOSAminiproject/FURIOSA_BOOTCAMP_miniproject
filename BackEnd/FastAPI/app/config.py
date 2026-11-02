@@ -38,3 +38,19 @@ def validate_database_configuration(environ: MutableMapping[str, str] | None = N
         raise ValueError("Invalid DB_PORT")
     if env.get("DB_SSL", "false") not in {"true", "false"}:
         raise ValueError("DB_SSL must be true or false")
+
+
+def weather_data_directory(project_dir: Path | None = None) -> Path:
+    """매핑과 추론이 같은 CSV를 사용한다. 명시 설정 → 저장소 데이터 → 이미지 내 데이터 순이다."""
+    configured = os.getenv("WEATHER_DATA_DIR")
+    if configured:
+        return Path(configured).resolve()
+    configured_project = os.getenv("WEATHER_PROJECT_DIR")
+    if configured_project:
+        return (Path(configured_project) / "6_dataset").resolve()
+    service_root = Path(__file__).resolve().parent.parent
+    shared_data = service_root.parent.parent / "weather_base_data"
+    if shared_data.is_dir():
+        return shared_data.resolve()
+    project = project_dir if project_dir is not None else service_root / "app" / "routers" / "weather_prediction"
+    return (project / "6_dataset").resolve()

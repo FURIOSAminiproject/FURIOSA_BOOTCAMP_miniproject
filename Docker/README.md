@@ -171,3 +171,7 @@ docker compose down
 ## FastAPI 환경 공유 (2026-10-29)
 
 FastAPI는 BackEnd/FastAPI/.env.<APP_ENV> 다음 BackEnd/.env.<APP_ENV>를 읽고 뒤 파일이 우선한다. APP_ENV 기본은 production이다. 호스트 DB의 host.docker.internal 접근을 위해 host-gateway를 등록했다. 컨테이너 내부 localhost는 EC2 호스트가 아니다. 기존 FastAPI/.env는 더 이상 Compose 입력이 아니다.
+
+## 전국 기상 데이터 빌드 컨텍스트
+
+FastAPI는 Compose의 additional_contexts(weather_data=./weather_base_data)를 통해 CSV를 추가한다. 서비스 소스 빌드 범위는 BackEnd/FastAPI로 유지하며 데이터만 별도로 이미지에 복사한다. [Docker 공식 빌드 설정](https://docs.docker.com/reference/compose-file/build/#additional_contexts)을 따른다.

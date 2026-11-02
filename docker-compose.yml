@@ -47,6 +47,8 @@ services:
     build:
       context: ./BackEnd/FastAPI
       dockerfile: Dockerfile
+      additional_contexts:
+        weather_data: ./weather_base_data
     container_name: travel-fastapi
     restart: always
     ports:

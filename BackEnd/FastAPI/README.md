@@ -88,3 +88,9 @@ DB_HOST/DB_USER/DB_PASSWORD/DB_NAME이 없으면 기동 시 키 이름만 알리
 ## Windows 학습 경로의 Linux 호환 (2026-10-29)
 
 DB 메타데이터에 저장된 relative_csv_path가 Windows 역슬래시를 포함해 Linux에서 원본 CSV를 찾지 못한 오류를 수정했다. 단일·다중 날짜 추론 모두 경로 구분자를 정규화하고 데이터셋 루트 내부 파일만 허용한다. 향후 학습 메타데이터는 POSIX 상대 경로로 저장한다. 기존 DB 모델을 다시 학습하거나 수정할 필요가 없다. CI·Docker 빌드는 실제 포함된 CSV에 대해 Windows 형식의 경로 해석도 검사한다.
+
+## 전국 관측 CSV 연결 (2026-10-29)
+
+origin/jiseokLee의 CSV 490개·98개 지역은 루트 weather_base_data에 반영돼 있다. 직접 실행은 이 폴더를 사용하고 Docker Compose는 weather_data라는 additional_contexts로 같은 CSV를 이미지의 6_dataset에 포함한다. 지역 매핑과 모델 추론이 공통 weather_data_directory를 사용한다. WEATHER_DATA_DIR 또는 WEATHER_PROJECT_DIR을 명시하면 그 설정이 우선한다. 전주 CSV 존재가 전주 모델 아티팩트의 DB 등록 완료까지 의미하지는 않는다.
+
+저장소 루트의 docker compose build fastapi를 사용한다. FastAPI 폴더에서 단독 빌드할 때는 docker build --build-context weather_data=../../weather_base_data -t travel-fastapi . 처럼 데이터 컨텍스트를 전달해야 한다. 전국 CSV 변경도 FastAPI 자동 배포를 실행한다.

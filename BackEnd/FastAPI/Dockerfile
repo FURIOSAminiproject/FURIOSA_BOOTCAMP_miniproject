@@ -16,6 +16,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # 소스코드 복사
 COPY . .
+# 서비스 빌드 폴더 밖의 전국 관측 CSV를 별도 데이터 컨텍스트에서 포함한다.
+COPY --from=weather_data / /app/app/routers/weather_prediction/6_dataset/
 
 # 실제 추론 모듈의 런타임 의존성을 검사한다. DB 접속과 모델 추론은 실행하지 않는다.
 RUN python -c "import sys; from pathlib import Path; sys.path.insert(0, 'app/routers/weather_prediction'); from predict_weather import predict_many_dates, resolve_dataset_path; root = Path('app/routers/weather_prediction/6_dataset'); sample = next(root.rglob('LSTM_*.csv')); relative = sample.relative_to(root).as_posix(); assert resolve_dataset_path(root, relative.replace('/', chr(92))) == sample.resolve()"
