@@ -1,4 +1,5 @@
 import type { RevisionValidationPosition } from './itinerary-revision';
+import type { CandidateSearchSummary } from './revision-candidate-search';
 
 const unchangedNotice = '현재 화면의 일정은 변경되지 않았습니다.';
 const kindNames: Record<string, string> = {
@@ -7,6 +8,24 @@ const kindNames: Record<string, string> = {
   cafe: '카페',
   dinner: '저녁',
 };
+
+/** 재조회 결과는 모델의 설명과 별도로 확인된 범위·개수만 안내한다. */
+export function revisionCandidateSearchNote(
+  summary: CandidateSearchSummary,
+): string {
+  const name = { cafe: '카페', food: '음식점', sightseeing: '관광지' }[
+    summary.kind
+  ];
+  if (summary.status === 'failed')
+    return '추가 장소 탐색이 실패해 새로운 후보가 있는지 확인하지 못했습니다. 잠시 후 다시 요청해 주세요.';
+  const scope = `목적지 반경 ${summary.radiusMeters / 1000}km 안`;
+  const result = summary.newCandidateCount
+    ? `${scope}에서 요청 조건에 맞는 새 ${name} 후보 ${summary.newCandidateCount}곳을 찾았습니다.`
+    : `${scope}을 다시 조사했지만 요청 조건에 맞는 새 ${name} 후보를 확보하지 못했습니다.`;
+  return summary.status === 'partial'
+    ? `${result} 일부 장소 조회가 실패해 전체 범위의 후보 유무는 확정할 수 없습니다.`
+    : result;
+}
 
 /** 서버가 확인한 실패 사유와 모델의 무변경 설명을 구분해 전달한다. */
 export function revisionUnchangedReply(
@@ -22,6 +41,8 @@ export function revisionUnchangedReply(
     no_api_key:
       'AI 서비스 연결 설정이 완료되지 않아 수정 요청을 보낼 수 없습니다. 관리자에게 연결 설정 확인을 요청해 주세요.',
     unchanged: '제안된 내용이 현재 일정과 동일해 추가 변경 사항이 없습니다.',
+    candidate_search_failed:
+      '추가 장소 조회를 완료하지 못해 요청한 후보가 있는지 확인할 수 없습니다. 잠시 후 다시 요청해 주세요.',
     unknown_date:
       'AI가 여행 기간에 없는 날짜를 수정안에 포함해 반영하지 못했습니다. 여행 기간 안의 날짜로 다시 요청해 주세요.',
     duplicate_date:

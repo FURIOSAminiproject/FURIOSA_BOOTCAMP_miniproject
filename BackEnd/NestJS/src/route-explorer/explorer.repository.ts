@@ -1,7 +1,10 @@
 import type { DataSource } from 'typeorm';
 import { coordinate } from '../routing-cache/routing.validation';
 import type { Coordinate } from '../routing-cache/routing.types';
-import { RoutingError } from '../routing-cache/routing.errors';
+import {
+  RoutingError,
+  databaseDiagnostic,
+} from '../routing-cache/routing.errors';
 import type {
   ExplorerRequest,
   PlaceCategory,
@@ -10,6 +13,7 @@ import type {
 } from './explorer.types';
 
 export const CANDIDATE_LIMIT = 2000;
+export type RevisionCandidateKind = 'cafe' | 'food' | 'sightseeing';
 const SELECTED_CATEGORIES = `WITH RECURSIVE selected(category_id) AS (
   SELECT category_id FROM public.place_categories WHERE category_id=ANY($1::uuid[])
   UNION
@@ -137,6 +141,83 @@ export class ExplorerRepository {
         503,
         'PLACE_RECOMMENDATIONS_UNAVAILABLE',
         '거점 주변 장소를 조회하지 못했습니다. PostGIS와 장소 공간 컬럼 설정을 확인해 주세요.',
+      );
+    }
+  }
+
+  /** 수정 요청의 종류·검색어로 새 후보를 찾는다. 필터와 제외 목록은 LIMIT 전에 적용한다. */
+  async revisionCandidates(
+    spot: { latitude: number; longitude: number },
+    destination: { latitude: number; longitude: number },
+    filter: {
+      kind: RevisionCandidateKind;
+      keyword?: string;
+      excludePlaceIds: string[];
+      radiusMeters: number;
+      limit: number;
+    },
+  ): Promise<{ places: SpotPlace[]; limited: boolean }> {
+    const cafePattern =
+      filter.kind === 'cafe'
+        ? '카페|커피|찻집|다방|디저트|베이커리|cafe|coffee'
+        : null;
+    const keyword = filter.keyword
+      ? `%${filter.keyword.replace(/[\\%_]/g, '\\$&')}%`
+      : null;
+    try {
+      const rows: Record<string, unknown>[] = await this.db.query(
+        `WITH RECURSIVE matching_categories(category_id) AS (
+          SELECT category_id FROM public.place_categories WHERE category_name ~* $9::text
+          UNION
+          SELECT c.category_id FROM public.place_categories c JOIN matching_categories m ON c.parent_category_id=m.category_id
+        ), keyword_categories(category_id) AS (
+          SELECT category_id FROM public.place_categories WHERE category_name ILIKE $8::text
+          UNION
+          SELECT c.category_id FROM public.place_categories c JOIN keyword_categories k ON c.parent_category_id=k.category_id
+        ), search_area AS (
+          SELECT ST_SetSRID(ST_MakePoint($1::double precision,$2::double precision),4326)::geography AS location,
+                 ST_SetSRID(ST_MakePoint($3::double precision,$4::double precision),4326)::geography AS destination
+        )
+        SELECT p.place_id,p.name,p.address,p.latitude,p.longitude,p.content_type_id,c.category_name,
+               ST_Distance(p.location,q.destination) AS distance_meters
+        FROM public.places p CROSS JOIN search_area q
+        LEFT JOIN public.place_categories c ON c.category_id=p.category_id
+        WHERE p.is_active=true AND p.location IS NOT NULL
+          AND ST_DWithin(p.location,q.location,$5::double precision)
+          AND ST_DWithin(p.location,q.destination,$5::double precision)
+          AND p.content_type_id=ANY($6::smallint[])
+          AND p.place_id::text <> ALL($7::text[])
+          AND ($8::text IS NULL OR p.name ILIKE $8::text OR p.category_id IN (SELECT category_id FROM keyword_categories))
+          AND ($9::text IS NULL OR p.name ~* $9::text OR p.category_id IN (SELECT category_id FROM matching_categories))
+        ORDER BY ST_Distance(p.location,q.location),p.place_id LIMIT $10`,
+        [
+          spot.longitude,
+          spot.latitude,
+          destination.longitude,
+          destination.latitude,
+          filter.radiusMeters,
+          filter.kind === 'sightseeing' ? [12, 14, 15, 28, 38] : [39],
+          filter.excludePlaceIds.map((id) => id.toLowerCase()),
+          keyword,
+          cafePattern,
+          filter.limit + 1,
+        ],
+      );
+      return {
+        places: this.mapPlaces(rows, filter.limit, filter.radiusMeters).map(
+          (place) => ({
+            ...place,
+            distanceMeters: Math.round(place.distanceMeters),
+          }),
+        ),
+        limited: rows.length > filter.limit,
+      };
+    } catch (error) {
+      throw new RoutingError(
+        503,
+        'PLACE_RECOMMENDATIONS_UNAVAILABLE',
+        '추가 장소 후보를 조회하지 못했습니다.',
+        databaseDiagnostic(error, 'revision_candidate_search'),
       );
     }
   }

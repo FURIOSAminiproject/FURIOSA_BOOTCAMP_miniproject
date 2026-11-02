@@ -10,7 +10,15 @@ import { configuredGeminiClient } from './gemini-client';
 import {
   revisionErrorReply,
   revisionUnchangedReply,
+  revisionCandidateSearchNote,
 } from './itinerary-revision-reply';
+import {
+  inferCandidateSearch,
+  parseCandidateSearch,
+  searchRevisionCandidates,
+  type CandidateSearchRequest,
+  type CandidateSearchSummary,
+} from './revision-candidate-search';
 import {
   aiErrorDiagnostic,
   createAiTrace,
@@ -146,6 +154,34 @@ export class ItineraryRevisionService {
     return result;
   }
 
+  private candidateCoverage(places: SpotPlace[], registered: SpotPlace[]) {
+    const used = new Set(registered.map((place) => place.id));
+    const food = places.filter((place) => place.contentTypeId === 39);
+    const cafes = food.filter((place) =>
+      /카페|커피|찻집|다방|디저트|베이커리|cafe|coffee/i.test(
+        `${place.name} ${place.categoryName || ''}`,
+      ),
+    );
+    return {
+      foodCount: food.length,
+      unusedFoodCount: food.filter((place) => !used.has(place.id)).length,
+      recognizedCafeCount: cafes.length,
+      unusedRecognizedCafeCount: cafes.filter((place) => !used.has(place.id))
+        .length,
+    };
+  }
+
+  private promptPlaces(places: SpotPlace[]) {
+    return places.map((place) => ({
+      id: place.id,
+      name: place.name,
+      category: place.categoryName,
+      contentTypeId: place.contentTypeId,
+      allowedKinds: allowedVisitKinds(place.contentTypeId),
+      distanceMeters: place.distanceMeters,
+    }));
+  }
+
   async revise(
     input: ItineraryRevisionRequest,
   ): Promise<ItineraryRevisionResponse> {
@@ -204,8 +240,8 @@ export class ItineraryRevisionService {
     const nearby: SpotPlace[] = [];
     const candidatesStarted = performance.now();
     let failedLookups = 0;
-    if (this.db) {
-      const repository = new ExplorerRepository(this.db);
+    const repository = this.db ? new ExplorerRepository(this.db) : undefined;
+    if (repository) {
       const filters = [
         {
           contentTypeIds: [12, 14, 15, 28, 38],
@@ -237,30 +273,45 @@ export class ItineraryRevisionService {
         }
       }
     }
-    const places = [
+    let places = [
       ...new Map(
         [...registered, ...nearby]
           .filter(isSpotPlace)
           .map((place) => [place.id, place]),
       ).values(),
     ].slice(0, 80);
-    const usedPlaceIds = new Set(registered.map((place) => place.id));
-    const foodCandidates = places.filter((place) => place.contentTypeId === 39);
-    const recognizedCafes = foodCandidates.filter((place) =>
-      /카페|커피|찻집|다방|디저트|베이커리|cafe|coffee/i.test(
-        `${place.name} ${place.categoryName || ''}`,
-      ),
-    );
-    const candidateCoverage = {
-      foodCount: foodCandidates.length,
-      unusedFoodCount: foodCandidates.filter(
-        (place) => !usedPlaceIds.has(place.id),
-      ).length,
-      recognizedCafeCount: recognizedCafes.length,
-      unusedRecognizedCafeCount: recognizedCafes.filter(
-        (place) => !usedPlaceIds.has(place.id),
-      ).length,
+    let candidateCoverage = this.candidateCoverage(places, registered);
+    let candidateSearch: CandidateSearchSummary | undefined;
+    let candidateSearchRounds = 0;
+    let lastSearchRequest: CandidateSearchRequest | undefined;
+    const enrichCandidates = async (request: CandidateSearchRequest) => {
+      if (!repository || candidateSearchRounds >= 2) return;
+      candidateSearchRounds++;
+      lastSearchRequest = request;
+      const found = await searchRevisionCandidates(
+        repository,
+        request,
+        itinerary,
+        center,
+        input.mode!,
+        places,
+        trace,
+        candidateSearchRounds,
+      );
+      candidateSearch = found.summary;
+      places = [
+        ...new Map(
+          [...registered, ...found.places, ...places]
+            .filter(isSpotPlace)
+            .map((place) => [place.id, place]),
+        ).values(),
+      ].slice(0, 80);
+      candidateCoverage = this.candidateCoverage(places, registered);
     };
+    const inferredSearch = repository
+      ? inferCandidateSearch(message, itinerary, places)
+      : null;
+    if (inferredSearch) await enrichCandidates(inferredSearch);
     trace.emit('ai_revision_candidates_loaded', {
       durationMs: Math.round(performance.now() - candidatesStarted),
       registeredCount: registered.length,
@@ -294,6 +345,9 @@ export class ItineraryRevisionService {
             message,
             history,
             candidateCoverage,
+            candidateSearch,
+            candidateSearchConditions: lastSearchRequest,
+            candidateSearchAvailable: !!repository && candidateSearchRounds < 2,
             mode: input.mode,
             arrivalDate: itinerary.arrivalDate,
             arrivalTime: itinerary.arrivalTime,
@@ -308,16 +362,11 @@ export class ItineraryRevisionService {
                 durationMinutes: visit.durationMinutes,
               })),
             })),
-            places: places.map((place) => ({
-              id: place.id,
-              name: place.name,
-              category: place.categoryName,
-              contentTypeId: place.contentTypeId,
-              allowedKinds: allowedVisitKinds(place.contentTypeId),
-            })),
+            places: this.promptPlaces(places),
           }),
           config: {
             systemInstruction:
+              '후보 부족 때문에 수정안을 만들 수 없고 candidateSearchAvailable=true이면 days=[]와 searchRequest:{kind:"cafe|food|sightseeing",dayNumber:해당 일차,keyword?:특정 장소명 또는 분류}로 DB 재조회를 요청할 수 있습니다. 일반 카페·음식점·관광지 요청에는 keyword를 생략하고 특정 이름을 찾아야 할 때만 50자 이내로 넣으세요. SQL이나 반경을 작성하지 마세요. candidateSearchConditions와 같은 검색을 반복하지 말고 특정 장소명 등 조건을 구체화할 필요가 있을 때만 요청하세요. candidateSearchAvailable=false이면 추가 조회 없이 candidateSearch의 상태·범위·개수로 수정 가능 여부와 이유를 설명하세요. 질문·지원 범위 밖 요청·이미 반영된 요청에는 재조회를 요청하지 마세요. ' +
               '당신은 국내 여행의 도착 후 날짜별 일정을 실제로 수정하는 플래너입니다. 사용자 요청에 맞춰 기존 일정을 가능한 한 유지하면서 방문 장소 교체·추가·삭제·시각 재배치를 하세요. 반드시 제공된 places의 ID만 사용하고 각 장소의 allowedKinds에 있는 kind만 지정하세요. allowedKinds가 빈 장소는 방문에 넣지 마세요. 관광지를 점심·카페·저녁으로 배정하거나 음식점을 sightseeing으로 배정하면 수정 전체가 거부됩니다. candidateCoverage는 후보 중 음식점·이름이나 분류로 확인되는 카페와 아직 일정에 없는 후보의 개수입니다. 카페 추가 요청에 실제 카페 후보가 없으면 식당이나 관광지를 카페로 꾸미지 말고 reply에 후보 부족을 구체적으로 설명하세요. 최신 message를 현재 days와 places 기준으로 판단하세요. dayNumber가 첫날·둘째 날의 기준입니다. days에는 변경한 날짜만 넣고, 각 날짜의 visits에는 유지할 방문까지 포함한 그 날의 최종 전체 방문 목록을 넣으세요. 생략한 날짜는 그대로 유지되며, visits=[]는 해당 날짜 방문 전체 삭제입니다. 하루 최대 6곳, 생략한 날짜를 포함해 전체에서 장소 ID 중복 금지, 도착일·도착 시각 이후·09:00~20:00 범위, 방문 간 최소 5분 여유를 지키세요. 관광지는 sightseeing, 음식점은 lunch/cafe/dinner입니다. 경로선·이동 수단·출발지·날짜·숙박 예약은 이 기능으로 바꿀 수 없습니다. 그 요청이라면 수정하지 말고 안내만 하세요. JSON {reply:"짧은 수정 설명",days:[{date:"YYYY-MM-DD",visits:[{placeId:"제공 ID",kind:"sightseeing|lunch|cafe|dinner",time:"HH:mm",durationMinutes:30~180}]}]} 형식으로 반환하세요. 수정 불가하거나 질문일 때는 days=[]로 답하고 reply에 후보 부족·추가 질문·지원 범위·이미 반영됨 중 실제 이유를 설명하세요. 실제 수정 없이 완료했다고 말하지 마세요.',
             responseMimeType: 'application/json',
             responseJsonSchema: {
@@ -325,6 +374,18 @@ export class ItineraryRevisionService {
               required: ['reply', 'days'],
               properties: {
                 reply: { type: 'string' },
+                searchRequest: {
+                  type: 'object',
+                  required: ['kind'],
+                  properties: {
+                    kind: {
+                      type: 'string',
+                      enum: ['cafe', 'food', 'sightseeing'],
+                    },
+                    dayNumber: { type: 'integer' },
+                    keyword: { type: 'string' },
+                  },
+                },
                 days: {
                   type: 'array',
                   items: {
@@ -382,8 +443,70 @@ export class ItineraryRevisionService {
         trace,
         1,
       );
+      let followupUsed = false;
+      const requestedSearch = parseCandidateSearch(
+        parsed.searchRequest,
+        itinerary,
+      );
+      const searchConditionsChanged =
+        requestedSearch &&
+        (!lastSearchRequest ||
+          requestedSearch.kind !== lastSearchRequest.kind ||
+          requestedSearch.dayNumber !== lastSearchRequest.dayNumber ||
+          requestedSearch.keyword !== lastSearchRequest.keyword);
+      if (parsed.searchRequest !== undefined && !requestedSearch)
+        trace.emit(
+          'ai_revision_candidate_search_ignored',
+          { reason: 'invalid_search_request' },
+          'warn',
+        );
       if (
         !validated.itinerary &&
+        repository &&
+        candidateSearchRounds < 2 &&
+        searchConditionsChanged &&
+        requestedSearch &&
+        ['no_proposed_days', 'unknown_place', 'place_kind_mismatch'].includes(
+          validated.rejection?.reason ?? '',
+        )
+      ) {
+        stage = 'candidate_search';
+        await enrichCandidates(requestedSearch);
+        followupUsed = true;
+        stage = 'candidate_research_provider';
+        const researched = await generateGeminiContent(
+          gemini,
+          {
+            ...generated.request,
+            contents: JSON.stringify({
+              ...JSON.parse(generated.request.contents as string),
+              places: this.promptPlaces(places),
+              candidateCoverage,
+              candidateSearch,
+              candidateSearchConditions: lastSearchRequest,
+              candidateSearchAvailable: false,
+              rejectedDays: parsed.days,
+              validationFeedback: validated.rejection,
+              researchInstruction:
+                '요청한 조건으로 DB 후보를 한 번 더 조사했습니다. candidateSearch의 조회 상태·범위·개수를 근거로 새 places만 사용해 원래 사용자 요청의 수정안을 다시 만드세요. 추가 검색은 더 요청하지 마세요. 조회가 실패했으면 후보가 없다고 단정하지 말고 조회 실패를 설명하세요. 후보가 0개이고 변경할 수 없으면 조사한 범위와 후보 부족을 구체적으로 설명하세요.',
+            }),
+          },
+          trace,
+        );
+        stage = 'candidate_research_parse';
+        parsed = this.parseProposal(researched.text || '{}', trace, 2);
+        stage = 'validation';
+        validated = this.validateProposal(
+          itinerary,
+          parsed.days,
+          places,
+          trace,
+          2,
+        );
+      }
+      if (
+        !validated.itinerary &&
+        !followupUsed &&
         validated.rejection?.reason === 'place_kind_mismatch'
       ) {
         trace.emit(
@@ -440,17 +563,25 @@ export class ItineraryRevisionService {
       const noProposal = Array.isArray(parsed.days) && parsed.days.length === 0;
       const unchanged = validated.rejection?.reason === 'unchanged';
       const ordinaryNoChange = noProposal || unchanged;
+      const responseReason =
+        noProposal &&
+        candidateSearch &&
+        candidateSearch.status !== 'completed' &&
+        candidateSearch.newCandidateCount === 0
+          ? 'candidate_search_failed'
+          : (validated.rejection?.reason ?? 'unknown');
       trace.emit(
         'ai_revision_completed',
         {
           changed: !!revised,
-          reason: revised
-            ? 'applied'
-            : (validated.rejection?.reason ?? 'rejected'),
+          reason: revised ? 'applied' : responseReason,
           modelReplyPresent: !!reply,
           modelReplyLength: reply.length,
         },
-        revised || ordinaryNoChange ? 'log' : 'warn',
+        revised ||
+          (ordinaryNoChange && responseReason !== 'candidate_search_failed')
+          ? 'log'
+          : 'warn',
       );
       return revised
         ? {
@@ -460,11 +591,15 @@ export class ItineraryRevisionService {
             modelUsed: gemini.modelName,
           }
         : {
-            reply: revisionUnchangedReply(
-              validated.rejection?.reason ?? 'unknown',
-              reply,
-              validated.rejection?.position,
-            ),
+            reply:
+              revisionUnchangedReply(
+                responseReason,
+                reply,
+                validated.rejection?.position,
+              ) +
+              (candidateSearch
+                ? `\n${revisionCandidateSearchNote(candidateSearch)}`
+                : ''),
             changed: false,
             itinerary: null,
             modelUsed: gemini.modelName,
@@ -473,7 +608,11 @@ export class ItineraryRevisionService {
       const diagnostic = aiErrorDiagnostic(error);
       trace.emit('ai_revision_failed', { stage, ...diagnostic }, 'error');
       return {
-        reply: revisionErrorReply(diagnostic, stage),
+        reply:
+          revisionErrorReply(diagnostic, stage) +
+          (candidateSearch
+            ? `\n${revisionCandidateSearchNote(candidateSearch)}`
+            : ''),
         changed: false,
         itinerary: null,
         modelUsed: gemini.modelName,

@@ -4,6 +4,16 @@ NestJS 12, TypeScript 6, TypeORM, PostgreSQL 드라이버와 `@google/genai`를 
 
 ## 대화형 플래너와 도착 후 일정 (2026-10-28)
 
+### 후보 부족 시 DB 재조사 (2026-11-02)
+
+수정 요청의 미사용 카페·음식점·관광지 후보가 없는 경우, 첫 AI 호출 전에 해당 종류로 DB를 보강한다. AI도 후보 부족으로 변경안을 만들지 못하면 `searchRequest:{kind:"cafe|food|sightseeing",dayNumber?:일차,keyword?:검색어}`를 요청할 수 있다. 서버는 종류·실제 여행 일차·최대 50자 검색어만 받고 SQL·반경 등 다른 필드는 거부한다. 일반 후보 보강 후 특정 장소명 등의 조건을 바꾼 재조사는 한 번 더 허용하며 동일 조건을 반복하지 않는다.
+
+`ExplorerRepository.revisionCandidates`는 활성·좌표 있는 장소만 대상으로 종류·분류 계층·이름/분류 검색어·기존 후보 제외를 LIMIT 전에 적용한다. 검색어는 바인딩한 값으로 사용하고 LIKE 와일드카드는 문자로 취급한다. 목적지와 지정 일차의 첫·마지막 방문지 최대 3곳을 기준으로 찾으며, 모든 결과는 목적지 반경 도보 5km·자동차 20km 안으로 제한한다. 지점당 최대 24개, 추가 조회 최대 2회·SELECT 6개이며 DB 쓰기·스키마 변경·전체 지역 무제한 검색은 하지 않는다. 반환 거리도 목적지 기준으로 유지한다.
+
+새 후보를 기존 방문 장소와 합쳐 최대 80개로 AI에 제공한다. AI가 요청한 재조회 후에는 같은 출력 모드로 수정안 또는 구체적 불가 이유를 한 번 더 받는다. 이 후속 호출과 방문 유형 보정은 중복하지 않으며 구조화 응답 400 호환까지 포함해 공급자 호출 최대 3회다. 모든 수정안은 기존 날짜·중복·유형·시간 검증을 거친다. 조회 0건·일부 실패·전체 실패를 구분하고, 무변경/오류 응답에는 실제 조사 범위와 새 후보 수 또는 조회 실패 안내를 추가한다. 재조회만으로 DB에 없는 장소가 생기는 것은 아니다.
+
+`ai_revision_candidate_search_started/completed/lookup_failed/ignored`에서 조회 회차·종류·반경·지점 수·제외 수·새 후보 수·실패 수·제한 여부를 확인한다. 검색어 원문·좌표·장소 이름·SQL은 로그에 남기지 않는다. `candidateSearch`·`candidateSearchConditions`·`candidateSearchAvailable`은 모델의 검색 반복을 제한하는 서버 컨텍스트다. 실제 운영 SQL 실행·모델 반영 성공은 배포 후 별도 확인해야 한다.
+
 ### 수정 불가 사유 안내 (2026-11-02)
 
 AI가 `days=[]`와 함께 후보 부족·추가 질문·지원 범위·이미 반영됨 등의 이유를 설명하면 해당 설명을 응답에 보존한다. 빈 배열을 일괄 검증 오류로 표시하지 않으며 변경하지 않았다는 안내를 먼저 붙인다. 제안이 현재 일정과 동일하면 추가 변경이 없다고 안내한다. 구체적인 이유까지 없는 응답에는 AI가 이유를 제공하지 않았음을 명시하고 추측하지 않는다.
@@ -36,7 +46,7 @@ AI가 `days=[]`와 함께 후보 부족·추가 질문·지원 범위·이미 �
 
 - 설정: `ai_configuration_lookup_completed/failed`에 `app_model_config`·`ai_model_config`의 활성 행 존재 여부 또는 `dbCode`·`dbReason`을 남긴다. `ai_configuration_resolved`의 `keySource`, `modelSource`, `keyPresent`, `model`로 환경변수·DB 중 실제 선택된 출처를 확인한다. 두 출처는 서로 다를 수 있다. 테이블 누락 `42P01`, 권한 부족 `42501`, 비밀번호 인증 실패 `28P01`을 구분한다. 행이 있으면 다음 테이블을 조회하지 않는 기존 우선순위를 유지한다.
 - 호출: `ai_provider_request_started/completed/failed`에 모델, 소요 시간, HTTP 상태, 허용한 공급자 오류 코드, 종료·차단 사유, 토큰 수를 남긴다. Google이 상세 정보를 제공한 429에는 `quotaViolations`의 일/분 단위·요청/토큰·무료/유료 구분·한도와 `retryAfterSeconds`가 포함된다. 상세 정보가 없으면 429만으로 어떤 한도인지 단정하지 않는다.
-- 수정: `ai_revision_*`에서 입력 검증, 후보 수·조회 실패, JSON 파싱, 일정 검증, 최종 적용 여부를 추적한다. `ai_revision_failed.stage`는 `provider`, `parse`, `validation`, `repair_provider`, `repair_parse`다. `ai_revision_validation_rejected.reason`은 알 수 없는 장소, 중복 장소·날짜, 시간 겹침, 도착 전, 장소 유형 불일치, 무변경 등을 구분하고 필요한 경우 0부터 시작하는 배열 위치를 남긴다.
+- 수정: `ai_revision_*`에서 입력 검증, 후보 수·조회 실패, JSON 파싱, 일정 검증, 최종 적용 여부를 추적한다. `ai_revision_failed.stage`는 `provider`, `parse`, `validation`, `repair_provider`, `repair_parse`, `candidate_search`, `candidate_research_provider`, `candidate_research_parse`다. `ai_revision_validation_rejected.reason`은 알 수 없는 장소, 중복 장소·날짜, 시간 겹침, 도착 전, 장소 유형 불일치 등을 구분하고 필요한 경우 0부터 시작하는 배열 위치를 남긴다. 빈 제안·동일 제안은 `ai_revision_no_change`로 구분한다.
 - 생성·큐레이션: `ai_planner_completed`, `ai_curation_completed`의 `aiUsed=false`, `reason=error_fallback`은 AI 실패 후 로컬 처리로 이어졌다는 뜻이다. 화면이 정상 진행되는 것만으로 AI 성공을 판단하지 않는다.
 
 키 원문·일부·해시, DB 비밀번호·접속 주소, 대화·일정·장소 원문, 공급자 오류 원문과 stack은 기록하지 않는다. 입력·출력은 길이·개수와 허용한 메타데이터로만 남긴다. 상세 단계 로그는 운영에서도 기본 출력되므로 요청량에 비례해 로그량이 증가한다. 이 범위는 공통 Gemini 설정을 사용하는 네 경로이며 기존 `travel-engine.ts`·`poetry.service.ts`의 독립 호출은 포함하지 않는다.
