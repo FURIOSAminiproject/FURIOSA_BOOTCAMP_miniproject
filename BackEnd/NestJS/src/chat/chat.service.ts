@@ -1,7 +1,13 @@
-import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { GoogleGenAI } from '@google/genai';
 import { configuredGeminiClient } from './gemini-client';
+import {
+  aiErrorDiagnostic,
+  createAiTrace,
+  generateGeminiContent,
+  type AiTrace,
+} from './ai-diagnostics';
 import {
   explicitTravelMode,
   scheduleFromText,
@@ -84,22 +90,29 @@ export class PlannerChatResponseDto {
 
 @Injectable()
 export class ChatService {
-  private readonly logger = new Logger(ChatService.name);
-
   constructor(
     @Optional() @Inject(DataSource) private readonly dataSource?: DataSource,
   ) {}
 
-  private async getGeminiClient(): Promise<{
+  private async getGeminiClient(trace?: AiTrace): Promise<{
     ai: GoogleGenAI;
     modelName: string;
   } | null> {
-    return configuredGeminiClient(this.dataSource);
+    return configuredGeminiClient(this.dataSource, trace);
   }
 
   async chat(dto: ChatRequestDto): Promise<ChatResponseDto> {
+    const trace = createAiTrace('chat');
     const userMessage = (dto.message || dto.text || '').trim();
+    trace.emit('ai_chat_received', {
+      messageLength: userMessage.length,
+      historyCount: Array.isArray(dto.history) ? dto.history.length : 0,
+    });
     if (!userMessage) {
+      trace.emit('ai_chat_completed', {
+        reason: 'empty_message',
+        aiUsed: false,
+      });
       return {
         reply:
           '안녕하세요! 여행에 대해 궁금한 점이 있으시면 언제든 편하게 물어보세요. (예: "서울에서 부산 갈 때 12시 반 맛집 추천해줘")',
@@ -107,8 +120,13 @@ export class ChatService {
       };
     }
 
-    const gemini = await this.getGeminiClient();
+    const gemini = await this.getGeminiClient(trace);
     if (!gemini) {
+      trace.emit(
+        'ai_chat_completed',
+        { reason: 'no_api_key', aiUsed: false },
+        'warn',
+      );
       return {
         reply:
           '안녕하세요! 현재 시스템에 GEMINI_API_KEY가 등록되지 않은 상태입니다. DB의 ai_model_config 테이블 또는 환경 설정을 확인해 주세요.',
@@ -186,12 +204,21 @@ ${contextLines.length ? `\n[현재 생성된 여행 계획 정보]\n${contextLin
     });
 
     try {
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents,
-      });
+      const response = await generateGeminiContent(
+        { ai, modelName },
+        {
+          model: modelName,
+          contents,
+        },
+        trace,
+      );
 
       const replyText = response.text?.trim();
+      trace.emit('ai_chat_completed', {
+        reason: replyText ? 'answered' : 'empty_response',
+        aiUsed: !!replyText,
+        responseLength: replyText?.length ?? 0,
+      });
       if (replyText) {
         return {
           reply: replyText,
@@ -203,7 +230,7 @@ ${contextLines.length ? `\n[현재 생성된 여행 계획 정보]\n${contextLin
         modelUsed: modelName,
       };
     } catch (err: any) {
-      this.logger.error(`Gemini (${modelName}) API Error:`, err?.message);
+      trace.emit('ai_chat_failed', aiErrorDiagnostic(err), 'error');
       return {
         reply: `답변 생성 중 오류가 발생했습니다. (${err?.message || '잠시 후 다시 시도해 주세요'})`,
         modelUsed: modelName,
@@ -341,50 +368,87 @@ ${contextLines.length ? `\n[현재 생성된 여행 계획 정보]\n${contextLin
   private async generatePlanChat(
     dto: PlannerChatRequestDto,
   ): Promise<PlannerChatResponseDto> {
+    const trace = createAiTrace('planner');
+    trace.emit('ai_planner_received', {
+      messageLength: dto.message?.length ?? 0,
+      step: dto.currentStep,
+      historyCount: Array.isArray(dto.history) ? dto.history.length : 0,
+    });
     const fallback = this.fallbackPlanChat(
       dto.message || '',
       dto.currentDraft || {},
       dto.currentStep || 1,
     );
-    if (!dto.message?.trim() || dto.currentStep === 5) return fallback;
-    const gemini = await this.getGeminiClient();
-    if (!gemini) return fallback;
+    if (!dto.message?.trim() || dto.currentStep === 5) {
+      trace.emit('ai_planner_completed', {
+        aiUsed: false,
+        reason: 'empty_message_or_complete',
+        modelUsed: fallback.modelUsed,
+      });
+      return fallback;
+    }
+    const gemini = await this.getGeminiClient(trace);
+    if (!gemini) {
+      trace.emit(
+        'ai_planner_completed',
+        { aiUsed: false, reason: 'no_api_key', modelUsed: fallback.modelUsed },
+        'warn',
+      );
+      return fallback;
+    }
     try {
       const today = new Date(Date.now() + 9 * 3600000)
         .toISOString()
         .slice(0, 10);
-      const response = await gemini.ai.models.generateContent({
-        model: gemini.modelName,
-        contents: JSON.stringify({
-          todayInKorea: today,
-          step: dto.currentStep,
-          message: dto.message,
-          previous: {
-            originName: dto.currentDraft?.originName,
-            destinationName: dto.currentDraft?.destinationName,
-            startDate: dto.currentDraft?.startDate,
-            durationLabel: dto.currentDraft?.durationLabel,
-            departureTime: dto.currentDraft?.departureTime,
-            mode: dto.currentDraft?.mode,
-            preferences: dto.currentDraft?.preferences,
+      const response = await generateGeminiContent(
+        gemini,
+        {
+          model: gemini.modelName,
+          contents: JSON.stringify({
+            todayInKorea: today,
+            step: dto.currentStep,
+            message: dto.message,
+            previous: {
+              originName: dto.currentDraft?.originName,
+              destinationName: dto.currentDraft?.destinationName,
+              startDate: dto.currentDraft?.startDate,
+              durationLabel: dto.currentDraft?.durationLabel,
+              departureTime: dto.currentDraft?.departureTime,
+              mode: dto.currentDraft?.mode,
+              preferences: dto.currentDraft?.preferences,
+            },
+            history: dto.history
+              ?.slice(-6)
+              .filter((item) => item?.role === 'user' || item?.role === 'model')
+              .map((item) => ({
+                role: item.role,
+                content: String(item.content).slice(0, 500),
+              })),
+          }),
+          config: {
+            systemInstruction:
+              '당신은 국내 여행 상담 에이전트입니다. 최신 사용자 답변을 기존 대화와 초안에 비추어 해석하세요. 현재 step의 정보만 새로 추출하고, 답변에 없는 날짜·기간·시각·교통수단을 추측해 채우지 마세요. 출발지/도착지는 실제 지명만 추출하세요. step 2: startDate는 한국 달력 YYYY-MM-DD, durationDays는 1~10 정수, departureTime은 24시간제 HH:mm로 정규화하세요. 말한 항목만 출력하세요. step 3: 사용자가 자동차/도보를 명확하게 선택한 경우에만 mode를 driving/walking으로 출력하세요. 모호한 답변 또는 대중교통은 null입니다. step 4: 현재 답변에 해당하는 categoryThemes를 cafe, food, nature, culture, activity 중 0~4개 고르세요. 숙박만 요청하면 빈 배열로 두세요. acknowledgment는 사용자의 답변을 이해했다는 짧은 한 문장만 쓰고 질문이나 확인되지 않은 사실은 넣지 마세요. JSON 객체 {originName?, destinationName?, startDate?, durationDays?, departureTime?, mode?, categoryThemes?, acknowledgment?}만 반환하세요.',
+            responseMimeType: 'application/json',
           },
-          history: dto.history
-            ?.slice(-6)
-            .filter((item) => item?.role === 'user' || item?.role === 'model')
-            .map((item) => ({
-              role: item.role,
-              content: String(item.content).slice(0, 500),
-            })),
-        }),
-        config: {
-          systemInstruction:
-            '당신은 국내 여행 상담 에이전트입니다. 최신 사용자 답변을 기존 대화와 초안에 비추어 해석하세요. 현재 step의 정보만 새로 추출하고, 답변에 없는 날짜·기간·시각·교통수단을 추측해 채우지 마세요. 출발지/도착지는 실제 지명만 추출하세요. step 2: startDate는 한국 달력 YYYY-MM-DD, durationDays는 1~10 정수, departureTime은 24시간제 HH:mm로 정규화하세요. 말한 항목만 출력하세요. step 3: 사용자가 자동차/도보를 명확하게 선택한 경우에만 mode를 driving/walking으로 출력하세요. 모호한 답변 또는 대중교통은 null입니다. step 4: 현재 답변에 해당하는 categoryThemes를 cafe, food, nature, culture, activity 중 0~4개 고르세요. 숙박만 요청하면 빈 배열로 두세요. acknowledgment는 사용자의 답변을 이해했다는 짧은 한 문장만 쓰고 질문이나 확인되지 않은 사실은 넣지 마세요. JSON 객체 {originName?, destinationName?, startDate?, durationDays?, departureTime?, mode?, categoryThemes?, acknowledgment?}만 반환하세요.',
-          responseMimeType: 'application/json',
         },
+        trace,
+      );
+      trace.emit('ai_planner_parse_started', {
+        responseLength: response.text?.length ?? 0,
       });
       const parsed: unknown = JSON.parse(response.text || '{}');
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        trace.emit(
+          'ai_planner_completed',
+          {
+            aiUsed: false,
+            reason: 'invalid_response_shape',
+            modelUsed: fallback.modelUsed,
+          },
+          'warn',
+        );
         return fallback;
+      }
       const fields = parsed as Record<string, unknown>;
       if (dto.currentStep === 1) {
         for (const key of ['originName', 'destinationName'] as const) {
@@ -453,6 +517,7 @@ ${contextLines.length ? `\n[현재 생성된 여행 계획 정보]\n${contextLin
           );
       }
       const acknowledgment = fields.acknowledgment;
+      trace.emit('ai_planner_completed', { aiUsed: true, reason: 'parsed' });
       return {
         ...fallback,
         reply:
@@ -461,7 +526,17 @@ ${contextLines.length ? `\n[현재 생성된 여행 계획 정보]\n${contextLin
             : '',
         modelUsed: gemini.modelName,
       };
-    } catch {
+    } catch (error) {
+      trace.emit(
+        'ai_planner_completed',
+        {
+          aiUsed: false,
+          reason: 'error_fallback',
+          modelUsed: fallback.modelUsed,
+          ...aiErrorDiagnostic(error),
+        },
+        'warn',
+      );
       return fallback;
     }
   }

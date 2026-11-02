@@ -126,16 +126,36 @@ export function applyItineraryRevision(
   itinerary: DestinationItinerary,
   proposedDays: unknown,
   places: SpotPlace[],
+  onReject?: (
+    reason: string,
+    position: { dayIndex?: number; visitIndex?: number },
+  ) => void,
 ): DestinationItinerary | null {
+  const reject = (
+    reason: string,
+    dayIndex?: number,
+    visitIndex?: number,
+  ): null => {
+    onReject?.(reason, { dayIndex, visitIndex });
+    return null;
+  };
   if (
     !Array.isArray(proposedDays) ||
     proposedDays.length === 0 ||
     proposedDays.length > itinerary.days.length
   )
-    return null;
+    return reject(
+      Array.isArray(proposedDays) && proposedDays.length === 0
+        ? 'no_proposed_days'
+        : 'invalid_proposed_days',
+    );
   const dates = new Set(itinerary.days.map((day) => day.date));
   const proposals = new Map<string, Record<string, unknown>>();
-  for (const proposed of proposedDays) {
+  for (const [index, proposed] of proposedDays.entries()) {
+    if (record(proposed) && typeof proposed.date === 'string') {
+      if (!dates.has(proposed.date)) return reject('unknown_date', index);
+      if (proposals.has(proposed.date)) return reject('duplicate_date', index);
+    }
     if (
       !record(proposed) ||
       typeof proposed.date !== 'string' ||
@@ -144,7 +164,7 @@ export function applyItineraryRevision(
       !Array.isArray(proposed.visits) ||
       proposed.visits.length > 6
     )
-      return null;
+      return reject('invalid_day_structure', index);
     proposals.set(proposed.date, proposed);
   }
   const allowed = new Map(places.map((place) => [place.id, place]));
@@ -170,15 +190,21 @@ export function applyItineraryRevision(
       !Array.isArray(proposed.visits) ||
       proposed.visits.length > 6
     )
-      return null;
+      return reject('invalid_day_structure', dayIndex);
     if (original.date < itinerary.arrivalDate && proposed.visits.length > 0)
-      return null;
+      return reject('before_arrival_date', dayIndex);
     const visits: DestinationVisit[] = [];
     let previousEnd =
       original.date === itinerary.arrivalDate
         ? minutes(itinerary.arrivalTime)
         : 9 * 60;
-    for (const raw of proposed.visits) {
+    for (const [visitIndex, raw] of proposed.visits.entries()) {
+      if (record(raw) && typeof raw.placeId === 'string') {
+        if (!allowed.has(raw.placeId))
+          return reject('unknown_place', dayIndex, visitIndex);
+        if (used.has(raw.placeId))
+          return reject('duplicate_place', dayIndex, visitIndex);
+      }
       if (
         !record(raw) ||
         typeof raw.placeId !== 'string' ||
@@ -193,7 +219,7 @@ export function applyItineraryRevision(
         Number(raw.durationMinutes) < 30 ||
         Number(raw.durationMinutes) > 180
       )
-        return null;
+        return reject('invalid_visit_fields', dayIndex, visitIndex);
       const place = allowed.get(raw.placeId)!;
       const kind = raw.kind as Kind;
       if (
@@ -201,7 +227,7 @@ export function applyItineraryRevision(
           ![12, 14, 15, 28, 38].includes(place.contentTypeId)) ||
         (kind !== 'sightseeing' && place.contentTypeId !== 39)
       )
-        return null;
+        return reject('place_kind_mismatch', dayIndex, visitIndex);
       const start = minutes(raw.time);
       const end = start + Number(raw.durationMinutes);
       if (
@@ -215,7 +241,13 @@ export function applyItineraryRevision(
           ) ||
         end > 20 * 60
       )
-        return null;
+        return reject(
+          end > 20 * 60
+            ? 'after_day_end'
+            : 'before_arrival_or_overlapping_time',
+          dayIndex,
+          visitIndex,
+        );
       const travelMinutes = visits.length
         ? Math.max(5, Math.min(45, start - previousEnd))
         : 5;
@@ -251,5 +283,7 @@ export function applyItineraryRevision(
         : original.notes,
     });
   }
-  return changed ? { ...itinerary, days, curationSource: 'ai' } : null;
+  return changed
+    ? { ...itinerary, days, curationSource: 'ai' }
+    : reject('unchanged');
 }

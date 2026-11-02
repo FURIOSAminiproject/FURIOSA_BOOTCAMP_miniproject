@@ -4,6 +4,25 @@ NestJS 12, TypeScript 6, TypeORM, PostgreSQL 드라이버와 `@google/genai`를 
 
 ## 대화형 플래너와 도착 후 일정 (2026-10-28)
 
+### AI 진단 로그 (2026-11-02)
+
+일반 상담·생성 플래너·수정 플래너·도착 후 일정 큐레이터는 `[AiDiagnostics]`의 JSON 로그를 남긴다. 같은 처리의 로그는 `requestId`로 연결하며 `operation`은 `chat`, `planner`, `revision`, `curation`이다. 설정 도우미를 단독 실행하면 `configuration`이다. API 응답 계약과 기존 모델·키 선택 순서는 유지한다.
+
+- 설정: `ai_configuration_lookup_completed/failed`에 `app_model_config`·`ai_model_config`의 활성 행 존재 여부 또는 `dbCode`·`dbReason`을 남긴다. `ai_configuration_resolved`의 `keySource`, `modelSource`, `keyPresent`, `model`로 환경변수·DB 중 실제 선택된 출처를 확인한다. 두 출처는 서로 다를 수 있다. 테이블 누락 `42P01`, 권한 부족 `42501`, 비밀번호 인증 실패 `28P01`을 구분한다. 행이 있으면 다음 테이블을 조회하지 않는 기존 우선순위를 유지한다.
+- 호출: `ai_provider_request_started/completed/failed`에 모델, 소요 시간, HTTP 상태, 허용한 공급자 오류 코드, 종료·차단 사유, 토큰 수를 남긴다. Google이 상세 정보를 제공한 429에는 `quotaViolations`의 일/분 단위·요청/토큰·무료/유료 구분·한도와 `retryAfterSeconds`가 포함된다. 상세 정보가 없으면 429만으로 어떤 한도인지 단정하지 않는다.
+- 수정: `ai_revision_*`에서 입력 검증, 후보 수·조회 실패, JSON 파싱, 일정 검증, 최종 적용 여부를 추적한다. `ai_revision_failed.stage`는 `provider`, `parse`, `validation`이다. `ai_revision_validation_rejected.reason`은 알 수 없는 장소, 중복 장소·날짜, 시간 겹침, 도착 전, 장소 유형 불일치, 무변경 등을 구분하고 필요한 경우 0부터 시작하는 배열 위치를 남긴다.
+- 생성·큐레이션: `ai_planner_completed`, `ai_curation_completed`의 `aiUsed=false`, `reason=error_fallback`은 AI 실패 후 로컬 처리로 이어졌다는 뜻이다. 화면이 정상 진행되는 것만으로 AI 성공을 판단하지 않는다.
+
+키 원문·일부·해시, DB 비밀번호·접속 주소, 대화·일정·장소 원문, 공급자 오류 원문과 stack은 기록하지 않는다. 입력·출력은 길이·개수와 허용한 메타데이터로만 남긴다. 상세 단계 로그는 운영에서도 기본 출력되므로 요청량에 비례해 로그량이 증가한다. 이 범위는 공통 Gemini 설정을 사용하는 네 경로이며 기존 `travel-engine.ts`·`poetry.service.ts`의 독립 호출은 포함하지 않는다.
+
+배포된 컨테이너에서 문제를 한 번 재현한 직후 다음 로그를 공유하면 된다. `AiDiagnostics`가 없으면 새 백엔드 이미지의 배포 여부를 먼저 확인한다.
+
+```bash
+docker logs --since 10m --tail 1500 travel-backend 2>&1 | grep 'AiDiagnostics'
+```
+
+`test/ai-diagnostics.test.cjs`는 설정 우선순위·누락 테이블·권한 오류·복원한 DB 설정·429 상세·JSON 파싱 실패·수정 거부·생성 및 큐레이션 폴백·민감 정보 미출력을 대역으로 검증한다. 실제 운영 DB·Gemini 호출 성공을 대체하는 검증은 아니다.
+
 `POST /api/chat/revise`는 결과 화면의 수정 대화용이다. 기존 `/api/chat`이 설명문만 반환하는 것과 달리 현재 날짜별 일정, 도착 좌표, 이동 수단, 최근 대화를 받아 AI가 등록 장소 ID와 방문 시각을 제안한다. 도착지 주변 관광·음식 후보를 읽기 전용으로 보강하고 서버가 날짜·장소 종류·시간·중복을 검사해 유효한 변경만 `itinerary`로 반환한다. AI는 변경한 날짜만 보내며 각 날짜의 `visits`에는 유지할 방문을 포함한 최종 목록을 보낸다. 서버는 날짜로 병합해 생략한 날짜를 보존하고, 프론트에는 항상 전체 날짜의 일정을 반환한다. `visits=[]`는 해당 날짜의 방문 전체 삭제이며, 없는 날짜·날짜 중복·다른 날짜의 장소 중복·잘못된 시간은 수정 전체를 거부한다. `changed=false`이면 원래 일정은 그대로다. 경로선·출발 조건·예약은 수정하지 않는다.
 
 2026-11-02 수정: ChatController의 서비스 토큰을 `@Inject`로 명시해 `tsx`를 사용하는 `start:local`·`start:dev`에서도 일반 상담·플래너·일정 수정 서비스를 주입한다. 모델에는 날짜·장소 ID·방문 필드의 JSON 스키마를 제공한다. 변경하지 않은 기존 날짜는 재작성하지 않아 해당 날짜의 제약 때문에 다른 날짜의 유효한 수정까지 버리지 않는다. 검증은 외부 DB·Gemini를 모킹한 테스트이며 운영 배포·실제 모델 응답 성공과는 구분한다.
