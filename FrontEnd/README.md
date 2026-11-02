@@ -2,6 +2,12 @@
 
 현재 주요 여행 화면은 출발·도착지 검색 → 권장·최단 경로 비교 → 경로 주변 TourAPI 장소 탐색으로 구성됩니다. React·Leaflet 화면에서 기존 NestJS 검색·ORS·장소 추천 API를 사용하며, 외부 API 키는 서버에만 둡니다. 이전 AI 여행사 시연용 컴포넌트와 스튜디오는 별도로 남아 있습니다.
 
+## 링크 공유 미리보기 (2026-11-02)
+
+LinkedIn 등에서 JavaScript를 실행하지 않아도 로고·제목·설명을 읽도록 `v1/index.html`의 초기 HTML에 Open Graph와 Twitter 이미지 메타 태그를 둡니다. `og:url`과 이미지 URL은 운영 주소 `https://roadfriendtrip.freeddns.org/`를 사용합니다. 공유 이미지는 기존 나침반 로고를 사용한 `v1/public/social-preview-v1.png`(1200×630 PNG)이며 편집용 원본은 같은 이름의 SVG입니다. SVG 변경 시 PNG도 다시 렌더링해야 합니다. Vite 빌드와 Docker의 `COPY public ./public`으로 이미지가 정적 배포에 포함됩니다.
+
+프론트 배포 후 `/social-preview-v1.png`가 로그인 없이 `image/png`로 열리는지 확인하고 [LinkedIn Post Inspector](https://www.linkedin.com/post-inspector/)에서 공유 URL을 검사합니다. 실제 LinkedIn 미리보기·기존 게시물의 캐시는 별도 확인 대상입니다. 모든 SPA 경로는 공통 사이트 미리보기를 사용하며 브라우저에만 저장된 개인 일정을 외부 공유 이미지에 넣지 않습니다. 운영 도메인이 바뀌면 HTML의 절대 URL도 함께 바꿔야 합니다.
+
 ## 날짜별 체류 일정과 AI 대화 (2026-10-28)
 
 결과 화면의 **AI 도착 후 일정 수정**은 현재 날짜별 방문 일정과 도착지 주변 등록 장소 후보를 서버에 보내 AI 수정안을 받습니다. 서버가 장소 ID·날짜·시간·중복·일정 범위를 검사한 경우에만 화면의 날짜별 방문 장소와 시각을 실제로 바꿉니다. 적용되지 않은 답변은 일정이 그대로임을 표시합니다. 초기화·새 여행 뒤 늦게 도착한 응답은 반영하지 않습니다. 경로선, 이동 수단, 출발 조건, 숙박 예약은 이 창에서 바꾸지 않으며 조건 수정 화면을 사용합니다.
