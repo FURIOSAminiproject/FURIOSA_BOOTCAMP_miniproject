@@ -151,16 +151,10 @@ export function applyItineraryRevision(
     onReject?.(reason, { dayIndex, visitIndex, ...details });
     return null;
   };
-  if (
-    !Array.isArray(proposedDays) ||
-    proposedDays.length === 0 ||
-    proposedDays.length > itinerary.days.length
-  )
-    return reject(
-      Array.isArray(proposedDays) && proposedDays.length === 0
-        ? 'no_proposed_days'
-        : 'invalid_proposed_days',
-    );
+  if (!Array.isArray(proposedDays)) return reject('invalid_proposed_days');
+  if (proposedDays.length === 0) return reject('no_proposed_days');
+  if (proposedDays.length > itinerary.days.length)
+    return reject('too_many_proposed_days');
   const dates = new Set(itinerary.days.map((day) => day.date));
   const proposals = new Map<string, Record<string, unknown>>();
   for (const [index, proposed] of proposedDays.entries()) {
@@ -168,15 +162,11 @@ export function applyItineraryRevision(
       if (!dates.has(proposed.date)) return reject('unknown_date', index);
       if (proposals.has(proposed.date)) return reject('duplicate_date', index);
     }
-    if (
-      !record(proposed) ||
-      typeof proposed.date !== 'string' ||
-      !dates.has(proposed.date) ||
-      proposals.has(proposed.date) ||
-      !Array.isArray(proposed.visits) ||
-      proposed.visits.length > 6
-    )
+    if (!record(proposed) || typeof proposed.date !== 'string')
       return reject('invalid_day_structure', index);
+    if (!Array.isArray(proposed.visits))
+      return reject('invalid_day_visits', index);
+    if (proposed.visits.length > 6) return reject('too_many_visits', index);
     proposals.set(proposed.date, proposed);
   }
   const allowed = new Map(places.map((place) => [place.id, place]));
@@ -211,6 +201,10 @@ export function applyItineraryRevision(
         ? minutes(itinerary.arrivalTime)
         : 9 * 60;
     for (const [visitIndex, raw] of proposed.visits.entries()) {
+      if (!record(raw))
+        return reject('invalid_visit_structure', dayIndex, visitIndex);
+      if (typeof raw.placeId !== 'string')
+        return reject('invalid_place_reference', dayIndex, visitIndex);
       if (record(raw) && typeof raw.placeId === 'string') {
         if (!allowed.has(raw.placeId))
           return reject('unknown_place', dayIndex, visitIndex);
@@ -218,20 +212,17 @@ export function applyItineraryRevision(
           return reject('duplicate_place', dayIndex, visitIndex);
       }
       if (
-        !record(raw) ||
-        typeof raw.placeId !== 'string' ||
-        !allowed.has(raw.placeId) ||
-        used.has(raw.placeId) ||
-        !['sightseeing', 'lunch', 'cafe', 'dinner'].includes(
-          String(raw.kind),
-        ) ||
-        typeof raw.time !== 'string' ||
-        !timePattern.test(raw.time) ||
+        !['sightseeing', 'lunch', 'cafe', 'dinner'].includes(String(raw.kind))
+      )
+        return reject('invalid_visit_kind', dayIndex, visitIndex);
+      if (typeof raw.time !== 'string' || !timePattern.test(raw.time))
+        return reject('invalid_visit_time', dayIndex, visitIndex);
+      if (
         !Number.isInteger(raw.durationMinutes) ||
         Number(raw.durationMinutes) < 30 ||
         Number(raw.durationMinutes) > 180
       )
-        return reject('invalid_visit_fields', dayIndex, visitIndex);
+        return reject('invalid_visit_duration', dayIndex, visitIndex);
       const place = allowed.get(raw.placeId)!;
       const kind = raw.kind as Kind;
       const allowedKinds = allowedVisitKinds(place.contentTypeId);
@@ -243,24 +234,20 @@ export function applyItineraryRevision(
         });
       const start = minutes(raw.time);
       const end = start + Number(raw.durationMinutes);
+      if (end > 20 * 60) return reject('after_day_end', dayIndex, visitIndex);
+      if (start < 9 * 60)
+        return reject('before_day_start', dayIndex, visitIndex);
+      if (
+        original.date === itinerary.arrivalDate &&
+        start < minutes(itinerary.arrivalTime) + 5
+      )
+        return reject('before_arrival_time', dayIndex, visitIndex);
       if (
         start <
-          Math.max(
-            9 * 60,
-            previousEnd +
-              (visits.length || original.date === itinerary.arrivalDate
-                ? 5
-                : 0),
-          ) ||
-        end > 20 * 60
+        previousEnd +
+          (visits.length || original.date === itinerary.arrivalDate ? 5 : 0)
       )
-        return reject(
-          end > 20 * 60
-            ? 'after_day_end'
-            : 'before_arrival_or_overlapping_time',
-          dayIndex,
-          visitIndex,
-        );
+        return reject('overlapping_time', dayIndex, visitIndex);
       const travelMinutes = visits.length
         ? Math.max(5, Math.min(45, start - previousEnd))
         : 5;

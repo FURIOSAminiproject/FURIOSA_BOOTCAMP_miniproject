@@ -198,6 +198,22 @@ test('kind repair logs safe type feedback and final success under the original r
   assert.doesNotMatch(JSON.stringify(logs), /private-place|private-address|private-user-message|private-reply/);
 });
 
+test('an empty proposal logs ordinary no-change and reply metadata without treating it as validation failure', async t => {
+  const logs = capture(t);
+  const service = new ItineraryRevisionService();
+  service.getGeminiClient = async () => model(async () => ({ text: JSON.stringify({ reply: 'private-cafe-explanation', days: [] }) }));
+  const result = await service.revise(request);
+  assert.equal(result.changed, false);
+  assert.ok(result.reply.includes('private-cafe-explanation'));
+  assert.ok(logs.some(log => log.event === 'ai_revision_no_change' && log.reason === 'no_proposed_days'));
+  assert.equal(logs.some(log => log.event === 'ai_revision_validation_rejected'), false);
+  assert.equal(logs.at(-1).reason, 'no_proposed_days');
+  assert.equal(logs.at(-1).modelReplyPresent, true);
+  assert.equal(logs.at(-1).modelReplyLength, 'private-cafe-explanation'.length);
+  assert.equal(logs.find(log => log.event === 'ai_revision_candidates_loaded').recognizedCafeCount, 0);
+  assert.doesNotMatch(JSON.stringify(logs), /private-cafe-explanation|private-user-message/);
+});
+
 test('planner and curator log local fallback on the same upstream failure', async t => {
   const logs = capture(t);
   const failing = model(async () => { const error = new Error('secret-provider-details'); error.status = 429; throw error; });

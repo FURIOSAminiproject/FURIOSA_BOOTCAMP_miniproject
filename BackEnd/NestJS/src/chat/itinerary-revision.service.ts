@@ -8,6 +8,10 @@ import { DataSource } from 'typeorm';
 import type { GenerateContentParameters } from '@google/genai';
 import { configuredGeminiClient } from './gemini-client';
 import {
+  revisionErrorReply,
+  revisionUnchangedReply,
+} from './itinerary-revision-reply';
+import {
   aiErrorDiagnostic,
   createAiTrace,
   generateGeminiContent,
@@ -128,10 +132,14 @@ export class ItineraryRevisionService {
       places,
       (reason, position) => {
         result.rejection = { reason, position };
+        const noChange =
+          reason === 'no_proposed_days' || reason === 'unchanged';
         trace.emit(
-          'ai_revision_validation_rejected',
+          noChange
+            ? 'ai_revision_no_change'
+            : 'ai_revision_validation_rejected',
           { reason, ...position, proposalAttempt },
-          'warn',
+          noChange ? 'log' : 'warn',
         );
       },
     );
@@ -183,8 +191,7 @@ export class ItineraryRevisionService {
         'warn',
       );
       return {
-        reply:
-          'AI 연결이 준비되지 않아 일정을 변경하지 못했습니다. 잠시 후 다시 시도하거나 조건 수정 화면을 이용해 주세요.',
+        reply: revisionUnchangedReply('no_api_key', ''),
         changed: false,
         itinerary: null,
         modelUsed: 'unavailable',
@@ -237,6 +244,23 @@ export class ItineraryRevisionService {
           .map((place) => [place.id, place]),
       ).values(),
     ].slice(0, 80);
+    const usedPlaceIds = new Set(registered.map((place) => place.id));
+    const foodCandidates = places.filter((place) => place.contentTypeId === 39);
+    const recognizedCafes = foodCandidates.filter((place) =>
+      /카페|커피|찻집|다방|디저트|베이커리|cafe|coffee/i.test(
+        `${place.name} ${place.categoryName || ''}`,
+      ),
+    );
+    const candidateCoverage = {
+      foodCount: foodCandidates.length,
+      unusedFoodCount: foodCandidates.filter(
+        (place) => !usedPlaceIds.has(place.id),
+      ).length,
+      recognizedCafeCount: recognizedCafes.length,
+      unusedRecognizedCafeCount: recognizedCafes.filter(
+        (place) => !usedPlaceIds.has(place.id),
+      ).length,
+    };
     trace.emit('ai_revision_candidates_loaded', {
       durationMs: Math.round(performance.now() - candidatesStarted),
       registeredCount: registered.length,
@@ -244,6 +268,7 @@ export class ItineraryRevisionService {
       candidateCount: places.length,
       failedLookups,
       databaseConfigured: !!this.db,
+      ...candidateCoverage,
     });
     const history = Array.isArray(input.history)
       ? input.history
@@ -268,6 +293,7 @@ export class ItineraryRevisionService {
           contents: JSON.stringify({
             message,
             history,
+            candidateCoverage,
             mode: input.mode,
             arrivalDate: itinerary.arrivalDate,
             arrivalTime: itinerary.arrivalTime,
@@ -292,7 +318,7 @@ export class ItineraryRevisionService {
           }),
           config: {
             systemInstruction:
-              '당신은 국내 여행의 도착 후 날짜별 일정을 실제로 수정하는 플래너입니다. 사용자 요청에 맞춰 기존 일정을 가능한 한 유지하면서 방문 장소 교체·추가·삭제·시각 재배치를 하세요. 반드시 제공된 places의 ID만 사용하고 각 장소의 allowedKinds에 있는 kind만 지정하세요. allowedKinds가 빈 장소는 방문에 넣지 마세요. 관광지를 점심·카페·저녁으로 배정하거나 음식점을 sightseeing으로 배정하면 수정 전체가 거부됩니다. dayNumber가 첫날·둘째 날의 기준입니다. days에는 변경한 날짜만 넣고, 각 날짜의 visits에는 유지할 방문까지 포함한 그 날의 최종 전체 방문 목록을 넣으세요. 생략한 날짜는 그대로 유지되며, visits=[]는 해당 날짜 방문 전체 삭제입니다. 하루 최대 6곳, 생략한 날짜를 포함해 전체에서 장소 ID 중복 금지, 도착일·도착 시각 이후·09:00~20:00 범위, 방문 간 최소 5분 여유를 지키세요. 관광지는 sightseeing, 음식점은 lunch/cafe/dinner입니다. 경로선·이동 수단·출발지·날짜·숙박 예약은 이 기능으로 바꿀 수 없습니다. 그 요청이라면 수정하지 말고 안내만 하세요. JSON {reply:"짧은 수정 설명",days:[{date:"YYYY-MM-DD",visits:[{placeId:"제공 ID",kind:"sightseeing|lunch|cafe|dinner",time:"HH:mm",durationMinutes:30~180}]}]} 형식으로 반환하세요. 수정 불가하거나 질문일 때는 days=[]로 답하세요. 실제 수정 없이 완료했다고 말하지 마세요.',
+              '당신은 국내 여행의 도착 후 날짜별 일정을 실제로 수정하는 플래너입니다. 사용자 요청에 맞춰 기존 일정을 가능한 한 유지하면서 방문 장소 교체·추가·삭제·시각 재배치를 하세요. 반드시 제공된 places의 ID만 사용하고 각 장소의 allowedKinds에 있는 kind만 지정하세요. allowedKinds가 빈 장소는 방문에 넣지 마세요. 관광지를 점심·카페·저녁으로 배정하거나 음식점을 sightseeing으로 배정하면 수정 전체가 거부됩니다. candidateCoverage는 후보 중 음식점·이름이나 분류로 확인되는 카페와 아직 일정에 없는 후보의 개수입니다. 카페 추가 요청에 실제 카페 후보가 없으면 식당이나 관광지를 카페로 꾸미지 말고 reply에 후보 부족을 구체적으로 설명하세요. 최신 message를 현재 days와 places 기준으로 판단하세요. dayNumber가 첫날·둘째 날의 기준입니다. days에는 변경한 날짜만 넣고, 각 날짜의 visits에는 유지할 방문까지 포함한 그 날의 최종 전체 방문 목록을 넣으세요. 생략한 날짜는 그대로 유지되며, visits=[]는 해당 날짜 방문 전체 삭제입니다. 하루 최대 6곳, 생략한 날짜를 포함해 전체에서 장소 ID 중복 금지, 도착일·도착 시각 이후·09:00~20:00 범위, 방문 간 최소 5분 여유를 지키세요. 관광지는 sightseeing, 음식점은 lunch/cafe/dinner입니다. 경로선·이동 수단·출발지·날짜·숙박 예약은 이 기능으로 바꿀 수 없습니다. 그 요청이라면 수정하지 말고 안내만 하세요. JSON {reply:"짧은 수정 설명",days:[{date:"YYYY-MM-DD",visits:[{placeId:"제공 ID",kind:"sightseeing|lunch|cafe|dinner",time:"HH:mm",durationMinutes:30~180}]}]} 형식으로 반환하세요. 수정 불가하거나 질문일 때는 days=[]로 답하고 reply에 후보 부족·추가 질문·지원 범위·이미 반영됨 중 실제 이유를 설명하세요. 실제 수정 없이 완료했다고 말하지 마세요.',
             responseMimeType: 'application/json',
             responseJsonSchema: {
               type: 'object',
@@ -411,13 +437,20 @@ export class ItineraryRevisionService {
         typeof parsed.reply === 'string'
           ? parsed.reply.trim().slice(0, 1000)
           : '';
+      const noProposal = Array.isArray(parsed.days) && parsed.days.length === 0;
+      const unchanged = validated.rejection?.reason === 'unchanged';
+      const ordinaryNoChange = noProposal || unchanged;
       trace.emit(
         'ai_revision_completed',
         {
           changed: !!revised,
-          reason: revised ? 'applied' : 'rejected_or_unchanged',
+          reason: revised
+            ? 'applied'
+            : (validated.rejection?.reason ?? 'rejected'),
+          modelReplyPresent: !!reply,
+          modelReplyLength: reply.length,
         },
-        revised ? 'log' : 'warn',
+        revised || ordinaryNoChange ? 'log' : 'warn',
       );
       return revised
         ? {
@@ -427,22 +460,20 @@ export class ItineraryRevisionService {
             modelUsed: gemini.modelName,
           }
         : {
-            reply: Array.isArray(parsed.days)
-              ? '요청한 수정안을 안전하게 적용할 수 없었습니다. 현재 화면의 일정은 변경되지 않았습니다.'
-              : `${reply || '수정할 내용이 확인되지 않았습니다.'}\n현재 화면의 일정은 변경되지 않았습니다.`,
+            reply: revisionUnchangedReply(
+              validated.rejection?.reason ?? 'unknown',
+              reply,
+              validated.rejection?.position,
+            ),
             changed: false,
             itinerary: null,
             modelUsed: gemini.modelName,
           };
     } catch (error) {
-      trace.emit(
-        'ai_revision_failed',
-        { stage, ...aiErrorDiagnostic(error) },
-        'error',
-      );
+      const diagnostic = aiErrorDiagnostic(error);
+      trace.emit('ai_revision_failed', { stage, ...diagnostic }, 'error');
       return {
-        reply:
-          'AI 수정 요청을 처리하지 못했습니다. 현재 일정은 변경되지 않았습니다. 다시 시도해 주세요.',
+        reply: revisionErrorReply(diagnostic, stage),
         changed: false,
         itinerary: null,
         modelUsed: gemini.modelName,

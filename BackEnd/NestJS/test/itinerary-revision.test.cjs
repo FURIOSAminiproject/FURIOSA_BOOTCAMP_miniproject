@@ -161,6 +161,87 @@ test('empty, unchanged and unrelated invalid proposals do not trigger kind repai
   }
 });
 
+test('an empty cafe proposal preserves the shortage explanation and reports candidate coverage without claiming an edit', async () => {
+  const explanation = '현재 주변 등록 후보에는 추가할 카페가 없습니다. 다른 방문 장소를 요청해 주세요.';
+  const { service, calls } = serviceWithResponses([{ reply: explanation, days: [] }]);
+  const result = await service.revise({ ...request, itinerary: twoDayItinerary, message: '☕ 둘째 날 오후에 카페를 추가해줘' });
+  assert.equal(calls.length, 1);
+  assert.equal(result.changed, false);
+  assert.equal(result.itinerary, null);
+  assert.ok(result.reply.startsWith('현재 화면의 일정은 변경되지 않았습니다.'));
+  assert.ok(result.reply.includes(explanation));
+  assert.doesNotMatch(result.reply, /안전하게 적용할 수 없었습니다|일정에 반영했습니다/);
+  assert.deepEqual(JSON.parse(calls[0].contents).candidateCoverage, {
+    foodCount: 1, unusedFoodCount: 0, recognizedCafeCount: 0, unusedRecognizedCafeCount: 0,
+  });
+});
+
+test('empty proposals without an explanation get a clear no-change prompt while invalid proposals keep their rejection', async () => {
+  const empty = await serviceWithModel({ reply: '', days: [] }).revise(request);
+  assert.equal(empty.changed, false);
+  assert.match(empty.reply, /이유를 제시하지 않았습니다/);
+  const invalid = await serviceWithModel({ reply: '점심을 다른 식당으로 바꿨습니다.', days: days('invented-place') }).revise(request);
+  assert.equal(invalid.changed, false);
+  assert.match(invalid.reply, /제공된 후보에 없는 장소/);
+  assert.doesNotMatch(invalid.reply, /점심을 다른 식당으로 바꿨습니다/);
+});
+
+test('validation failures explain the actual date, duplicate, time, capacity and duration constraint', async () => {
+  const atTime = time => {
+    const proposal = days(food.id);
+    proposal[0].visits[0].time = time;
+    return proposal;
+  };
+  const invalidTime = days(food.id); invalidTime[0].visits[1].time = '오후';
+  const invalidDuration = days(food.id); invalidDuration[0].visits[1].durationMinutes = 20;
+  const tooMany = days(food.id); tooMany[0].visits = Array(7).fill(tooMany[0].visits[0]);
+  for (const [proposal, reason] of [
+    [days(food.id, '11:30'), /앞 방문과 겹치거나/],
+    [days(food.id, '19:30'), /오후 8시/],
+    [atTime('08:30'), /오전 9시/],
+    [atTime('09:30'), /목적지 도착 시각/],
+    [days(sight.id), /같은 장소가 중복/],
+    [[{ ...days(food.id)[0], date: '2030-01-01' }], /여행 기간에 없는 날짜/],
+    [invalidTime, /방문 시각을 읽을 수 없어/],
+    [invalidDuration, /30~180분/],
+    [tooMany, /하루 최대 6곳/],
+  ]) {
+    const { service, calls } = serviceWithResponses([{ reply: '변경 완료', days: proposal }]);
+    const original = structuredClone(itinerary);
+    const result = await service.revise(request);
+    assert.equal(calls.length, 1);
+    assert.equal(result.changed, false);
+    assert.equal(result.itinerary, null);
+    assert.match(result.reply, reason);
+    assert.doesNotMatch(result.reply, /안전하게 적용|변경 완료/);
+    assert.deepEqual(itinerary, original);
+  }
+});
+
+test('provider failures explain quota, authentication, timeout and request errors without exposing exception text', async () => {
+  const quota = new Error(JSON.stringify({ error: { code: 429, status: 'RESOURCE_EXHAUSTED', details: [{ '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay: '7.2s' }] } }));
+  quota.status = 429;
+  const auth = new Error('private-auth-value'); auth.status = 403;
+  const timeout = new Error('private-timeout-value'); timeout.name = 'AbortError';
+  const unavailable = new Error('private-provider-value'); unavailable.status = 503;
+  const missingModel = new Error('private-model-value'); missingModel.status = 404;
+  for (const [error, explanation] of [
+    [quota, /호출 한도.*8초/], [auth, /인증 또는 접근 권한/], [timeout, /대기 시간이 초과/],
+    [unavailable, /AI 서비스에서 서버 오류/], [missingModel, /AI 모델을 사용할 수 없어/],
+    [invalidArgument(), /요청의 형식을 허용하지 않아/],
+    [new Error('private-unknown-value'), /구체적인 원인은 아직 확인되지 않았습니다/],
+  ]) {
+    const { service } = serviceWithResponses([error]);
+    const result = await service.revise(request);
+    assert.equal(result.changed, false);
+    assert.equal(result.itinerary, null);
+    assert.match(result.reply, explanation);
+    assert.doesNotMatch(result.reply, /private-|AI 수정 요청을 처리하지 못했습니다/);
+  }
+  const malformed = await serviceWithResponses(['invalid-json']).service.revise(request);
+  assert.match(malformed.reply, /AI 응답의 형식이 잘못되어/);
+});
+
 test('a structured-output 400 retries once in JSON mode and applies the validated revision', async () => {
   const service = new ItineraryRevisionService();
   const calls = [];
@@ -308,6 +389,8 @@ test('a text answer or unchanged model proposal is never reported as an applied 
   assert.equal(answer.changed, false);
   assert.equal(unchanged.changed, false);
   assert.match(unchanged.reply, /변경되지 않았습니다/);
+  assert.match(unchanged.reply, /현재 일정과 동일/);
+  assert.doesNotMatch(unchanged.reply, /바꿨습니다/);
 });
 
 test('without AI configuration the current itinerary remains intact', async () => {
