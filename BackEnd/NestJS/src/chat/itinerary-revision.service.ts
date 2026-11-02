@@ -130,6 +130,7 @@ export class ItineraryRevisionService {
           arrivalDate: itinerary.arrivalDate,
           arrivalTime: itinerary.arrivalTime,
           days: itinerary.days.map((day) => ({
+            dayNumber: day.dayNumber,
             date: day.date,
             title: day.title,
             visits: day.visits.map((visit) => ({
@@ -148,8 +149,60 @@ export class ItineraryRevisionService {
         }),
         config: {
           systemInstruction:
-            '당신은 국내 여행의 도착 후 날짜별 일정을 실제로 수정하는 플래너입니다. 사용자 요청에 맞춰 기존 일정을 가능한 한 유지하면서 방문 장소 교체·추가·삭제·시각 재배치를 하세요. 반드시 제공된 places의 ID만 사용하고, 기존 날짜를 모두 같은 순서로 반환하세요. 하루 최대 6곳, 전체에서 장소 ID 중복 금지, 도착 시각 이후·09:00~20:00 범위, 방문 간 최소 5분 여유를 지키세요. 관광지는 sightseeing, 음식점은 lunch/cafe/dinner입니다. 경로선·이동 수단·출발지·날짜·숙박 예약은 이 기능으로 바꿀 수 없습니다. 그 요청이라면 수정하지 말고 안내만 하세요. 일정 수정 요청이 아니라 질문이면 days를 생략하고 답하세요. 수정한다면 JSON {reply:"짧은 수정 설명",days:[{date:"YYYY-MM-DD",visits:[{placeId:"제공 ID",kind:"sightseeing|lunch|cafe|dinner",time:"HH:mm",durationMinutes:30~180}]}]} 형식으로 전체 날짜와 방문을 반환하세요. 수정 불가하거나 질문일 때 JSON {reply:"사유 또는 답변"}을 반환하세요. 실제 수정 없이 완료했다고 말하지 마세요.',
+            '당신은 국내 여행의 도착 후 날짜별 일정을 실제로 수정하는 플래너입니다. 사용자 요청에 맞춰 기존 일정을 가능한 한 유지하면서 방문 장소 교체·추가·삭제·시각 재배치를 하세요. 반드시 제공된 places의 ID만 사용하세요. dayNumber가 첫날·둘째 날의 기준입니다. days에는 변경한 날짜만 넣고, 각 날짜의 visits에는 유지할 방문까지 포함한 그 날의 최종 전체 방문 목록을 넣으세요. 생략한 날짜는 그대로 유지되며, visits=[]는 해당 날짜 방문 전체 삭제입니다. 하루 최대 6곳, 생략한 날짜를 포함해 전체에서 장소 ID 중복 금지, 도착일·도착 시각 이후·09:00~20:00 범위, 방문 간 최소 5분 여유를 지키세요. 관광지는 sightseeing, 음식점은 lunch/cafe/dinner입니다. 경로선·이동 수단·출발지·날짜·숙박 예약은 이 기능으로 바꿀 수 없습니다. 그 요청이라면 수정하지 말고 안내만 하세요. JSON {reply:"짧은 수정 설명",days:[{date:"YYYY-MM-DD",visits:[{placeId:"제공 ID",kind:"sightseeing|lunch|cafe|dinner",time:"HH:mm",durationMinutes:30~180}]}]} 형식으로 반환하세요. 수정 불가하거나 질문일 때는 days=[]로 답하세요. 실제 수정 없이 완료했다고 말하지 마세요.',
           responseMimeType: 'application/json',
+          responseJsonSchema: {
+            type: 'object',
+            required: ['reply', 'days'],
+            properties: {
+              reply: { type: 'string' },
+              days: {
+                type: 'array',
+                maxItems: itinerary.days.length,
+                items: {
+                  type: 'object',
+                  required: ['date', 'visits'],
+                  properties: {
+                    date: {
+                      type: 'string',
+                      enum: itinerary.days.map((day) => day.date),
+                    },
+                    visits: {
+                      type: 'array',
+                      maxItems: 6,
+                      items: {
+                        type: 'object',
+                        required: [
+                          'placeId',
+                          'kind',
+                          'time',
+                          'durationMinutes',
+                        ],
+                        properties: {
+                          placeId: {
+                            type: 'string',
+                            ...(places.length
+                              ? { enum: places.map((place) => place.id) }
+                              : {}),
+                          },
+                          kind: {
+                            type: 'string',
+                            enum: ['sightseeing', 'lunch', 'cafe', 'dinner'],
+                          },
+                          time: { type: 'string' },
+                          durationMinutes: {
+                            type: 'integer',
+                            minimum: 30,
+                            maximum: 180,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
       });
       const value: unknown = JSON.parse(response.text || '{}');

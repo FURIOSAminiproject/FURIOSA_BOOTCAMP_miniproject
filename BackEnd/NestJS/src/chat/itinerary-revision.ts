@@ -101,7 +101,27 @@ export function isDestinationItinerary(
   });
 }
 
-/** 모델은 등록 후보의 ID·시각만 제안한다. 기존 날짜와 장소를 벗어난 수정은 적용하지 않는다. */
+function unchangedVisits(
+  value: unknown,
+  original: DestinationItinerary['days'][number],
+): boolean {
+  return (
+    Array.isArray(value) &&
+    value.length === original.visits.length &&
+    value.every((raw, index) => {
+      const before = original.visits[index];
+      return (
+        record(raw) &&
+        raw.placeId === before.place.id &&
+        raw.kind === before.kind &&
+        raw.time === before.time &&
+        raw.durationMinutes === before.durationMinutes
+      );
+    })
+  );
+}
+
+/** 변경한 날짜만 받아 기존 일정에 병합한다. 잘못된 수정은 전체 적용을 취소한다. */
 export function applyItineraryRevision(
   itinerary: DestinationItinerary,
   proposedDays: unknown,
@@ -109,22 +129,49 @@ export function applyItineraryRevision(
 ): DestinationItinerary | null {
   if (
     !Array.isArray(proposedDays) ||
-    proposedDays.length !== itinerary.days.length
+    proposedDays.length === 0 ||
+    proposedDays.length > itinerary.days.length
   )
     return null;
+  const dates = new Set(itinerary.days.map((day) => day.date));
+  const proposals = new Map<string, Record<string, unknown>>();
+  for (const proposed of proposedDays) {
+    if (
+      !record(proposed) ||
+      typeof proposed.date !== 'string' ||
+      !dates.has(proposed.date) ||
+      proposals.has(proposed.date) ||
+      !Array.isArray(proposed.visits) ||
+      proposed.visits.length > 6
+    )
+      return null;
+    proposals.set(proposed.date, proposed);
+  }
   const allowed = new Map(places.map((place) => [place.id, place]));
+  // 생략되거나 그대로인 날짜의 장소도 예약해 날짜 사이의 중복을 막는다.
   const used = new Set<string>();
+  for (const day of itinerary.days) {
+    const proposed = proposals.get(day.date);
+    if (!proposed || unchangedVisits(proposed.visits, day))
+      for (const visit of day.visits) used.add(visit.place.id);
+  }
   let changed = false;
   const days = [] as DestinationItinerary['days'];
   for (let dayIndex = 0; dayIndex < itinerary.days.length; dayIndex++) {
     const original = itinerary.days[dayIndex];
-    const proposed = proposedDays[dayIndex];
+    const proposed = proposals.get(original.date);
+    if (!proposed || unchangedVisits(proposed.visits, original)) {
+      days.push(original);
+      continue;
+    }
     if (
       !record(proposed) ||
       proposed.date !== original.date ||
       !Array.isArray(proposed.visits) ||
       proposed.visits.length > 6
     )
+      return null;
+    if (original.date < itinerary.arrivalDate && proposed.visits.length > 0)
       return null;
     const visits: DestinationVisit[] = [];
     let previousEnd =

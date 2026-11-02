@@ -1,4 +1,11 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Inject,
+  Post,
+} from '@nestjs/common';
 import {
   ChatRequestDto,
   ChatResponseDto,
@@ -15,7 +22,9 @@ import {
 @Controller('chat')
 export class ChatController {
   constructor(
+    @Inject(ChatService)
     private readonly chatService: ChatService,
+    @Inject(ItineraryRevisionService)
     private readonly revisions: ItineraryRevisionService,
   ) {}
 

@@ -1,5 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const { spawnSync } = require('node:child_process');
+const path = require('node:path');
 const { ItineraryRevisionService } = require('../dist/chat/itinerary-revision.service');
 
 const place = (id, type, name) => ({
@@ -20,6 +22,18 @@ const itinerary = {
   }], stayOptions: [], warnings: [], curationSource: 'local',
 };
 const request = { message: '첫날 점심 식당을 바꿔줘', itinerary, destination: { latitude: 37.8813, longitude: 127.7298 }, mode: 'driving' };
+const secondSight = { ...sight, id: 'sight-2', name: '둘째 날 명소' };
+const twoDayItinerary = {
+  ...itinerary,
+  days: [...itinerary.days, {
+    date: '2026-10-31', dayNumber: 2, title: '둘째 날', notes: [],
+    visits: [{ ...itinerary.days[0].visits[0], place: secondSight }],
+  }],
+};
+const secondDayChange = {
+  date: '2026-10-31',
+  visits: [{ placeId: secondSight.id, kind: 'sightseeing', time: '14:00', durationMinutes: 60 }],
+};
 const days = (foodId, lunchTime = '13:00') => [{
   date: '2026-10-30', visits: [
     { placeId: sight.id, kind: 'sightseeing', time: '11:00', durationMinutes: 60 },
@@ -76,4 +90,126 @@ test('without AI configuration the current itinerary remains intact', async () =
   const result = await service.revise(request);
   assert.equal(result.changed, false);
   assert.equal(result.itinerary, null);
+});
+
+test('a changed-day-only proposal updates that date and preserves the rest of a multi-day trip', async () => {
+  const result = await serviceWithModel({ reply: '둘째 날 방문을 늦췄습니다.', days: [secondDayChange] })
+    .revise({ ...request, itinerary: twoDayItinerary });
+  assert.equal(result.changed, true);
+  assert.deepEqual(result.itinerary.days[0], twoDayItinerary.days[0]);
+  assert.equal(result.itinerary.days[1].visits[0].time, '14:00');
+  assert.equal(twoDayItinerary.days[1].visits[0].time, '11:00');
+});
+
+test('proposal dates are matched by date, while unknown dates, duplicate dates and repeated places are rejected', async () => {
+  const reordered = await serviceWithModel({ days: [secondDayChange, ...days(food.id)] })
+    .revise({ ...request, itinerary: twoDayItinerary });
+  assert.equal(reordered.changed, true);
+  assert.deepEqual(reordered.itinerary.days.map(day => day.date), ['2026-10-30', '2026-10-31']);
+  for (const proposal of [
+    [{ ...secondDayChange, date: '2026-11-01' }],
+    [secondDayChange, secondDayChange],
+    [{ ...secondDayChange, visits: [{ ...secondDayChange.visits[0], placeId: sight.id }] }],
+  ]) {
+    const result = await serviceWithModel({ days: proposal }).revise({ ...request, itinerary: twoDayItinerary });
+    assert.equal(result.changed, false);
+    assert.equal(result.itinerary, null);
+  }
+});
+
+test('an untouched legacy day does not block a valid edit on another date, and pre-arrival edits stay rejected', async () => {
+  const legacy = structuredClone(twoDayItinerary);
+  legacy.arrivalTime = '00:00';
+  legacy.days[0].visits[0].time = '01:00';
+  legacy.days[0].visits[0].endTime = '02:00';
+  const result = await serviceWithModel({ days: [secondDayChange] }).revise({ ...request, itinerary: legacy });
+  assert.equal(result.changed, true);
+  assert.deepEqual(result.itinerary.days[0], legacy.days[0]);
+
+  const laterArrival = { ...twoDayItinerary, arrivalDate: '2026-10-31', arrivalTime: '10:00' };
+  const rejected = await serviceWithModel({ days: days(food.id, '14:00') }).revise({ ...request, itinerary: laterArrival });
+  assert.equal(rejected.changed, false);
+});
+
+test('removing one day\'s visits preserves other days and a mixed invalid proposal applies nothing', async () => {
+  const removed = await serviceWithModel({ days: [{ date: '2026-10-31', visits: [] }] })
+    .revise({ ...request, itinerary: twoDayItinerary });
+  assert.equal(removed.changed, true);
+  assert.equal(removed.itinerary.days[1].visits.length, 0);
+  assert.deepEqual(removed.itinerary.days[0], twoDayItinerary.days[0]);
+
+  const rejected = await serviceWithModel({ days: [secondDayChange, ...days('invented-place')] })
+    .revise({ ...request, itinerary: twoDayItinerary });
+  assert.equal(rejected.changed, false);
+  assert.equal(rejected.itinerary, null);
+  assert.equal(twoDayItinerary.days[1].visits[0].time, '11:00');
+});
+
+test('HTTP revision returns a complete updated itinerary for the result screen', async t => {
+  const { Test } = require('@nestjs/testing');
+  const { configureApp } = require('../dist/configure-app');
+  const { ChatController } = require('../dist/chat/chat.controller');
+  const { ChatService } = require('../dist/chat/chat.service');
+  const module = await Test.createTestingModule({
+    controllers: [ChatController],
+    providers: [
+      { provide: ChatService, useValue: {} },
+      { provide: ItineraryRevisionService, useValue: serviceWithModel({ reply: '둘째 날을 늦췄습니다.', days: [secondDayChange] }) },
+    ],
+  }).compile();
+  const app = module.createNestApplication({ logger: false });
+  configureApp(app);
+  t.after(() => app.close());
+  await app.listen(0, '127.0.0.1');
+  const url = `${await app.getUrl()}/api/chat/revise`;
+  const response = await fetch(url, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...request, itinerary: twoDayItinerary }),
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.changed, true);
+  assert.match(body.reply, /일정에 반영했습니다/);
+  assert.deepEqual(body.itinerary.days[0], twoDayItinerary.days[0]);
+  assert.equal(body.itinerary.days[1].visits[0].time, '14:00');
+});
+
+test('the source controller injects all chat services under the actual tsx development runtime', () => {
+  const script = `
+    require('reflect-metadata');
+    const assert = require('node:assert/strict');
+    const { Test } = require('@nestjs/testing');
+    const { ChatController } = require('./src/chat/chat.controller.ts');
+    const { ChatService } = require('./src/chat/chat.service.ts');
+    const { ItineraryRevisionService } = require('./src/chat/itinerary-revision.service.ts');
+    (async () => {
+      const input = { message: '점심 식당을 바꿔줘' };
+      const calls = [];
+      const module = await Test.createTestingModule({
+        controllers: [ChatController],
+        providers: [
+          { provide: ChatService, useValue: {
+            chat: async value => { calls.push(['chat', value]); return 'chat'; },
+            planChat: async value => { calls.push(['planner', value]); return 'planner'; },
+          } },
+          { provide: ItineraryRevisionService, useValue: {
+            revise: async value => { calls.push(['revise', value]); return { changed: true }; },
+          } },
+        ],
+      }).compile();
+      try {
+        const controller = module.get(ChatController);
+        assert.equal(await controller.chat(input), 'chat');
+        assert.equal(await controller.planChat(input), 'planner');
+        assert.deepEqual(await controller.revise(input), { changed: true });
+        assert.deepEqual(calls.map(([name]) => name), ['chat', 'planner', 'revise']);
+        assert.ok(calls.every(([, value]) => value === input));
+      } finally { await module.close(); }
+    })().catch(error => { console.error(error); process.exitCode = 1; });
+  `;
+  const result = spawnSync(process.execPath, ['--import', 'tsx', '-e', script], {
+    cwd: path.resolve(__dirname, '..'), encoding: 'utf8', timeout: 60000,
+  });
+  assert.equal(result.error, undefined);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
 });
