@@ -4,11 +4,19 @@ NestJS 12, TypeScript 6, TypeORM, PostgreSQL 드라이버와 `@google/genai`를 
 
 ## 대화형 플래너와 도착 후 일정 (2026-10-28)
 
+### 장소 유형 불일치 보정 (2026-11-02)
+
+모델에 제공하는 각 후보에 `allowedKinds`를 포함한다. 관광·문화 등 유형 12/14/15/28/38은 sightseeing, 음식점 39는 lunch/cafe/dinner를 허용하며 숙박 등 나머지 유형은 수정 방문 후보로 사용하지 않는다. 이 목록과 서버 검증은 같은 `allowedVisitKinds` 함수를 사용한다.
+
+첫 수정안이 `place_kind_mismatch`로 거부된 경우에만 원래 요청·일정·후보, 거부된 수정안, 오류 위치와 허용 종류를 모델에 보내 한 번 보정한다. 서버가 방문 종류를 임의로 바꾸지 않으며 보정안도 원본 일정에 대해 날짜·장소·중복·시간을 다시 검증한다. 보정이 실패하거나 여전히 잘못되면 원본을 유지한다. 빈 제안·무변경·그 밖의 검증 오류는 이 보정의 대상이 아니다. 보정은 추가 AI 호출이므로 한 번으로 제한하며, 첫 호출의 스키마 400 호환 요청까지 발생하면 서비스에서 공급자 호출은 최대 세 번이다. 보정에는 이미 성공한 구조화/JSON 모드를 그대로 사용한다.
+
+`ai_revision_validation_rejected`는 `requestedKind`, `contentTypeId`, `allowedKinds`를 추가로 남긴다. 장소 ID·이름·원문은 기록하지 않는다. `ai_revision_repair_started/completed`로 보정 시작·성공 여부를 보고, 파싱·검증의 `proposalAttempt` 1과 2로 첫 제안과 보정안을 구분한다. `ai_revision_failed.stage=repair_provider` 또는 `repair_parse`는 보정 호출/파싱 실패다. 운영에서 실제 보정 성공 여부는 배포 후 확인해야 한다.
+
 ### 수정 요청의 구조화 응답 호환 처리 (2026-11-02)
 
 수정 플래너의 응답 스키마는 필수 필드·자료형·방문 종류만 지정한다. 날짜·장소 ID의 동적 enum, 배열 길이와 체류 시간 범위는 공급자 스키마에서 제외하고 기존 서버 검증기가 검사한다. 후보 수에 따라 구조화 응답 제약이 복잡해지는 것을 줄이며 허용 날짜·후보 장소·중복·시간 검증은 유지한다.
 
-스키마가 포함된 호출이 `400 INVALID_ARGUMENT`로 거절되고 알려진 인증·권한 등의 오류 사유가 없으면 같은 모델·프롬프트를 유지한 채 `responseJsonSchema`만 제외하고 `application/json` 모드로 한 번 더 요청한다. 서비스의 호출은 최대 두 번이며 두 번째 호출도 실패하면 원래 일정을 유지한다. 429·403·5xx·네트워크 오류·JSON 파싱 실패는 이 호환 요청의 대상이 아니다. 재요청 결과도 동일한 일정 검증을 통과해야 적용한다. 이 처리는 400의 정확한 원인을 확정하는 것이 아니며 다른 요청 오류까지 해결한다고 보장하지 않는다.
+스키마가 포함된 호출이 `400 INVALID_ARGUMENT`로 거절되고 알려진 인증·권한 등의 오류 사유가 없으면 같은 모델·프롬프트를 유지한 채 `responseJsonSchema`만 제외하고 `application/json` 모드로 한 번 더 요청한다. 첫 제안을 받기 위한 호출은 최대 두 번이며 두 번째 호출도 실패하면 원래 일정을 유지한다. 429·403·5xx·네트워크 오류·JSON 파싱 실패는 이 호환 요청의 대상이 아니다. 재요청 결과도 동일한 일정 검증을 통과해야 적용한다. 이 처리는 400의 정확한 원인을 확정하는 것이 아니며 다른 요청 오류까지 해결한다고 보장하지 않는다.
 
 로그에서 `ai_revision_json_mode_retry` 뒤 `ai_revision_completed.changed=true`인지 확인한다. 두 번째 호출도 거절되면 `ai_revision_failed`, 응답은 받았지만 수정안이 잘못됐다면 `ai_revision_validation_rejected`가 남는다. 각 호출의 `structuredOutput`은 첫 호출 true, 호환 호출 false다. 운영의 실제 성공 여부는 배포 후 확인해야 하며 테스트는 실제 Google SDK와 로컬 HTTP 대역 서버로 400→정상 응답을 검증한다.
 
@@ -18,7 +26,7 @@ NestJS 12, TypeScript 6, TypeORM, PostgreSQL 드라이버와 `@google/genai`를 
 
 - 설정: `ai_configuration_lookup_completed/failed`에 `app_model_config`·`ai_model_config`의 활성 행 존재 여부 또는 `dbCode`·`dbReason`을 남긴다. `ai_configuration_resolved`의 `keySource`, `modelSource`, `keyPresent`, `model`로 환경변수·DB 중 실제 선택된 출처를 확인한다. 두 출처는 서로 다를 수 있다. 테이블 누락 `42P01`, 권한 부족 `42501`, 비밀번호 인증 실패 `28P01`을 구분한다. 행이 있으면 다음 테이블을 조회하지 않는 기존 우선순위를 유지한다.
 - 호출: `ai_provider_request_started/completed/failed`에 모델, 소요 시간, HTTP 상태, 허용한 공급자 오류 코드, 종료·차단 사유, 토큰 수를 남긴다. Google이 상세 정보를 제공한 429에는 `quotaViolations`의 일/분 단위·요청/토큰·무료/유료 구분·한도와 `retryAfterSeconds`가 포함된다. 상세 정보가 없으면 429만으로 어떤 한도인지 단정하지 않는다.
-- 수정: `ai_revision_*`에서 입력 검증, 후보 수·조회 실패, JSON 파싱, 일정 검증, 최종 적용 여부를 추적한다. `ai_revision_failed.stage`는 `provider`, `parse`, `validation`이다. `ai_revision_validation_rejected.reason`은 알 수 없는 장소, 중복 장소·날짜, 시간 겹침, 도착 전, 장소 유형 불일치, 무변경 등을 구분하고 필요한 경우 0부터 시작하는 배열 위치를 남긴다.
+- 수정: `ai_revision_*`에서 입력 검증, 후보 수·조회 실패, JSON 파싱, 일정 검증, 최종 적용 여부를 추적한다. `ai_revision_failed.stage`는 `provider`, `parse`, `validation`, `repair_provider`, `repair_parse`다. `ai_revision_validation_rejected.reason`은 알 수 없는 장소, 중복 장소·날짜, 시간 겹침, 도착 전, 장소 유형 불일치, 무변경 등을 구분하고 필요한 경우 0부터 시작하는 배열 위치를 남긴다.
 - 생성·큐레이션: `ai_planner_completed`, `ai_curation_completed`의 `aiUsed=false`, `reason=error_fallback`은 AI 실패 후 로컬 처리로 이어졌다는 뜻이다. 화면이 정상 진행되는 것만으로 AI 성공을 판단하지 않는다.
 
 키 원문·일부·해시, DB 비밀번호·접속 주소, 대화·일정·장소 원문, 공급자 오류 원문과 stack은 기록하지 않는다. 입력·출력은 길이·개수와 허용한 메타데이터로만 남긴다. 상세 단계 로그는 운영에서도 기본 출력되므로 요청량에 비례해 로그량이 증가한다. 이 범위는 공통 Gemini 설정을 사용하는 네 경로이며 기존 `travel-engine.ts`·`poetry.service.ts`의 독립 호출은 포함하지 않는다.

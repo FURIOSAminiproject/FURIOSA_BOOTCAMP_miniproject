@@ -174,6 +174,30 @@ test('revision rejection logs unknown place and position without logging IDs or 
   assert.doesNotMatch(JSON.stringify(logs), /private-invented-place|private-model-reply/);
 });
 
+test('kind repair logs safe type feedback and final success under the original request ID', async t => {
+  const logs = capture(t);
+  const place = { id: 'private-place-id', name: 'private-place-name', address: 'private-address', latitude: 37.2, longitude: 127.1, contentTypeId: 12, categoryName: '관광지', distanceMeters: 0 };
+  const input = { ...request, itinerary: { ...itinerary, days: [{ ...itinerary.days[0], visits: [
+    { place, kind: 'sightseeing', time: '11:00', endTime: '12:00', durationMinutes: 60, travelMinutes: 5 },
+  ] }] } };
+  const service = new ItineraryRevisionService();
+  let calls = 0;
+  service.getGeminiClient = async () => model(async () => ({ text: JSON.stringify({
+    reply: 'private-reply', days: [{ date: '2026-11-02', visits: [{ placeId: place.id, kind: ++calls === 1 ? 'cafe' : 'sightseeing', time: '13:00', durationMinutes: 60 }] }],
+  }) }));
+  const result = await service.revise(input);
+  assert.equal(result.changed, true);
+  assert.equal(calls, 2);
+  const rejected = logs.find(log => log.event === 'ai_revision_validation_rejected');
+  assert.equal(rejected.requestedKind, 'cafe');
+  assert.equal(rejected.contentTypeId, 12);
+  assert.deepEqual(rejected.allowedKinds, ['sightseeing']);
+  assert.equal(logs.find(log => log.event === 'ai_revision_repair_completed').changed, true);
+  assert.equal(logs.at(-1).changed, true);
+  assert.equal(new Set(logs.map(log => log.requestId)).size, 1);
+  assert.doesNotMatch(JSON.stringify(logs), /private-place|private-address|private-user-message|private-reply/);
+});
+
 test('planner and curator log local fallback on the same upstream failure', async t => {
   const logs = capture(t);
   const failing = model(async () => { const error = new Error('secret-provider-details'); error.status = 429; throw error; });

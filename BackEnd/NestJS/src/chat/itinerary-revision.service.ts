@@ -19,8 +19,10 @@ import type { DestinationItinerary } from '../route-explorer/destination-itinera
 import type { SpotPlace } from '../route-explorer/explorer.types';
 import {
   applyItineraryRevision,
+  allowedVisitKinds,
   isDestinationItinerary,
   isSpotPlace,
+  type RevisionValidationPosition,
 } from './itinerary-revision';
 
 export interface ItineraryRevisionRequest {
@@ -56,7 +58,10 @@ export class ItineraryRevisionService {
     trace: AiTrace,
   ) {
     try {
-      return await generateGeminiContent(client, request, trace);
+      return {
+        response: await generateGeminiContent(client, request, trace),
+        request,
+      };
     } catch (error) {
       const diagnostic = aiErrorDiagnostic(error);
       if (
@@ -78,8 +83,59 @@ export class ItineraryRevisionService {
       );
       const config = { ...request.config };
       delete config.responseJsonSchema;
-      return generateGeminiContent(client, { ...request, config }, trace);
+      const jsonRequest = { ...request, config };
+      return {
+        response: await generateGeminiContent(client, jsonRequest, trace),
+        request: jsonRequest,
+      };
     }
+  }
+
+  private parseProposal(text: string, trace: AiTrace, proposalAttempt: number) {
+    trace.emit('ai_revision_parse_started', {
+      responseLength: text.length,
+      proposalAttempt,
+    });
+    const value: unknown = JSON.parse(text);
+    const parsed =
+      value && typeof value === 'object' && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : {};
+    trace.emit('ai_revision_parse_completed', {
+      objectResponse:
+        !!value && typeof value === 'object' && !Array.isArray(value),
+      daysArrayPresent: Array.isArray(parsed.days),
+      proposedDayCount: Array.isArray(parsed.days) ? parsed.days.length : 0,
+      proposalAttempt,
+    });
+    return parsed;
+  }
+
+  private validateProposal(
+    itinerary: DestinationItinerary,
+    proposedDays: unknown,
+    places: SpotPlace[],
+    trace: AiTrace,
+    proposalAttempt: number,
+  ) {
+    const result: {
+      itinerary: DestinationItinerary | null;
+      rejection?: { reason: string; position: RevisionValidationPosition };
+    } = { itinerary: null };
+    result.itinerary = applyItineraryRevision(
+      itinerary,
+      proposedDays,
+      places,
+      (reason, position) => {
+        result.rejection = { reason, position };
+        trace.emit(
+          'ai_revision_validation_rejected',
+          { reason, ...position, proposalAttempt },
+          'warn',
+        );
+      },
+    );
+    return result;
   }
 
   async revise(
@@ -205,7 +261,7 @@ export class ItineraryRevisionService {
       : [];
     let stage = 'provider';
     try {
-      const response = await this.generateRevisionContent(
+      const generated = await this.generateRevisionContent(
         gemini,
         {
           model: gemini.modelName,
@@ -231,11 +287,12 @@ export class ItineraryRevisionService {
               name: place.name,
               category: place.categoryName,
               contentTypeId: place.contentTypeId,
+              allowedKinds: allowedVisitKinds(place.contentTypeId),
             })),
           }),
           config: {
             systemInstruction:
-              '당신은 국내 여행의 도착 후 날짜별 일정을 실제로 수정하는 플래너입니다. 사용자 요청에 맞춰 기존 일정을 가능한 한 유지하면서 방문 장소 교체·추가·삭제·시각 재배치를 하세요. 반드시 제공된 places의 ID만 사용하세요. dayNumber가 첫날·둘째 날의 기준입니다. days에는 변경한 날짜만 넣고, 각 날짜의 visits에는 유지할 방문까지 포함한 그 날의 최종 전체 방문 목록을 넣으세요. 생략한 날짜는 그대로 유지되며, visits=[]는 해당 날짜 방문 전체 삭제입니다. 하루 최대 6곳, 생략한 날짜를 포함해 전체에서 장소 ID 중복 금지, 도착일·도착 시각 이후·09:00~20:00 범위, 방문 간 최소 5분 여유를 지키세요. 관광지는 sightseeing, 음식점은 lunch/cafe/dinner입니다. 경로선·이동 수단·출발지·날짜·숙박 예약은 이 기능으로 바꿀 수 없습니다. 그 요청이라면 수정하지 말고 안내만 하세요. JSON {reply:"짧은 수정 설명",days:[{date:"YYYY-MM-DD",visits:[{placeId:"제공 ID",kind:"sightseeing|lunch|cafe|dinner",time:"HH:mm",durationMinutes:30~180}]}]} 형식으로 반환하세요. 수정 불가하거나 질문일 때는 days=[]로 답하세요. 실제 수정 없이 완료했다고 말하지 마세요.',
+              '당신은 국내 여행의 도착 후 날짜별 일정을 실제로 수정하는 플래너입니다. 사용자 요청에 맞춰 기존 일정을 가능한 한 유지하면서 방문 장소 교체·추가·삭제·시각 재배치를 하세요. 반드시 제공된 places의 ID만 사용하고 각 장소의 allowedKinds에 있는 kind만 지정하세요. allowedKinds가 빈 장소는 방문에 넣지 마세요. 관광지를 점심·카페·저녁으로 배정하거나 음식점을 sightseeing으로 배정하면 수정 전체가 거부됩니다. dayNumber가 첫날·둘째 날의 기준입니다. days에는 변경한 날짜만 넣고, 각 날짜의 visits에는 유지할 방문까지 포함한 그 날의 최종 전체 방문 목록을 넣으세요. 생략한 날짜는 그대로 유지되며, visits=[]는 해당 날짜 방문 전체 삭제입니다. 하루 최대 6곳, 생략한 날짜를 포함해 전체에서 장소 ID 중복 금지, 도착일·도착 시각 이후·09:00~20:00 범위, 방문 간 최소 5분 여유를 지키세요. 관광지는 sightseeing, 음식점은 lunch/cafe/dinner입니다. 경로선·이동 수단·출발지·날짜·숙박 예약은 이 기능으로 바꿀 수 없습니다. 그 요청이라면 수정하지 말고 안내만 하세요. JSON {reply:"짧은 수정 설명",days:[{date:"YYYY-MM-DD",visits:[{placeId:"제공 ID",kind:"sightseeing|lunch|cafe|dinner",time:"HH:mm",durationMinutes:30~180}]}]} 형식으로 반환하세요. 수정 불가하거나 질문일 때는 days=[]로 답하세요. 실제 수정 없이 완료했다고 말하지 마세요.',
             responseMimeType: 'application/json',
             responseJsonSchema: {
               type: 'object',
@@ -286,32 +343,70 @@ export class ItineraryRevisionService {
         trace,
       );
       stage = 'parse';
-      const text = response.text || '{}';
-      trace.emit('ai_revision_parse_started', { responseLength: text.length });
-      const value: unknown = JSON.parse(text);
-      const parsed =
-        value && typeof value === 'object' && !Array.isArray(value)
-          ? (value as Record<string, unknown>)
-          : {};
-      trace.emit('ai_revision_parse_completed', {
-        objectResponse:
-          !!value && typeof value === 'object' && !Array.isArray(value),
-        daysArrayPresent: Array.isArray(parsed.days),
-        proposedDayCount: Array.isArray(parsed.days) ? parsed.days.length : 0,
-      });
+      let parsed = this.parseProposal(
+        generated.response.text || '{}',
+        trace,
+        1,
+      );
       stage = 'validation';
-      const revised = applyItineraryRevision(
+      let validated = this.validateProposal(
         itinerary,
         parsed.days,
         places,
-        (reason, position) => {
-          trace.emit(
-            'ai_revision_validation_rejected',
-            { reason, ...position },
-            'warn',
-          );
-        },
+        trace,
+        1,
       );
+      if (
+        !validated.itinerary &&
+        validated.rejection?.reason === 'place_kind_mismatch'
+      ) {
+        trace.emit(
+          'ai_revision_repair_started',
+          {
+            reason: validated.rejection.reason,
+            ...validated.rejection.position,
+            repairAttempt: 1,
+          },
+          'warn',
+        );
+        stage = 'repair_provider';
+        const repaired = await generateGeminiContent(
+          gemini,
+          {
+            ...generated.request,
+            contents: JSON.stringify({
+              ...JSON.parse(generated.request.contents as string),
+              rejectedDays: parsed.days,
+              validationFeedback: validated.rejection,
+              repairInstruction:
+                '이전 수정안은 장소 유형과 방문 kind가 맞지 않아 적용되지 않았습니다. 원래 사용자 요청과 수정 범위를 유지하고, 모든 방문의 kind가 해당 장소의 allowedKinds에 속하도록 수정안을 한 번 보정하세요. 방문 목적이 식사·카페라면 그 목적을 관광으로 바꾸지 말고 해당 kind를 허용하는 places 후보를 선택하세요. 유지할 방문을 포함한 수정 날짜의 최종 전체 visits를 반환하고, 생략할 날짜는 원래 일정을 유지합니다. 날짜·중복·도착 시각·방문 시간 규칙도 모두 지키세요. 유효한 변경을 만들 수 없으면 days=[]로 답하세요.',
+            }),
+          },
+          trace,
+        );
+        stage = 'repair_parse';
+        parsed = this.parseProposal(repaired.text || '{}', trace, 2);
+        stage = 'validation';
+        validated = this.validateProposal(
+          itinerary,
+          parsed.days,
+          places,
+          trace,
+          2,
+        );
+        trace.emit(
+          'ai_revision_repair_completed',
+          {
+            changed: !!validated.itinerary,
+            repairAttempt: 1,
+            reason: validated.itinerary
+              ? 'validated'
+              : (validated.rejection?.reason ?? 'rejected'),
+          },
+          validated.itinerary ? 'log' : 'warn',
+        );
+      }
+      const revised = validated.itinerary;
       const reply =
         typeof parsed.reply === 'string'
           ? parsed.reply.trim().slice(0, 1000)

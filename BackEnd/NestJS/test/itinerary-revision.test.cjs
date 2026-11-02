@@ -59,6 +59,108 @@ function invalidArgument(reason) {
   return error;
 }
 
+function kindMismatchFixture() {
+  const places = [secondSight, { ...food, id: 'day-two-food' }, { ...food, id: 'day-two-cafe' }, { ...sight, id: 'day-two-last-sight' }];
+  const visits = places.map((place, index) => ({
+    place, kind: ['sightseeing', 'lunch', 'cafe', 'sightseeing'][index],
+    time: ['10:00', '12:00', '14:00', '16:00'][index],
+    endTime: ['11:00', '13:00', '15:00', '17:00'][index],
+    durationMinutes: 60, travelMinutes: 5,
+  }));
+  const input = { ...request, message: '둘째 날 마지막 명소 방문을 한 시간 늦춰줘', itinerary: {
+    ...twoDayItinerary, days: [itinerary.days[0], { ...twoDayItinerary.days[1], visits }],
+  } };
+  const valid = { reply: '둘째 날 마지막 방문을 늦췄습니다.', days: [{
+    date: '2026-10-31', visits: visits.map((visit, index) => ({
+      placeId: visit.place.id, kind: visit.kind,
+      time: index === 3 ? '17:00' : visit.time, durationMinutes: visit.durationMinutes,
+    })),
+  }] };
+  const invalid = structuredClone(valid);
+  invalid.days[0].visits[3].kind = 'cafe';
+  return { input, valid, invalid };
+}
+
+function serviceWithResponses(responses) {
+  const service = new ItineraryRevisionService();
+  const calls = [];
+  service.getGeminiClient = async () => ({ modelName: 'revision-test', ai: { models: {
+    generateContent: async input => {
+      calls.push(input);
+      const response = responses[Math.min(calls.length - 1, responses.length - 1)];
+      if (response instanceof Error) throw response;
+      return { text: typeof response === 'string' ? response : JSON.stringify(response) };
+    },
+  } } });
+  return { service, calls };
+}
+
+test('a day-two fourth-visit kind mismatch is repaired once using candidate allowedKinds and exact validation feedback', async () => {
+  const { input, valid, invalid } = kindMismatchFixture();
+  const original = structuredClone(input.itinerary);
+  const { service, calls } = serviceWithResponses([invalid, valid]);
+  const result = await service.revise(input);
+  assert.equal(calls.length, 2);
+  const initialContext = JSON.parse(calls[0].contents);
+  assert.deepEqual(initialContext.places.find(place => place.id === 'day-two-last-sight').allowedKinds, ['sightseeing']);
+  assert.deepEqual(initialContext.places.find(place => place.id === 'day-two-food').allowedKinds, ['lunch', 'cafe', 'dinner']);
+  const feedback = JSON.parse(calls[1].contents);
+  assert.equal(feedback.message, input.message);
+  assert.deepEqual(feedback.rejectedDays, invalid.days);
+  assert.deepEqual(feedback.validationFeedback, { reason: 'place_kind_mismatch', position: {
+    dayIndex: 1, visitIndex: 3, requestedKind: 'cafe', contentTypeId: 12, allowedKinds: ['sightseeing'],
+  } });
+  assert.equal(result.changed, true);
+  assert.equal(result.itinerary.days[1].visits[3].time, '17:00');
+  assert.equal(result.itinerary.days[1].visits[3].kind, 'sightseeing');
+  assert.deepEqual(result.itinerary.days[0], original.days[0]);
+  assert.deepEqual(input.itinerary, original);
+});
+
+test('a failed repair stays bounded and never applies wrong kinds, invented places, overlapping times or malformed JSON', async () => {
+  const { input, valid, invalid } = kindMismatchFixture();
+  const invented = structuredClone(valid);
+  invented.days[0].visits[3].placeId = 'invented-place';
+  const overlapping = structuredClone(valid);
+  overlapping.days[0].visits[3].time = '14:30';
+  for (const failedRepair of [invalid, invented, overlapping, 'not-json', new Error('provider failed')]) {
+    const original = structuredClone(input.itinerary);
+    const { service, calls } = serviceWithResponses([invalid, failedRepair]);
+    const result = await service.revise(input);
+    assert.equal(calls.length, 2);
+    assert.equal(result.changed, false);
+    assert.equal(result.itinerary, null);
+    assert.deepEqual(input.itinerary, original);
+  }
+});
+
+test('kind repair reuses the working JSON mode after a structured-output 400 and never sends a fourth request', async () => {
+  const { input, valid, invalid } = kindMismatchFixture();
+  for (const repaired of [valid, invalidArgument()]) {
+    const { service, calls } = serviceWithResponses([invalidArgument(), invalid, repaired]);
+    const result = await service.revise(input);
+    assert.equal(calls.length, 3);
+    assert.ok(calls[0].config.responseJsonSchema);
+    assert.equal(calls[1].config.responseJsonSchema, undefined);
+    assert.equal(calls[2].config.responseJsonSchema, undefined);
+    assert.equal(calls[2].config.responseMimeType, 'application/json');
+    assert.equal(result.changed, repaired === valid);
+  }
+});
+
+test('empty, unchanged and unrelated invalid proposals do not trigger kind repair', async () => {
+  const { input, valid } = kindMismatchFixture();
+  const invented = structuredClone(valid);
+  invented.days[0].visits[3].placeId = 'invented-place';
+  const unchanged = { reply: '설명', days: days(food.id) };
+  for (const proposal of [{ reply: '질문', days: [] }, unchanged, invented]) {
+    const { service, calls } = serviceWithResponses([proposal]);
+    const result = await service.revise(input);
+    assert.equal(calls.length, 1);
+    assert.equal(result.changed, false);
+  }
+});
+
 test('a structured-output 400 retries once in JSON mode and applies the validated revision', async () => {
   const service = new ItineraryRevisionService();
   const calls = [];

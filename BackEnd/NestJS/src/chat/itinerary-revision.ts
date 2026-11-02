@@ -6,6 +6,20 @@ import type { SpotPlace } from '../route-explorer/explorer.types';
 
 type Kind = DestinationVisit['kind'];
 
+export interface RevisionValidationPosition {
+  dayIndex?: number;
+  visitIndex?: number;
+  requestedKind?: Kind;
+  contentTypeId?: number;
+  allowedKinds?: Kind[];
+}
+
+/** 모델 후보 안내와 서버 검증에서 같은 장소 유형 규칙을 사용한다. */
+export function allowedVisitKinds(contentTypeId: number): Kind[] {
+  if (contentTypeId === 39) return ['lunch', 'cafe', 'dinner'];
+  return [12, 14, 15, 28, 38].includes(contentTypeId) ? ['sightseeing'] : [];
+}
+
 const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const minutes = (value: string) =>
@@ -126,17 +140,15 @@ export function applyItineraryRevision(
   itinerary: DestinationItinerary,
   proposedDays: unknown,
   places: SpotPlace[],
-  onReject?: (
-    reason: string,
-    position: { dayIndex?: number; visitIndex?: number },
-  ) => void,
+  onReject?: (reason: string, position: RevisionValidationPosition) => void,
 ): DestinationItinerary | null {
   const reject = (
     reason: string,
     dayIndex?: number,
     visitIndex?: number,
+    details: Partial<RevisionValidationPosition> = {},
   ): null => {
-    onReject?.(reason, { dayIndex, visitIndex });
+    onReject?.(reason, { dayIndex, visitIndex, ...details });
     return null;
   };
   if (
@@ -222,12 +234,13 @@ export function applyItineraryRevision(
         return reject('invalid_visit_fields', dayIndex, visitIndex);
       const place = allowed.get(raw.placeId)!;
       const kind = raw.kind as Kind;
-      if (
-        (kind === 'sightseeing' &&
-          ![12, 14, 15, 28, 38].includes(place.contentTypeId)) ||
-        (kind !== 'sightseeing' && place.contentTypeId !== 39)
-      )
-        return reject('place_kind_mismatch', dayIndex, visitIndex);
+      const allowedKinds = allowedVisitKinds(place.contentTypeId);
+      if (!allowedKinds.includes(kind))
+        return reject('place_kind_mismatch', dayIndex, visitIndex, {
+          requestedKind: kind,
+          contentTypeId: place.contentTypeId,
+          allowedKinds,
+        });
       const start = minutes(raw.time);
       const end = start + Number(raw.durationMinutes);
       if (
