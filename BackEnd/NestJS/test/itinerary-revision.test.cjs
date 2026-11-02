@@ -2,6 +2,8 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
 const path = require('node:path');
+const { model } = require('./helpers/revision-model.cjs');
+const { RevisionRequestLimiter } = require('../dist/chat/revision-request-limits');
 const { ItineraryRevisionService } = require('../dist/chat/itinerary-revision.service');
 
 const place = (id, type, name) => ({
@@ -43,20 +45,8 @@ const days = (foodId, lunchTime = '13:00') => [{
 
 function serviceWithModel(payload, db) {
   const service = new ItineraryRevisionService(db);
-  service.getGeminiClient = async () => ({
-    modelName: 'revision-test',
-    ai: { models: { generateContent: async () => ({ text: JSON.stringify(payload) }) } },
-  });
+  service.getGeminiClient = async () => model(async () => ({ text: JSON.stringify({ reason: 'clarification', ...payload }) }));
   return service;
-}
-
-function invalidArgument(reason) {
-  const error = new Error(JSON.stringify({ error: {
-    code: 400, status: 'INVALID_ARGUMENT', message: 'Request contains an invalid argument.',
-    details: reason ? [{ reason }] : [],
-  } }));
-  error.status = 400;
-  return error;
 }
 
 function kindMismatchFixture() {
@@ -81,17 +71,19 @@ function kindMismatchFixture() {
   return { input, valid, invalid };
 }
 
+function invalidArgument() {
+  return Object.assign(new Error(JSON.stringify({ error: { code: 400, status: 'INVALID_ARGUMENT' } })), { status: 400 });
+}
+
 function serviceWithResponses(responses) {
   const service = new ItineraryRevisionService();
   const calls = [];
-  service.getGeminiClient = async () => ({ modelName: 'revision-test', ai: { models: {
-    generateContent: async input => {
-      calls.push(input);
-      const response = responses[Math.min(calls.length - 1, responses.length - 1)];
-      if (response instanceof Error) throw response;
-      return { text: typeof response === 'string' ? response : JSON.stringify(response) };
-    },
-  } } });
+  service.getGeminiClient = async () => model(async input => {
+    calls.push(input);
+    const response = responses[Math.min(calls.length - 1, responses.length - 1)];
+    if (response instanceof Error) throw response;
+    return { text: typeof response === 'string' ? response : JSON.stringify({ reason: 'clarification', ...response }) };
+  });
   return { service, calls };
 }
 
@@ -101,12 +93,10 @@ test('a day-two fourth-visit kind mismatch is repaired once using candidate allo
   const { service, calls } = serviceWithResponses([invalid, valid]);
   const result = await service.revise(input);
   assert.equal(calls.length, 2);
-  const initialContext = JSON.parse(calls[0].contents);
+  const initialContext = calls[0].contents[2].parts[0].functionResponse.response.output;
   assert.deepEqual(initialContext.places.find(place => place.id === 'day-two-last-sight').allowedKinds, ['sightseeing']);
   assert.deepEqual(initialContext.places.find(place => place.id === 'day-two-food').allowedKinds, ['lunch', 'cafe', 'dinner']);
-  const feedback = JSON.parse(calls[1].contents);
-  assert.equal(feedback.message, input.message);
-  assert.deepEqual(feedback.rejectedDays, invalid.days);
+  const feedback = JSON.parse(calls[1].contents.at(-1).parts[0].text);
   assert.deepEqual(feedback.validationFeedback, { reason: 'place_kind_mismatch', position: {
     dayIndex: 1, visitIndex: 3, requestedKind: 'cafe', contentTypeId: 12, allowedKinds: ['sightseeing'],
   } });
@@ -134,20 +124,6 @@ test('a failed repair stays bounded and never applies wrong kinds, invented plac
   }
 });
 
-test('kind repair reuses the working JSON mode after a structured-output 400 and never sends a fourth request', async () => {
-  const { input, valid, invalid } = kindMismatchFixture();
-  for (const repaired of [valid, invalidArgument()]) {
-    const { service, calls } = serviceWithResponses([invalidArgument(), invalid, repaired]);
-    const result = await service.revise(input);
-    assert.equal(calls.length, 3);
-    assert.ok(calls[0].config.responseJsonSchema);
-    assert.equal(calls[1].config.responseJsonSchema, undefined);
-    assert.equal(calls[2].config.responseJsonSchema, undefined);
-    assert.equal(calls[2].config.responseMimeType, 'application/json');
-    assert.equal(result.changed, repaired === valid);
-  }
-});
-
 test('empty, unchanged and unrelated invalid proposals do not trigger kind repair', async () => {
   const { input, valid } = kindMismatchFixture();
   const invented = structuredClone(valid);
@@ -161,7 +137,7 @@ test('empty, unchanged and unrelated invalid proposals do not trigger kind repai
   }
 });
 
-test('an empty cafe proposal preserves the shortage explanation and reports candidate coverage without claiming an edit', async () => {
+test('an empty cafe proposal preserves a supplied explanation and exposes actual day counts without claiming an edit', async () => {
   const explanation = '현재 주변 등록 후보에는 추가할 카페가 없습니다. 다른 방문 장소를 요청해 주세요.';
   const { service, calls } = serviceWithResponses([{ reply: explanation, days: [] }]);
   const result = await service.revise({ ...request, itinerary: twoDayItinerary, message: '☕ 둘째 날 오후에 카페를 추가해줘' });
@@ -171,9 +147,7 @@ test('an empty cafe proposal preserves the shortage explanation and reports cand
   assert.ok(result.reply.startsWith('현재 화면의 일정은 변경되지 않았습니다.'));
   assert.ok(result.reply.includes(explanation));
   assert.doesNotMatch(result.reply, /안전하게 적용할 수 없었습니다|일정에 반영했습니다/);
-  assert.deepEqual(JSON.parse(calls[0].contents).candidateCoverage, {
-    foodCount: 1, unusedFoodCount: 0, recognizedCafeCount: 0, unusedRecognizedCafeCount: 0,
-  });
+  assert.equal(calls[0].contents[2].parts[0].functionResponse.response.output.itinerary.days[1].visitCounts.sightseeing, 1);
 });
 
 test('empty proposals without an explanation get a clear no-change prompt while invalid proposals keep their rejection', async () => {
@@ -240,135 +214,6 @@ test('provider failures explain quota, authentication, timeout and request error
   }
   const malformed = await serviceWithResponses(['invalid-json']).service.revise(request);
   assert.match(malformed.reply, /AI 응답의 형식이 잘못되어/);
-});
-
-test('a structured-output 400 retries once in JSON mode and applies the validated revision', async () => {
-  const service = new ItineraryRevisionService();
-  const calls = [];
-  service.getGeminiClient = async () => ({ modelName: 'gemini-3.5-flash-lite', ai: { models: {
-    generateContent: async input => {
-      calls.push(input);
-      if (calls.length === 1) throw invalidArgument();
-      return { text: JSON.stringify({ reply: '점심 시간을 늦췄습니다.', days: days(food.id, '14:00') }) };
-    },
-  } } });
-  const result = await service.revise(request);
-  assert.equal(calls.length, 2);
-  assert.equal(calls[0].model, calls[1].model);
-  assert.equal(calls[0].contents, calls[1].contents);
-  assert.ok(calls[0].config.responseJsonSchema);
-  assert.equal(calls[1].config.responseJsonSchema, undefined);
-  assert.equal(calls[1].config.responseMimeType, 'application/json');
-  assert.equal(calls[0].config.systemInstruction, calls[1].config.systemInstruction);
-  assert.equal(result.changed, true);
-  assert.equal(result.itinerary.days[0].visits[1].time, '14:00');
-  assert.equal(result.modelUsed, 'gemini-3.5-flash-lite');
-  assert.equal(itinerary.days[0].visits[1].time, '13:00');
-});
-
-test('JSON mode fallback still rejects invented places, unknown dates and overlapping times atomically', async () => {
-  for (const proposal of [days('invented-place'), days(food.id, '11:30'), [{ ...days(food.id)[0], date: '2030-01-01' }]]) {
-    const service = new ItineraryRevisionService();
-    let calls = 0;
-    service.getGeminiClient = async () => ({ modelName: 'revision-test', ai: { models: {
-      generateContent: async () => {
-        if (++calls === 1) throw invalidArgument();
-        return { text: JSON.stringify({ reply: '수정 완료', days: proposal }) };
-      },
-    } } });
-    const original = structuredClone(itinerary);
-    const result = await service.revise(request);
-    assert.equal(calls, 2);
-    assert.equal(result.changed, false);
-    assert.equal(result.itinerary, null);
-    assert.deepEqual(itinerary, original);
-  }
-});
-
-test('a failed JSON mode fallback is bounded to two provider requests', async () => {
-  const service = new ItineraryRevisionService();
-  let calls = 0;
-  service.getGeminiClient = async () => ({ modelName: 'revision-test', ai: { models: {
-    generateContent: async () => { calls++; throw invalidArgument(); },
-  } } });
-  const result = await service.revise(request);
-  assert.equal(calls, 2);
-  assert.equal(result.changed, false);
-  assert.equal(result.itinerary, null);
-});
-
-test('authentication, quota and unrelated errors never trigger a compatibility request', async () => {
-  const credentialError = invalidArgument();
-  credentialError.message = JSON.stringify({ error: { code: 400, status: 'INVALID_ARGUMENT', message: 'API key not valid. Please pass a valid API key.' } });
-  for (const error of [invalidArgument('API_KEY_INVALID'), credentialError, { status: 403 }, { status: 429 }, { status: 500 }, new Error('network failure')]) {
-    const service = new ItineraryRevisionService();
-    let calls = 0;
-    service.getGeminiClient = async () => ({ modelName: 'revision-test', ai: { models: {
-      generateContent: async () => { calls++; throw error; },
-    } } });
-    assert.equal((await service.revise(request)).changed, false);
-    assert.equal(calls, 1);
-  }
-});
-
-test('a successful provider response with invalid JSON never retries or changes the itinerary', async () => {
-  const service = new ItineraryRevisionService();
-  let calls = 0;
-  service.getGeminiClient = async () => ({ modelName: 'revision-test', ai: { models: {
-    generateContent: async () => { calls++; return { text: 'not-json' }; },
-  } } });
-  const result = await service.revise(request);
-  assert.equal(calls, 1);
-  assert.equal(result.changed, false);
-  assert.equal(result.itinerary, null);
-});
-
-test('the real Google SDK recovers from HTTP 400 by removing only the structured response schema', async t => {
-  const { createServer } = require('node:http');
-  const { GoogleGenAI } = require('@google/genai');
-  const bodies = [];
-  const server = createServer(async (incoming, outgoing) => {
-    const chunks = [];
-    for await (const chunk of incoming) chunks.push(chunk);
-    bodies.push(JSON.parse(Buffer.concat(chunks).toString('utf8')));
-    outgoing.setHeader('Content-Type', 'application/json');
-    if (bodies.length === 1) {
-      outgoing.statusCode = 400;
-      outgoing.end(JSON.stringify({ error: { code: 400, status: 'INVALID_ARGUMENT', message: 'Request contains an invalid argument.' } }));
-    } else {
-      outgoing.end(JSON.stringify({ candidates: [{ content: { role: 'model', parts: [{ text: JSON.stringify({ reply: '점심을 늦췄습니다.', days: days(food.id, '14:00') }) }] }, finishReason: 'STOP' }] }));
-    }
-  });
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  t.after(() => { server.closeAllConnections(); return new Promise(resolve => server.close(resolve)); });
-  const service = new ItineraryRevisionService();
-  service.getGeminiClient = async () => ({
-    modelName: 'gemini-3.5-flash-lite',
-    ai: new GoogleGenAI({ apiKey: 'test-only-key', httpOptions: { baseUrl: `http://127.0.0.1:${server.address().port}`, timeout: 3000, retryOptions: { attempts: 1 } } }),
-  });
-  const result = await service.revise(request);
-  assert.equal(result.changed, true);
-  assert.equal(result.itinerary.days[0].visits[1].time, '14:00');
-  assert.equal(bodies.length, 2);
-  assert.ok(bodies[0].generationConfig.responseJsonSchema);
-  assert.equal(bodies[1].generationConfig.responseJsonSchema, undefined);
-  const { responseJsonSchema, ...firstConfig } = bodies[0].generationConfig;
-  assert.deepEqual(firstConfig, bodies[1].generationConfig);
-  assert.deepEqual(bodies[0].contents, bodies[1].contents);
-});
-
-test('AI replacement with a real DB candidate changes the itinerary shown to the client', async () => {
-  const db = { query: async (_sql, params) => params[1].includes(39) ? [{
-    place_id: alternative.id, name: alternative.name, address: alternative.address,
-    latitude: alternative.latitude, longitude: alternative.longitude,
-    content_type_id: 39, category_name: '음식점', distance_meters: 100,
-  }] : [] };
-  const service = serviceWithModel({ reply: '점심을 새 식당으로 교체했습니다.', days: days(alternative.id) }, db);
-  const result = await service.revise(request);
-  assert.equal(result.changed, true);
-  assert.equal(result.itinerary.days[0].visits[1].place.id, alternative.id);
-  assert.equal(result.itinerary.days[0].visits[0].place.id, sight.id);
-  assert.equal(itinerary.days[0].visits[1].place.id, food.id);
 });
 
 test('time changes apply, but unknown places and overlapping visits never apply', async () => {
@@ -462,6 +307,7 @@ test('HTTP revision returns a complete updated itinerary for the result screen',
   const module = await Test.createTestingModule({
     controllers: [ChatController],
     providers: [
+      { provide: RevisionRequestLimiter, useValue: new RevisionRequestLimiter() },
       { provide: ChatService, useValue: {} },
       { provide: ItineraryRevisionService, useValue: serviceWithModel({ reply: '둘째 날을 늦췄습니다.', days: [secondDayChange] }) },
     ],
@@ -481,6 +327,14 @@ test('HTTP revision returns a complete updated itinerary for the result screen',
   assert.match(body.reply, /일정에 반영했습니다/);
   assert.deepEqual(body.itinerary.days[0], twoDayItinerary.days[0]);
   assert.equal(body.itinerary.days[1].visits[0].time, '14:00');
+  // 로그인 쿠키 없이 동일 IP에서 10회까지 허용하고 이후 실제 HTTP 429로 거절한다.
+  for (let i = 1; i < 10; i++) {
+    const allowed = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...request, itinerary: twoDayItinerary }) });
+    assert.equal(allowed.status, 200); await allowed.json();
+  }
+  const denied = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) });
+  assert.equal(denied.status, 429);
+  assert.equal((await denied.json()).code, 'REVISION_RATE_LIMITED');
 });
 
 test('the source controller injects all chat services under the actual tsx development runtime', () => {
@@ -491,12 +345,14 @@ test('the source controller injects all chat services under the actual tsx devel
     const { ChatController } = require('./src/chat/chat.controller.ts');
     const { ChatService } = require('./src/chat/chat.service.ts');
     const { ItineraryRevisionService } = require('./src/chat/itinerary-revision.service.ts');
+    const { RevisionRequestLimiter } = require('./src/chat/revision-request-limits.ts');
     (async () => {
       const input = { message: '점심 식당을 바꿔줘' };
       const calls = [];
       const module = await Test.createTestingModule({
         controllers: [ChatController],
         providers: [
+          { provide: RevisionRequestLimiter, useValue: new RevisionRequestLimiter() },
           { provide: ChatService, useValue: {
             chat: async value => { calls.push(['chat', value]); return 'chat'; },
             planChat: async value => { calls.push(['planner', value]); return 'planner'; },

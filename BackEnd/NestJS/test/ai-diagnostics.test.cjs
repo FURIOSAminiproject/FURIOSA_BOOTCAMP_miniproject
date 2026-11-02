@@ -38,7 +38,12 @@ const request = {
   message: 'private-user-message', history: [{ role: 'user', content: 'private-history' }],
   itinerary, destination: { latitude: 37.2, longitude: 127.1 }, mode: 'driving',
 };
-const model = generateContent => ({ modelName: 'gemini-3.8-flash', ai: { models: { generateContent } } });
+const { model: nativeModel } = require('./helpers/revision-model.cjs');
+const model = generate => nativeModel(async req => {
+  const r = await generate(req);
+  try { const p = JSON.parse(r.text); r.text = JSON.stringify({ reason: 'clarification', ...p }); } catch {}
+  return r;
+});
 
 test('configuration logs missing tables and permission errors, then selects the environment without leaking values', async t => {
   const logs = capture(t);
@@ -120,26 +125,6 @@ test('429 diagnostics identify quota window, tier, limit and retry delay without
   assert.doesNotMatch(JSON.stringify(logs), /secret-api-key|private-user-message|private-history|private-day-title/);
 });
 
-test('structured-output recovery logs both attempts under one request ID without exposing the prompt', async t => {
-  const logs = capture(t);
-  const service = new ItineraryRevisionService();
-  let calls = 0;
-  service.getGeminiClient = async () => model(async () => {
-    if (++calls === 1) {
-      const error = new Error(JSON.stringify({ error: { code: 400, status: 'INVALID_ARGUMENT', message: 'private-provider-message' } }));
-      error.status = 400;
-      throw error;
-    }
-    return { text: JSON.stringify({ reply: 'private-model-reply', days: [] }) };
-  });
-  assert.equal((await service.revise(request)).changed, false);
-  assert.deepEqual(logs.filter(log => log.event === 'ai_provider_request_started').map(log => log.structuredOutput), [true, false]);
-  assert.equal(logs.find(log => log.event === 'ai_revision_json_mode_retry').attempt, 2);
-  assert.equal(logs.at(-1).event, 'ai_revision_completed');
-  assert.equal(new Set(logs.map(log => log.requestId)).size, 1);
-  assert.doesNotMatch(JSON.stringify(logs), /private-provider-message|private-user-message|private-model-reply/);
-});
-
 test('provider success logs finish and token counts while revision parse failures stay separate', async t => {
   const logs = capture(t);
   const service = new ItineraryRevisionService();
@@ -149,7 +134,7 @@ test('provider success logs finish and token counts while revision parse failure
   }));
   const result = await service.revise(request);
   assert.equal(result.changed, false);
-  const completed = logs.find(log => log.event === 'ai_provider_request_completed');
+  const completed = logs.find(log => log.event === 'ai_provider_request_completed' && log.totalTokens === 130);
   assert.equal(completed.finishReason, 'MAX_TOKENS');
   assert.equal(completed.totalTokens, 130);
   assert.equal(logs.at(-1).stage, 'parse');
@@ -192,7 +177,7 @@ test('kind repair logs safe type feedback and final success under the original r
   assert.equal(rejected.requestedKind, 'cafe');
   assert.equal(rejected.contentTypeId, 12);
   assert.deepEqual(rejected.allowedKinds, ['sightseeing']);
-  assert.equal(logs.find(log => log.event === 'ai_revision_repair_completed').changed, true);
+  assert.equal(logs.find(log => log.event === 'ai_revision_repair_started').repairAttempt, 1);
   assert.equal(logs.at(-1).changed, true);
   assert.equal(new Set(logs.map(log => log.requestId)).size, 1);
   assert.doesNotMatch(JSON.stringify(logs), /private-place|private-address|private-user-message|private-reply/);
@@ -210,7 +195,6 @@ test('an empty proposal logs ordinary no-change and reply metadata without treat
   assert.equal(logs.at(-1).reason, 'no_proposed_days');
   assert.equal(logs.at(-1).modelReplyPresent, true);
   assert.equal(logs.at(-1).modelReplyLength, 'private-cafe-explanation'.length);
-  assert.equal(logs.find(log => log.event === 'ai_revision_candidates_loaded').recognizedCafeCount, 0);
   assert.doesNotMatch(JSON.stringify(logs), /private-cafe-explanation|private-user-message/);
 });
 

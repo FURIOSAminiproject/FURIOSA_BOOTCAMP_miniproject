@@ -4,41 +4,31 @@ NestJS 12, TypeScript 6, TypeORM, PostgreSQL 드라이버와 `@google/genai`를 
 
 ## 대화형 플래너와 도착 후 일정 (2026-10-28)
 
-### 후보 부족 시 DB 재조사 (2026-11-02)
+### 일정 수정의 Function calling과 호출 제한 (2026-11-02)
 
-수정 요청의 미사용 카페·음식점·관광지 후보가 없는 경우, 첫 AI 호출 전에 해당 종류로 DB를 보강한다. AI도 후보 부족으로 변경안을 만들지 못하면 `searchRequest:{kind:"cafe|food|sightseeing",dayNumber?:일차,keyword?:검색어}`를 요청할 수 있다. 서버는 종류·실제 여행 일차·최대 50자 검색어만 받고 SQL·반경 등 다른 필드는 거부한다. 일반 후보 보강 후 특정 장소명 등의 조건을 바꾼 재조사는 한 번 더 허용하며 동일 조건을 반복하지 않는다.
+`Gemini → Function calling → NestJS 읽기 전용 함수 → DB → Gemini 수정안 → 서버 검증`으로 처리한다. 별도 MCP 서버는 사용하지 않는다. 기존 사전 후보 자동 보강·JSON `searchRequest`·스키마 400 호환 재시도를 이 경로로 대체했다. Function calling을 지원하지 않는 모델의 오류는 사용자에게 알리고 일정을 유지한다.
 
-`ExplorerRepository.revisionCandidates`는 활성·좌표 있는 장소만 대상으로 종류·분류 계층·이름/분류 검색어·기존 후보 제외를 LIMIT 전에 적용한다. 검색어는 바인딩한 값으로 사용하고 LIKE 와일드카드는 문자로 취급한다. 목적지와 지정 일차의 첫·마지막 방문지 최대 3곳을 기준으로 찾으며, 모든 결과는 목적지 반경 도보 5km·자동차 20km 안으로 제한한다. 지점당 최대 24개, 추가 조회 최대 2회·SELECT 6개이며 DB 쓰기·스키마 변경·전체 지역 무제한 검색은 하지 않는다. 반환 거리도 목적지 기준으로 유지한다.
+- `get_current_itinerary()`를 첫 호출로 강제한다. 현재 화면에서 검증·복사한 요청 전용 스냅샷의 날짜, 일차, 마지막 날, 실제 방문 이름·kind·개수를 반환한다. 일정은 아직 브라우저 메모리에 있으므로 DB의 저장 여행 조회가 아니다. 다른 여행/사용자 ID는 받지 않는다. 과거 대화보다 이 스냅샷을 우선한다.
+- `search_places({kind, dayNumber?, keyword?, expand?})`는 cafe/food/sightseeing, 실제 여행 일차, 최대 50자 검색어, 확대 희망 여부만 받는다. SQL·테이블·URL·좌표·반경·limit·알 수 없는 필드는 거부한다. 모델이 직접 HTTP나 DB 연결을 실행하지 않는다.
+- 서버가 자동차 5km→20km, 도보 1km→5km로 범위를 정한다. 조회에 성공한 0건만 자동으로 한 번 확대하고 DB 실패는 후보 부재로 해석하지 않는다. 목적지와 지정 일차 첫·마지막 방문지 최대 3곳을 기준으로 조회하되 결과는 목적지 반경도 제한한다. 같은 조건은 요청 내 캐시를 사용한다. 검색 단계 총 2회·SELECT 최대 6개다.
+- 기존 `ExplorerRepository.revisionCandidates`의 고정·매개변수 바인딩 SELECT를 요청 전용 `READ ONLY` 트랜잭션에서 실행한다. 활성/좌표/종류/분류 계층/이름 검색/기존 후보 제외를 LIMIT 전에 적용하고 LIKE 와일드카드는 문자로 처리한다. `SET LOCAL statement_timeout=3초`, `lock_timeout=0.5초`를 적용하고 연결을 반환한다. 쓰기·스키마 변경·외부 URL 호출·데이터 수집 도구는 없다.
+- 검색 단계당 최대 12개 새 후보, 총 80개를 유지하고 이미 모델에 제공한 ID를 제거하지 않는다. 모델 응답 content와 thoughtSignature, functionCall.id를 보존하고 같은 id로 결과를 돌려준다. 도구 사용 중 JSON 응답 스키마를 함께 강제하지 않는다. 마지막 허용 호출은 도구 없이 JSON 최종안만 받는다.
 
-새 후보를 기존 방문 장소와 합쳐 최대 80개로 AI에 제공한다. AI가 요청한 재조회 후에는 같은 출력 모드로 수정안 또는 구체적 불가 이유를 한 번 더 받는다. 이 후속 호출과 방문 유형 보정은 중복하지 않으며 구조화 응답 400 호환까지 포함해 공급자 호출 최대 3회다. 모든 수정안은 기존 날짜·중복·유형·시간 검증을 거친다. 조회 0건·일부 실패·전체 실패를 구분하고, 무변경/오류 응답에는 실제 조사 범위와 새 후보 수 또는 조회 실패 안내를 추가한다. 재조회만으로 DB에 없는 장소가 생기는 것은 아니다.
+요청당 공급자 호출 최대 5회, 도구 호출 6회, 한 응답의 도구 호출 2개, AI·도구 실행 시간 예산 45초, 제공자 개별 대기 최대 15초와 출력 4096토큰이다. SDK 자동 재시도는 끈다. 도구 인자 1KB·결과 96KB·모델 content 64KB를 넘으면 중단한다. 알 수 없는 도구·실행 코드·파일 등의 모델 part도 차단한다. 기한은 단계 사이와 공급자 AbortSignal로 검사하고 SQL은 별도 문장 타임아웃을 적용한다.
 
-`ai_revision_candidate_search_started/completed/lookup_failed/ignored`에서 조회 회차·종류·반경·지점 수·제외 수·새 후보 수·실패 수·제한 여부를 확인한다. 검색어 원문·좌표·장소 이름·SQL은 로그에 남기지 않는다. `candidateSearch`·`candidateSearchConditions`·`candidateSearchAvailable`은 모델의 검색 반복을 제한하는 서버 컨텍스트다. 실제 운영 SQL 실행·모델 반영 성공은 배포 후 별도 확인해야 한다.
+비로그인 사용을 유지한다. `/api/chat/revise`에 IP당 분당 10회, 프로세스 전체 분당 30회, 동시 처리 3건, 실제 수정용 공급자 호출 분당 120회 제한을 적용한다. IP/전체/동시 요청 초과는 HTTP 429이며 프론트에 대기 안내를 표시한다. 브라우저 연결 종료만으로 실행 중 작업의 슬롯을 해제하지 않는다. IP는 메모리에만 보관하며 기존 신뢰 프록시 1홉 설정을 따른다. 현재 Compose의 백엔드 포트는 localhost에만 바인딩한다. 여러 서버/프로세스로 늘리면 이 제한을 Redis 등 공유 저장소로 옮겨야 한다. 재시작하면 시간창이 초기화된다. 다른 AI API의 사용량까지 제한하는 장치는 아니다.
 
-### 수정 불가 사유 안내 (2026-11-02)
+### 수정 검증과 이유 안내
 
-AI가 `days=[]`와 함께 후보 부족·추가 질문·지원 범위·이미 반영됨 등의 이유를 설명하면 해당 설명을 응답에 보존한다. 빈 배열을 일괄 검증 오류로 표시하지 않으며 변경하지 않았다는 안내를 먼저 붙인다. 제안이 현재 일정과 동일하면 추가 변경이 없다고 안내한다. 구체적인 이유까지 없는 응답에는 AI가 이유를 제공하지 않았음을 명시하고 추측하지 않는다.
+최종 수정안은 기존 서버 검증으로 날짜·장소 ID·유형·중복·도착 시각·09:00~20:00·방문 사이 최소 5분·하루 6곳·체류 30~180분을 검사하고 날짜별로 병합한다. 생략한 날짜는 보존하며, `visits=[]`는 해당 날짜 전체 삭제다. 허용되지 않은 수정은 전체 거절한다. 실제 경로 이동시간·영업시간을 보장하는 검증은 아니다.
 
-실제 검증 거부는 `itinerary-revision-reply.ts`에서 확인된 조건으로 설명한다. 후보에 없는 장소, 중복 장소·날짜, 도착 전 배정, 오전 9시 이전·오후 8시 이후, 앞 방문과의 겹침·최소 5분 이동 여유, 하루 6곳 제한, 체류 시간 30~180분, 잘못된 방문 시각·종류·응답 형식을 구분한다. 알려진 경우 일차·방문 순서도 안내한다. 잘못된 수정안의 모델 완료 문구를 사용자에게 전달하지 않는다. 429와 제공된 재시도 시간·할당량 0, 인증·권한, 모델 부재, 시간 초과, AI 응답 파싱 실패·서버 오류도 각각 안내하며 공급자 예외 원문·키는 노출하지 않는다. 확인할 수 없는 오류는 원인 미확인이라고 안내한다.
+빈 수정안은 `reason`과 필요한 대상 일차/종류를 함께 받는다. `no_existing_visit`는 현재 방문 개수, `no_candidates`는 해당 일차/종류의 실제 검색 완료·0건 결과와 대조한다. 현재 관광지가 있는데 없다는 식의 이유나 방문 유형 불일치는 한 번만 보정을 요청한다. 여전히 근거가 맞지 않으면 그 AI 설명을 전달하지 않고 이유가 현재 정보와 맞지 않음을 알린다. DB 검색 실패와 0건, 후보 부족, 시간·중복·일수 제약, 공급자 한도/권한/파싱 오류는 구분해 안내한다. 자연어 설명 전체의 사실성을 증명하는 장치는 아니며 도구 권한과 실제 반영 결과는 서버가 제한한다.
 
-후보의 `foodCount`, `unusedFoodCount`, `recognizedCafeCount`, `unusedRecognizedCafeCount`를 모델 컨텍스트의 `candidateCoverage`와 후보 조회 로그에 제공한다. 카페 인식은 음식점 유형 39의 이름·분류에 있는 카페·커피·찻집·디저트 등의 표현을 사용하며 실시간 영업·전체 지역 데이터의 완전성을 보장하지 않는다. 모델은 카페 후보가 없으면 식당·관광지를 카페로 꾸미지 않고 부족한 후보를 구체적으로 안내한다. 실제 장소 추가에는 등록 후보 데이터가 필요하다.
+`ai_revision_tool_started/completed`에서 허용 도구 이름·호출 순번·검색 단계·후보 수를 확인하고, `ai_revision_candidate_search_*`에서 종류·반경·지점 수·실패 수를 확인한다. `ai_revision_repair_started`는 보정 시작, `ai_revision_completed`는 최종 적용/거절과 실제 생성·도구·검색 횟수다. `ai_revision_failed.executionCode`는 도구 형식/권한/인자/예산 차단을 구분한다. 요청 제한은 `ai_revision_request_throttled`다. 키·IP·대화·장소·검색어·SQL 원문은 로그에 기록하지 않는다.
 
-`ai_revision_no_change`는 빈 제안·동일 제안의 정상 무변경이고, 실제 제약 위반은 `ai_revision_validation_rejected`다. 최종 로그에도 구체적인 `reason`과 모델 설명 유무·길이를 남기되 설명 원문은 기록하지 않는다. API의 `changed=false`, `itinerary=null` 계약은 유지한다.
+검증은 Node 22에서 기존 일정 병합·거절·진단 회귀, 읽기 전용 연결 수명, 도구 인자/종류 차단, 제한 범위 확대·실패 구분·캐시, 호출 제한과 연결 종료, 로그인 없는 HTTP 200→429, 실제 Google SDK와 로컬 HTTP 도구 왕복을 사용한다. 기존 JSON 스키마 호환/사전 보강 전용 테스트는 새 도구 프로토콜 검사로 대체했다. 실제 EC2 PostgreSQL·외부 Gemini·배포 성공은 별도 확인 대상이다.
 
-### 장소 유형 불일치 보정 (2026-11-02)
-
-모델에 제공하는 각 후보에 `allowedKinds`를 포함한다. 관광·문화 등 유형 12/14/15/28/38은 sightseeing, 음식점 39는 lunch/cafe/dinner를 허용하며 숙박 등 나머지 유형은 수정 방문 후보로 사용하지 않는다. 이 목록과 서버 검증은 같은 `allowedVisitKinds` 함수를 사용한다.
-
-첫 수정안이 `place_kind_mismatch`로 거부된 경우에만 원래 요청·일정·후보, 거부된 수정안, 오류 위치와 허용 종류를 모델에 보내 한 번 보정한다. 서버가 방문 종류를 임의로 바꾸지 않으며 보정안도 원본 일정에 대해 날짜·장소·중복·시간을 다시 검증한다. 보정이 실패하거나 여전히 잘못되면 원본을 유지한다. 빈 제안·무변경·그 밖의 검증 오류는 이 보정의 대상이 아니다. 보정은 추가 AI 호출이므로 한 번으로 제한하며, 첫 호출의 스키마 400 호환 요청까지 발생하면 서비스에서 공급자 호출은 최대 세 번이다. 보정에는 이미 성공한 구조화/JSON 모드를 그대로 사용한다.
-
-`ai_revision_validation_rejected`는 `requestedKind`, `contentTypeId`, `allowedKinds`를 추가로 남긴다. 장소 ID·이름·원문은 기록하지 않는다. `ai_revision_repair_started/completed`로 보정 시작·성공 여부를 보고, 파싱·검증의 `proposalAttempt` 1과 2로 첫 제안과 보정안을 구분한다. `ai_revision_failed.stage=repair_provider` 또는 `repair_parse`는 보정 호출/파싱 실패다. 운영에서 실제 보정 성공 여부는 배포 후 확인해야 한다.
-
-### 수정 요청의 구조화 응답 호환 처리 (2026-11-02)
-
-수정 플래너의 응답 스키마는 필수 필드·자료형·방문 종류만 지정한다. 날짜·장소 ID의 동적 enum, 배열 길이와 체류 시간 범위는 공급자 스키마에서 제외하고 기존 서버 검증기가 검사한다. 후보 수에 따라 구조화 응답 제약이 복잡해지는 것을 줄이며 허용 날짜·후보 장소·중복·시간 검증은 유지한다.
-
-스키마가 포함된 호출이 `400 INVALID_ARGUMENT`로 거절되고 알려진 인증·권한 등의 오류 사유가 없으면 같은 모델·프롬프트를 유지한 채 `responseJsonSchema`만 제외하고 `application/json` 모드로 한 번 더 요청한다. 첫 제안을 받기 위한 호출은 최대 두 번이며 두 번째 호출도 실패하면 원래 일정을 유지한다. 429·403·5xx·네트워크 오류·JSON 파싱 실패는 이 호환 요청의 대상이 아니다. 재요청 결과도 동일한 일정 검증을 통과해야 적용한다. 이 처리는 400의 정확한 원인을 확정하는 것이 아니며 다른 요청 오류까지 해결한다고 보장하지 않는다.
-
-로그에서 `ai_revision_json_mode_retry` 뒤 `ai_revision_completed.changed=true`인지 확인한다. 두 번째 호출도 거절되면 `ai_revision_failed`, 응답은 받았지만 수정안이 잘못됐다면 `ai_revision_validation_rejected`가 남는다. 각 호출의 `structuredOutput`은 첫 호출 true, 호환 호출 false다. 운영의 실제 성공 여부는 배포 후 확인해야 하며 테스트는 실제 Google SDK와 로컬 HTTP 대역 서버로 400→정상 응답을 검증한다.
+Node 22.23.3에서 Node 테스트 99개와 Jest 8개, 총 107개 및 운영 빌드를 통과했다. 프론트 타입 검사와 운영 빌드도 통과했다. 프로토콜 구현은 Google의 [Function calling](https://ai.google.dev/gemini-api/docs/generate-content/function-calling)과 [thought signature 보존 안내](https://ai.google.dev/gemini-api/docs/generate-content/thought-signatures)를 따른다.
 
 ### AI 진단 로그 (2026-11-02)
 
@@ -46,7 +36,7 @@ AI가 `days=[]`와 함께 후보 부족·추가 질문·지원 범위·이미 �
 
 - 설정: `ai_configuration_lookup_completed/failed`에 `app_model_config`·`ai_model_config`의 활성 행 존재 여부 또는 `dbCode`·`dbReason`을 남긴다. `ai_configuration_resolved`의 `keySource`, `modelSource`, `keyPresent`, `model`로 환경변수·DB 중 실제 선택된 출처를 확인한다. 두 출처는 서로 다를 수 있다. 테이블 누락 `42P01`, 권한 부족 `42501`, 비밀번호 인증 실패 `28P01`을 구분한다. 행이 있으면 다음 테이블을 조회하지 않는 기존 우선순위를 유지한다.
 - 호출: `ai_provider_request_started/completed/failed`에 모델, 소요 시간, HTTP 상태, 허용한 공급자 오류 코드, 종료·차단 사유, 토큰 수를 남긴다. Google이 상세 정보를 제공한 429에는 `quotaViolations`의 일/분 단위·요청/토큰·무료/유료 구분·한도와 `retryAfterSeconds`가 포함된다. 상세 정보가 없으면 429만으로 어떤 한도인지 단정하지 않는다.
-- 수정: `ai_revision_*`에서 입력 검증, 후보 수·조회 실패, JSON 파싱, 일정 검증, 최종 적용 여부를 추적한다. `ai_revision_failed.stage`는 `provider`, `parse`, `validation`, `repair_provider`, `repair_parse`, `candidate_search`, `candidate_research_provider`, `candidate_research_parse`다. `ai_revision_validation_rejected.reason`은 알 수 없는 장소, 중복 장소·날짜, 시간 겹침, 도착 전, 장소 유형 불일치 등을 구분하고 필요한 경우 0부터 시작하는 배열 위치를 남긴다. 빈 제안·동일 제안은 `ai_revision_no_change`로 구분한다.
+- 수정: `ai_revision_*`에서 입력 검증, 후보 수·조회 실패, JSON 파싱, 일정 검증, 최종 적용 여부를 추적한다. `ai_revision_failed.stage`는 `provider`, `tool`, `parse`, `validation`다. `ai_revision_validation_rejected.reason`은 알 수 없는 장소, 중복 장소·날짜, 시간 겹침, 도착 전, 장소 유형 불일치 등을 구분하고 필요한 경우 0부터 시작하는 배열 위치를 남긴다. 빈 제안·동일 제안은 `ai_revision_no_change`로 구분한다.
 - 생성·큐레이션: `ai_planner_completed`, `ai_curation_completed`의 `aiUsed=false`, `reason=error_fallback`은 AI 실패 후 로컬 처리로 이어졌다는 뜻이다. 화면이 정상 진행되는 것만으로 AI 성공을 판단하지 않는다.
 
 키 원문·일부·해시, DB 비밀번호·접속 주소, 대화·일정·장소 원문, 공급자 오류 원문과 stack은 기록하지 않는다. 입력·출력은 길이·개수와 허용한 메타데이터로만 남긴다. 상세 단계 로그는 운영에서도 기본 출력되므로 요청량에 비례해 로그량이 증가한다. 이 범위는 공통 Gemini 설정을 사용하는 네 경로이며 기존 `travel-engine.ts`·`poetry.service.ts`의 독립 호출은 포함하지 않는다.
