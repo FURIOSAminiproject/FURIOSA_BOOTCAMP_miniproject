@@ -120,6 +120,26 @@ test('429 diagnostics identify quota window, tier, limit and retry delay without
   assert.doesNotMatch(JSON.stringify(logs), /secret-api-key|private-user-message|private-history|private-day-title/);
 });
 
+test('structured-output recovery logs both attempts under one request ID without exposing the prompt', async t => {
+  const logs = capture(t);
+  const service = new ItineraryRevisionService();
+  let calls = 0;
+  service.getGeminiClient = async () => model(async () => {
+    if (++calls === 1) {
+      const error = new Error(JSON.stringify({ error: { code: 400, status: 'INVALID_ARGUMENT', message: 'private-provider-message' } }));
+      error.status = 400;
+      throw error;
+    }
+    return { text: JSON.stringify({ reply: 'private-model-reply', days: [] }) };
+  });
+  assert.equal((await service.revise(request)).changed, false);
+  assert.deepEqual(logs.filter(log => log.event === 'ai_provider_request_started').map(log => log.structuredOutput), [true, false]);
+  assert.equal(logs.find(log => log.event === 'ai_revision_json_mode_retry').attempt, 2);
+  assert.equal(logs.at(-1).event, 'ai_revision_completed');
+  assert.equal(new Set(logs.map(log => log.requestId)).size, 1);
+  assert.doesNotMatch(JSON.stringify(logs), /private-provider-message|private-user-message|private-model-reply/);
+});
+
 test('provider success logs finish and token counts while revision parse failures stay separate', async t => {
   const logs = capture(t);
   const service = new ItineraryRevisionService();

@@ -50,6 +50,130 @@ function serviceWithModel(payload, db) {
   return service;
 }
 
+function invalidArgument(reason) {
+  const error = new Error(JSON.stringify({ error: {
+    code: 400, status: 'INVALID_ARGUMENT', message: 'Request contains an invalid argument.',
+    details: reason ? [{ reason }] : [],
+  } }));
+  error.status = 400;
+  return error;
+}
+
+test('a structured-output 400 retries once in JSON mode and applies the validated revision', async () => {
+  const service = new ItineraryRevisionService();
+  const calls = [];
+  service.getGeminiClient = async () => ({ modelName: 'gemini-3.5-flash-lite', ai: { models: {
+    generateContent: async input => {
+      calls.push(input);
+      if (calls.length === 1) throw invalidArgument();
+      return { text: JSON.stringify({ reply: '점심 시간을 늦췄습니다.', days: days(food.id, '14:00') }) };
+    },
+  } } });
+  const result = await service.revise(request);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].model, calls[1].model);
+  assert.equal(calls[0].contents, calls[1].contents);
+  assert.ok(calls[0].config.responseJsonSchema);
+  assert.equal(calls[1].config.responseJsonSchema, undefined);
+  assert.equal(calls[1].config.responseMimeType, 'application/json');
+  assert.equal(calls[0].config.systemInstruction, calls[1].config.systemInstruction);
+  assert.equal(result.changed, true);
+  assert.equal(result.itinerary.days[0].visits[1].time, '14:00');
+  assert.equal(result.modelUsed, 'gemini-3.5-flash-lite');
+  assert.equal(itinerary.days[0].visits[1].time, '13:00');
+});
+
+test('JSON mode fallback still rejects invented places, unknown dates and overlapping times atomically', async () => {
+  for (const proposal of [days('invented-place'), days(food.id, '11:30'), [{ ...days(food.id)[0], date: '2030-01-01' }]]) {
+    const service = new ItineraryRevisionService();
+    let calls = 0;
+    service.getGeminiClient = async () => ({ modelName: 'revision-test', ai: { models: {
+      generateContent: async () => {
+        if (++calls === 1) throw invalidArgument();
+        return { text: JSON.stringify({ reply: '수정 완료', days: proposal }) };
+      },
+    } } });
+    const original = structuredClone(itinerary);
+    const result = await service.revise(request);
+    assert.equal(calls, 2);
+    assert.equal(result.changed, false);
+    assert.equal(result.itinerary, null);
+    assert.deepEqual(itinerary, original);
+  }
+});
+
+test('a failed JSON mode fallback is bounded to two provider requests', async () => {
+  const service = new ItineraryRevisionService();
+  let calls = 0;
+  service.getGeminiClient = async () => ({ modelName: 'revision-test', ai: { models: {
+    generateContent: async () => { calls++; throw invalidArgument(); },
+  } } });
+  const result = await service.revise(request);
+  assert.equal(calls, 2);
+  assert.equal(result.changed, false);
+  assert.equal(result.itinerary, null);
+});
+
+test('authentication, quota and unrelated errors never trigger a compatibility request', async () => {
+  const credentialError = invalidArgument();
+  credentialError.message = JSON.stringify({ error: { code: 400, status: 'INVALID_ARGUMENT', message: 'API key not valid. Please pass a valid API key.' } });
+  for (const error of [invalidArgument('API_KEY_INVALID'), credentialError, { status: 403 }, { status: 429 }, { status: 500 }, new Error('network failure')]) {
+    const service = new ItineraryRevisionService();
+    let calls = 0;
+    service.getGeminiClient = async () => ({ modelName: 'revision-test', ai: { models: {
+      generateContent: async () => { calls++; throw error; },
+    } } });
+    assert.equal((await service.revise(request)).changed, false);
+    assert.equal(calls, 1);
+  }
+});
+
+test('a successful provider response with invalid JSON never retries or changes the itinerary', async () => {
+  const service = new ItineraryRevisionService();
+  let calls = 0;
+  service.getGeminiClient = async () => ({ modelName: 'revision-test', ai: { models: {
+    generateContent: async () => { calls++; return { text: 'not-json' }; },
+  } } });
+  const result = await service.revise(request);
+  assert.equal(calls, 1);
+  assert.equal(result.changed, false);
+  assert.equal(result.itinerary, null);
+});
+
+test('the real Google SDK recovers from HTTP 400 by removing only the structured response schema', async t => {
+  const { createServer } = require('node:http');
+  const { GoogleGenAI } = require('@google/genai');
+  const bodies = [];
+  const server = createServer(async (incoming, outgoing) => {
+    const chunks = [];
+    for await (const chunk of incoming) chunks.push(chunk);
+    bodies.push(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+    outgoing.setHeader('Content-Type', 'application/json');
+    if (bodies.length === 1) {
+      outgoing.statusCode = 400;
+      outgoing.end(JSON.stringify({ error: { code: 400, status: 'INVALID_ARGUMENT', message: 'Request contains an invalid argument.' } }));
+    } else {
+      outgoing.end(JSON.stringify({ candidates: [{ content: { role: 'model', parts: [{ text: JSON.stringify({ reply: '점심을 늦췄습니다.', days: days(food.id, '14:00') }) }] }, finishReason: 'STOP' }] }));
+    }
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => { server.closeAllConnections(); return new Promise(resolve => server.close(resolve)); });
+  const service = new ItineraryRevisionService();
+  service.getGeminiClient = async () => ({
+    modelName: 'gemini-3.5-flash-lite',
+    ai: new GoogleGenAI({ apiKey: 'test-only-key', httpOptions: { baseUrl: `http://127.0.0.1:${server.address().port}`, timeout: 3000, retryOptions: { attempts: 1 } } }),
+  });
+  const result = await service.revise(request);
+  assert.equal(result.changed, true);
+  assert.equal(result.itinerary.days[0].visits[1].time, '14:00');
+  assert.equal(bodies.length, 2);
+  assert.ok(bodies[0].generationConfig.responseJsonSchema);
+  assert.equal(bodies[1].generationConfig.responseJsonSchema, undefined);
+  const { responseJsonSchema, ...firstConfig } = bodies[0].generationConfig;
+  assert.deepEqual(firstConfig, bodies[1].generationConfig);
+  assert.deepEqual(bodies[0].contents, bodies[1].contents);
+});
+
 test('AI replacement with a real DB candidate changes the itinerary shown to the client', async () => {
   const db = { query: async (_sql, params) => params[1].includes(39) ? [{
     place_id: alternative.id, name: alternative.name, address: alternative.address,

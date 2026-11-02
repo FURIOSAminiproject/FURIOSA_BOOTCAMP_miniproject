@@ -4,6 +4,14 @@ NestJS 12, TypeScript 6, TypeORM, PostgreSQL 드라이버와 `@google/genai`를 
 
 ## 대화형 플래너와 도착 후 일정 (2026-10-28)
 
+### 수정 요청의 구조화 응답 호환 처리 (2026-11-02)
+
+수정 플래너의 응답 스키마는 필수 필드·자료형·방문 종류만 지정한다. 날짜·장소 ID의 동적 enum, 배열 길이와 체류 시간 범위는 공급자 스키마에서 제외하고 기존 서버 검증기가 검사한다. 후보 수에 따라 구조화 응답 제약이 복잡해지는 것을 줄이며 허용 날짜·후보 장소·중복·시간 검증은 유지한다.
+
+스키마가 포함된 호출이 `400 INVALID_ARGUMENT`로 거절되고 알려진 인증·권한 등의 오류 사유가 없으면 같은 모델·프롬프트를 유지한 채 `responseJsonSchema`만 제외하고 `application/json` 모드로 한 번 더 요청한다. 서비스의 호출은 최대 두 번이며 두 번째 호출도 실패하면 원래 일정을 유지한다. 429·403·5xx·네트워크 오류·JSON 파싱 실패는 이 호환 요청의 대상이 아니다. 재요청 결과도 동일한 일정 검증을 통과해야 적용한다. 이 처리는 400의 정확한 원인을 확정하는 것이 아니며 다른 요청 오류까지 해결한다고 보장하지 않는다.
+
+로그에서 `ai_revision_json_mode_retry` 뒤 `ai_revision_completed.changed=true`인지 확인한다. 두 번째 호출도 거절되면 `ai_revision_failed`, 응답은 받았지만 수정안이 잘못됐다면 `ai_revision_validation_rejected`가 남는다. 각 호출의 `structuredOutput`은 첫 호출 true, 호환 호출 false다. 운영의 실제 성공 여부는 배포 후 확인해야 하며 테스트는 실제 Google SDK와 로컬 HTTP 대역 서버로 400→정상 응답을 검증한다.
+
 ### AI 진단 로그 (2026-11-02)
 
 일반 상담·생성 플래너·수정 플래너·도착 후 일정 큐레이터는 `[AiDiagnostics]`의 JSON 로그를 남긴다. 같은 처리의 로그는 `requestId`로 연결하며 `operation`은 `chat`, `planner`, `revision`, `curation`이다. 설정 도우미를 단독 실행하면 `configuration`이다. API 응답 계약과 기존 모델·키 선택 순서는 유지한다.

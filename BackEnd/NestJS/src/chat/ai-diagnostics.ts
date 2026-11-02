@@ -131,6 +131,10 @@ export function aiErrorDiagnostic(error: unknown): Fields {
                     : 'unclassified_error',
     timeout,
     schemaRelated: /schema/i.test(message),
+    credentialRelated:
+      /API_KEY_|API[ _-]?key.{0,80}(?:invalid|not valid|expired)/i.test(
+        message,
+      ),
     providerReasons: details
       .map((item) => item.reason)
       .filter(

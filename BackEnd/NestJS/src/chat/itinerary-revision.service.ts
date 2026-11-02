@@ -5,6 +5,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import type { GenerateContentParameters } from '@google/genai';
 import { configuredGeminiClient } from './gemini-client';
 import {
   aiErrorDiagnostic,
@@ -46,6 +47,39 @@ export class ItineraryRevisionService {
 
   private getGeminiClient(trace?: AiTrace) {
     return configuredGeminiClient(this.db, trace);
+  }
+
+  /** 구조화 요청이 거부되면 스키마를 제외한 JSON 모드로 최대 한 번만 요청한다. */
+  private async generateRevisionContent(
+    client: NonNullable<Awaited<ReturnType<typeof configuredGeminiClient>>>,
+    request: GenerateContentParameters,
+    trace: AiTrace,
+  ) {
+    try {
+      return await generateGeminiContent(client, request, trace);
+    } catch (error) {
+      const diagnostic = aiErrorDiagnostic(error);
+      if (
+        !request.config?.responseJsonSchema ||
+        diagnostic.httpStatus !== 400 ||
+        diagnostic.providerCode !== 'INVALID_ARGUMENT' ||
+        diagnostic.credentialRelated ||
+        (Array.isArray(diagnostic.providerReasons) &&
+          diagnostic.providerReasons.length > 0)
+      )
+        throw error;
+      trace.emit(
+        'ai_revision_json_mode_retry',
+        {
+          reason: 'invalid_argument_with_structured_output',
+          attempt: 2,
+        },
+        'warn',
+      );
+      const config = { ...request.config };
+      delete config.responseJsonSchema;
+      return generateGeminiContent(client, { ...request, config }, trace);
+    }
   }
 
   async revise(
@@ -171,7 +205,7 @@ export class ItineraryRevisionService {
       : [];
     let stage = 'provider';
     try {
-      const response = await generateGeminiContent(
+      const response = await this.generateRevisionContent(
         gemini,
         {
           model: gemini.modelName,
@@ -210,18 +244,15 @@ export class ItineraryRevisionService {
                 reply: { type: 'string' },
                 days: {
                   type: 'array',
-                  maxItems: itinerary.days.length,
                   items: {
                     type: 'object',
                     required: ['date', 'visits'],
                     properties: {
                       date: {
                         type: 'string',
-                        enum: itinerary.days.map((day) => day.date),
                       },
                       visits: {
                         type: 'array',
-                        maxItems: 6,
                         items: {
                           type: 'object',
                           required: [
@@ -233,9 +264,6 @@ export class ItineraryRevisionService {
                           properties: {
                             placeId: {
                               type: 'string',
-                              ...(places.length
-                                ? { enum: places.map((place) => place.id) }
-                                : {}),
                             },
                             kind: {
                               type: 'string',
@@ -244,8 +272,6 @@ export class ItineraryRevisionService {
                             time: { type: 'string' },
                             durationMinutes: {
                               type: 'integer',
-                              minimum: 30,
-                              maximum: 180,
                             },
                           },
                         },
