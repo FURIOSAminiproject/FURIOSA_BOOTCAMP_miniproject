@@ -29,6 +29,7 @@ import { TripFlowHeader } from "./TripFlowHeader";
 import { RouteExplorerMap, ROUTE_COLORS } from "./RouteExplorerMap";
 import { RouteAttribution } from "./RouteAttribution";
 import { DestinationItineraryView } from "./DestinationItineraryView";
+import { PlacePhoto } from "./PlacePhoto";
 import { DestinationWeatherPreviewModal } from "./DestinationWeatherPreviewModal";
 import { useWeatherPrediction } from '../services/useWeatherPrediction';
 import { ModelWeatherPanel } from './ModelWeatherPanel';
@@ -496,9 +497,10 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
                       {stop.places.map((place) => (
                         <li
                           key={place.id}
-                          className="flex items-center justify-between rounded-xl border border-stone-200/90 bg-white p-3 text-xs hover:border-emerald-300 transition shadow-2xs"
+                          className="flex items-center gap-3 rounded-xl border border-stone-200/90 bg-white p-3 text-xs hover:border-emerald-300 transition shadow-2xs"
                         >
-                          <div className="min-w-0 pr-2">
+                          <PlacePhoto name={place.name} imageUrl={place.imageUrl} compact />
+                          <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5">
                               <span className="font-bold text-stone-900 truncate">
                                 {place.name}
@@ -603,6 +605,7 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
                   key={place.id}
                   className="flex flex-col rounded-2xl border border-stone-200 bg-white p-5 hover:border-emerald-200 transition"
                 >
+                  <PlacePhoto name={place.name} imageUrl={place.imageUrl} className="mb-4" />
                   <div className="flex items-center justify-between gap-2">
                     <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-800">
                       {place.categoryName ?? "관광 장소"}

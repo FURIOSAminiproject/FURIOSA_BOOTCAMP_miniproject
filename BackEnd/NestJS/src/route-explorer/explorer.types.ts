@@ -36,6 +36,8 @@ export interface ExplorerRequest {
   limit: number;
 }
 export interface PlaceCandidate extends SearchPlace {
+  /** places.main_image_url. 사진이 없으면 null/생략하며 모델이 생성하지 않는다. */
+  imageUrl?: string | null;
   contentTypeId: number;
   categoryName: string | null;
 }

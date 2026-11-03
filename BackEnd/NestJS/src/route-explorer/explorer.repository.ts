@@ -1,5 +1,6 @@
 import type { DataSource } from 'typeorm';
 import { coordinate } from '../routing-cache/routing.validation';
+import { placeImageUrl } from './place-image';
 import type { Coordinate } from '../routing-cache/routing.types';
 import {
   RoutingError,
@@ -61,7 +62,7 @@ export class ExplorerRepository {
         `${SELECTED_CATEGORIES}, search_area AS (
           SELECT ST_SetSRID(ST_GeomFromGeoJSON($3::text),4326)::geography AS location
         )
-        SELECT p.place_id,p.name,p.address,p.latitude,p.longitude,p.content_type_id,c.category_name,
+        SELECT p.place_id,p.name,p.address,p.latitude,p.longitude,p.content_type_id,c.category_name,p.main_image_url,
                ST_Distance(p.location,q.location) AS distance_meters
         FROM public.places p CROSS JOIN search_area q
         LEFT JOIN public.place_categories c ON c.category_id=p.category_id
@@ -110,7 +111,7 @@ export class ExplorerRepository {
         `${SELECTED_CATEGORIES}, search_area AS (
           SELECT ST_SetSRID(ST_MakePoint($3::double precision,$4::double precision),4326)::geography AS location
         )
-        SELECT p.place_id,p.name,p.address,p.latitude,p.longitude,p.content_type_id,c.category_name,
+        SELECT p.place_id,p.name,p.address,p.latitude,p.longitude,p.content_type_id,c.category_name,p.main_image_url,
                ST_Distance(p.location,q.location) AS distance_meters
         FROM public.places p CROSS JOIN search_area q
         LEFT JOIN public.place_categories c ON c.category_id=p.category_id
@@ -178,7 +179,7 @@ export class ExplorerRepository {
           SELECT ST_SetSRID(ST_MakePoint($1::double precision,$2::double precision),4326)::geography AS location,
                  ST_SetSRID(ST_MakePoint($3::double precision,$4::double precision),4326)::geography AS destination
         )
-        SELECT p.place_id,p.name,p.address,p.latitude,p.longitude,p.content_type_id,c.category_name,
+        SELECT p.place_id,p.name,p.address,p.latitude,p.longitude,p.content_type_id,c.category_name,p.main_image_url,
                ST_Distance(p.location,q.destination) AS distance_meters
         FROM public.places p CROSS JOIN search_area q
         LEFT JOIN public.place_categories c ON c.category_id=p.category_id
@@ -254,6 +255,7 @@ export class ExplorerRepository {
       places.push({
         id: row.place_id,
         name: row.name,
+        imageUrl: placeImageUrl(row.main_image_url),
         address: typeof row.address === 'string' ? row.address : '',
         latitude,
         longitude,

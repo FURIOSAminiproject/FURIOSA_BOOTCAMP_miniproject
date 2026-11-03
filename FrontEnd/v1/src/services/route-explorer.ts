@@ -1,4 +1,5 @@
 import { isLocationCoordinates } from "./location/geolocation";
+import { placeImageUrl } from "./place-image";
 import { parseLocationRoute } from "./location/route-client";
 import type {
   LocationRouteMode,
@@ -28,6 +29,7 @@ export interface CategoryOptions {
   warning: string | null;
 }
 export interface RecommendedPlace extends SearchPlace {
+  imageUrl?: string | null;
   contentTypeId: number;
   categoryName: string | null;
   distanceToRouteMeters: number;
@@ -276,6 +278,7 @@ export function parseComparison(
         return malformed();
       return {
         ...base,
+        imageUrl: placeImageUrl(place.imageUrl),
         contentTypeId: place.contentTypeId as number,
         categoryName: place.categoryName,
         distanceToRouteMeters: place.distanceToRouteMeters,
@@ -365,6 +368,7 @@ export function parseDestinationItinerary(data: unknown): DestinationItinerary {
       return malformed();
     return {
       ...base,
+      imageUrl: placeImageUrl(v.imageUrl),
       contentTypeId: v.contentTypeId as number,
       categoryName: v.categoryName,
       distanceMeters: v.distanceMeters as number,

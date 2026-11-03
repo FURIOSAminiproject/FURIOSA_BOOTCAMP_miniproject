@@ -23,7 +23,7 @@ export function RouteAttribution() {
         >
           © OpenStreetMap contributors
         </a>{" "}
-        · 장소: 한국관광공사 TourAPI
+        · 장소·사진: 한국관광공사 TourAPI
       </p>
       <p>
         경로 결과:{" "}

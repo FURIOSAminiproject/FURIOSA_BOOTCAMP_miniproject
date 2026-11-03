@@ -6,6 +6,7 @@ import type {
 } from "../types/destination-itinerary";
 import type { SearchPlace } from "../services/route-explorer";
 import type { DailyWeatherInference } from "../services/weatherPredictionService";
+import { PlacePhoto } from "./PlacePhoto";
 
 const LABELS: Record<DestinationVisit["kind"], string> = {
   sightseeing: "관광·산책",
@@ -100,6 +101,7 @@ export function DestinationItineraryView({
                       {LABELS[visit.kind]}
                     </span>
                   </p>
+                  <PlacePhoto name={visit.place.name} imageUrl={visit.place.imageUrl} className="max-h-44" />
                   <button
                     type="button"
                     onClick={() => onFocusPlace(visit.place)}
@@ -157,6 +159,7 @@ export function DestinationItineraryView({
                     onClick={() => onFocusPlace(place)}
                     className="rounded-xl border border-stone-200 p-3 text-left hover:border-emerald-500"
                   >
+                    <PlacePhoto name={place.name} imageUrl={place.imageUrl} className="mb-2 max-h-32" />
                     <span className="block text-sm font-bold text-stone-800">
                       {place.name}
                     </span>

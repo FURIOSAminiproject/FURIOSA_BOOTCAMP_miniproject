@@ -4,6 +4,8 @@ NestJS 12, TypeScript 6, TypeORM, PostgreSQL 드라이버와 `@google/genai`를 
 
 ## 대화형 플래너와 도착 후 일정 (2026-10-28)
 
+2026-11-03: 장소 추천 응답의 `imageUrl`을 기존 `places.main_image_url`에서 제공한다. 경로·길목·날짜별 방문·숙박 후보와 AI 수정 결과에 연결하며 사진 없는 장소도 유지한다. [사진 응답 계약](src/route-explorer/README.md#장소-대표-사진-2026-11-03)을 참고한다. DB 스키마와 배치 수집 설정은 변경하지 않는다.
+
 ### 일정 수정의 Function calling과 호출 제한 (2026-11-02)
 
 `Gemini → Function calling → NestJS 읽기 전용 함수 → DB → Gemini 수정안 → 서버 검증`으로 처리한다. 별도 MCP 서버는 사용하지 않는다. 기존 사전 후보 자동 보강·JSON `searchRequest`·스키마 400 호환 재시도를 이 경로로 대체했다. Function calling을 지원하지 않는 모델의 오류는 사용자에게 알리고 일정을 유지한다.

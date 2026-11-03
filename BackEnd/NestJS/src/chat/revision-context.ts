@@ -1,6 +1,7 @@
 import type { DestinationItinerary } from '../route-explorer/destination-itinerary';
 import type { SpotPlace } from '../route-explorer/explorer.types';
 import { allowedVisitKinds } from './itinerary-revision';
+import { placeImageUrl } from '../route-explorer/place-image';
 
 export function revisionPlaceContext(places: SpotPlace[]) {
   return places.map((place) => ({
@@ -52,6 +53,7 @@ export function copyRevisionItinerary(
     id: place.id,
     name: place.name,
     address: place.address,
+    ...(place.imageUrl ? { imageUrl: placeImageUrl(place.imageUrl) } : {}),
     latitude: place.latitude,
     longitude: place.longitude,
     contentTypeId: place.contentTypeId,
