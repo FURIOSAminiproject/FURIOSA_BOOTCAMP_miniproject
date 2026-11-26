@@ -15,8 +15,6 @@ import {
 } from 'lucide-react';
 import { FullTravelPlan } from '../types/travel';
 import { AuthUser } from '../services/authService';
-import { AgentTeamIntro } from './AgentTeamIntro';
-import { TravelerSocialFeed } from './TravelerSocialFeed';
 
 interface UserHomePageProps {
   currentUser?: AuthUser | null;

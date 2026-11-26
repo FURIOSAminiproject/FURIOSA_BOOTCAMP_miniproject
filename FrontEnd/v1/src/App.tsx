@@ -5,15 +5,8 @@
 
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FullTravelPlan, TravelRequest, AgentLog, AgencyStats } from './types/travel';
-import { orchestrateTravelPlan } from './services/aiTravelAgent';
 import { Header, type HeaderTab } from './components/Header';
 import { HeroBanner } from './components/HeroBanner';
-import { AgentTeamIntro } from './components/AgentTeamIntro';
-import { ShareModal } from './components/ShareModal';
-import { PrintVoucher } from './components/PrintVoucher';
-import { GisVerificationModal } from './components/GisVerificationModal';
-import { TravelerSocialFeed } from './components/TravelerSocialFeed';
 import { AiTransformerStudio } from './components/AiTransformerStudio';
 import { UserHomePage } from './components/UserHomePage';
 import { RouteExplorerPage, TripRequestPage } from './components/RouteExplorerPage';
@@ -117,25 +110,6 @@ function AppContent() {
   const [authModalOpen, setAuthModalOpen] = useState<boolean>(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
   
-  // Plans list
-  const [plans, setPlans] = useState<FullTravelPlan[]>([]);
-  const [selectedPlan, setSelectedPlan] = useState<FullTravelPlan | null>(null);
-
-  // Agency Stats
-  const [agencyStats, setAgencyStats] = useState<AgencyStats>({
-    totalRequests: 0, autoDesignedCount: 0, approvedCount: 0, revisingCount: 0,
-    approvalRate: 0, totalEstimatedRevenue: 0, topDestinations: [], averageDesignTimeSeconds: 0,
-  });
-
-  // Agent Orchestration live logs
-  const [agentLogs, setAgentLogs] = useState<AgentLog[]>([]);
-  const [isGenerating, setIsGenerating] = useState<boolean>(false);
-
-  // Modals
-  const [shareModalOpen, setShareModalOpen] = useState(false);
-  const [printVoucherOpen, setPrintVoucherOpen] = useState(false);
-  const [gisModalOpen, setGisModalOpen] = useState(false);
-
   // Toast notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -328,32 +302,6 @@ function AppContent() {
           />
         )}
       </main>
-
-      {/* Schedule Share Modal */}
-      {shareModalOpen && selectedPlan && (
-        <ShareModal
-          plan={selectedPlan}
-          isOpen={shareModalOpen}
-          onClose={() => setShareModalOpen(false)}
-        />
-      )}
-
-      {/* Printable Travel Voucher */}
-      {printVoucherOpen && selectedPlan && (
-        <PrintVoucher
-          plan={selectedPlan}
-          onClose={() => setPrintVoucherOpen(false)}
-        />
-      )}
-
-      {/* GIS Coordinate & Map PUSH Verification Modal */}
-      {gisModalOpen && selectedPlan && (
-        <GisVerificationModal
-          plan={selectedPlan}
-          isOpen={gisModalOpen}
-          onClose={() => setGisModalOpen(false)}
-        />
-      )}
 
       {/* v2 Auth Modal (Google, Social, Email Login / Register) */}
       <AuthModal
