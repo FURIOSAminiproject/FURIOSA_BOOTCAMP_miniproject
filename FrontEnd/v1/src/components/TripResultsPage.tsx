@@ -4,8 +4,6 @@ import {
   ArrowUpRight,
   Calendar,
   Clock,
-  Cloud,
-  CloudRain,
   CloudSun,
   Coffee,
   Compass,
@@ -13,14 +11,9 @@ import {
   MapPin,
   Pencil,
   Plus,
-  RefreshCw,
   Route,
   Sparkles,
-  Sun,
-  Thermometer,
-  Umbrella,
   Utensils,
-  Wind,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { type Preference, type SearchPlace } from "../services/route-explorer";

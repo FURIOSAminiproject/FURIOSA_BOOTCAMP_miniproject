@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { PRESET_ATTENTION_DATA, AttentionHeadResult } from '../../services/transformerStudioService';
-import { Eye, Layers, Compass, Sparkles, Sliders, Info, ArrowRight } from 'lucide-react';
+import { Eye, Layers, Sparkles, Info } from 'lucide-react';
 
 export const SelfAttentionVisualizer: React.FC = () => {
   const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);

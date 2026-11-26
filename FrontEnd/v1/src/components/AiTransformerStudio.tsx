@@ -6,21 +6,14 @@
 import React, { useState } from 'react';
 import {
   Sparkles,
-  Layers,
   Code,
   MessageSquare,
   Activity,
-  Cpu,
   BookOpen,
   ArrowRight,
-  ShieldCheck,
-  Zap,
-  Globe,
   ExternalLink,
-  BrainCircuit,
-  CheckCircle2,
   Compass,
-  Download
+  Download,
 } from 'lucide-react';
 import { SelfAttentionVisualizer } from './studio/SelfAttentionVisualizer';
 import { PositionalEncodingSimulator } from './studio/PositionalEncodingSimulator';

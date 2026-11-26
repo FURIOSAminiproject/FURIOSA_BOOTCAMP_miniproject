@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { generatePositionalEncoding } from '../../services/transformerStudioService';
-import { Sliders, Activity, Clock, Sparkles, HelpCircle } from 'lucide-react';
+import { Activity, Clock, Sparkles, HelpCircle } from 'lucide-react';
 
 export const PositionalEncodingSimulator: React.FC = () => {
   const [seqLength, setSeqLength] = useState(8);

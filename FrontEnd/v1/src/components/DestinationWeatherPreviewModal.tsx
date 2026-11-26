@@ -1,4 +1,3 @@
-import React from 'react';
 import { X } from 'lucide-react';
 import type { SearchPlace } from '../services/route-explorer';
 import { useWeatherPrediction } from '../services/useWeatherPrediction';

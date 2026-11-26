@@ -11,14 +11,10 @@
 | DB LEVEL1·2·3 선택 | components/CategoryDetailModal.tsx, services/trip-categories.ts |
 | 현재 여행 결과·경로·장소 | components/TripResultsPage.tsx, RouteExplorerMap.tsx |
 | 두 화면 공유 상태·HTTP | components/TripWorkspaceContext.tsx, services/trip-workspace.ts, route-explorer.ts |
-| 탭·일정 목록·선택·승인/반려/재작성·통계 | src/App.tsx |
-| 신청 입력·프리셋 | components/TravelRequestForm.tsx, data/presetData.ts |
-| 진행 로그·실제 일정 POST | services/aiTravelAgent.ts, components/AgentOrchestrationView.tsx |
-| HTTP·단일 문학 리뷰 POST | services/api.ts, services/poetryService.ts |
-| 상세·지도·리뷰 | components/TravelPlanDetail.tsx, TravelMapView.tsx, PoeticReviewSection.tsx |
-| 관리자 화면·모달 | components/AdminDashboard.tsx, AdminApprovalModal.tsx |
-| 공유·출력·표시 UI | components/ShareModal.tsx, PrintVoucher.tsx, Header.tsx, HeroBanner.tsx, AgentTeamIntro.tsx |
-| 계약·진입·스타일 | types/travel.ts, main.tsx, index.css |
+| 탭·라우팅·인증 세션·토스트 | src/App.tsx |
+| 표시 UI | components/Header.tsx, HeroBanner.tsx, UserHomePage.tsx |
+| 진입·스타일 | main.tsx, index.css |
+| 이전 AI 일정·승인·공유·출력 (현재 미사용) | ../legacy/v1/ 아래로 이동. [LEGACY_CLEANUP.md](legacy/LEGACY_CLEANUP.md) 참고 |
 | 개발 프록시·빌드 | vite.config.ts, package.json, package-lock.json, tsconfig.json |
 | 운영 서빙 | Dockerfile, docker-entrypoint.sh, nginx_http.conf, nginx_ssl.conf |
 
@@ -29,7 +25,7 @@
 - 현재 `/trips/new`·`/trips`는 검색·경로 비교·TourAPI DB 장소 추천이다. 공유 입력·결과는 React 메모리에 두며 새로고침 시 빈 상태로 돌아간다. 조건 변경·새 여행·로그아웃은 이전 결과를 지우고 진행 중 요청도 취소한다. `/trips/archive`는 현재 결과의 호환 주소이며 여러 여행을 저장하지 않는다. [화면 변경 문서](docs/TRIP_UI_CUSTOMIZATION.md)를 먼저 확인한다.
 - 장소 자동완성은 2자 이상 입력 후 600ms 대기하며 IME 조합 중에는 요청하지 않는다. 후보를 선택해야 좌표가 확정된다. 요약 예상시간은 두 좌표·이동 방식만으로 기존 단일 권장 경로 API를 호출한다. 카테고리·반경 변경으로 미리보기를 재조회하거나 실시간 교통 시간으로 설명하지 않는다.
 - 상위 카테고리는 DB LEVEL1 원문, 상세 모달은 해당 부모의 LEVEL2·3만 사용한다. 고정 콘텐츠 유형·분류명 추측·임의 기본 선택으로 대체하지 않는다. `selectedCategoryIds`와 `categorySelections`를 기존 `categoryIds`로 합치고 `contentTypeIds=[]`로 전송한다. 전체는 LEVEL1 UUID, 상세는 LEVEL2·3 UUID이며 모달 적용 전에는 공유 상태를 바꾸지 않는다.
-- 이전 AI 일정·통계·승인 컴포넌트도 소스에 남아 있다. App의 초기 프리셋·통계 주입은 제거했으며, 기존 생성·승인 화면은 새 두 여행 화면에서 사용하지 않는다. 인증 세션 및 관리자 페이지 진입 제어와 서버의 여행·관리자 API 권한 검사를 구분한다. 일정/승인 DB 저장은 미구현이다.
+- 이전 AI 일정·통계·승인 컴포넌트는 `FrontEnd/legacy/v1/`로 옮겼으며 빌드·타입 검사 대상이 아니다. 되살릴 때는 원래 경로로 옮기고 App 연결과 의존성을 함께 복구한다. 인증 세션 및 관리자 페이지 진입 제어와 서버의 여행·관리자 API 권한 검사를 구분한다. 일정/승인 DB 저장은 미구현이다.
 - 8개 역할의 고정 진행 로그와 지연 후 NestJS `/api/travel/plans`를 호출한다. SSE/WebSocket·독립 7개 에이전트의 실시간 협업 로그가 아니다. 문구를 구현 근거로 사용하지 않는다.
 - 단일 리뷰는 `/api/travel/poetic-reviews`다. FastAPI는 현재 화면의 일정·리뷰 생성에서 호출하지 않는다.
 - 공유는 현재 페이지 URL 복사, 카카오 전송은 시뮬레이션이다. 일정별 영구 URL·실제 메시지 발송으로 설명하지 않는다.

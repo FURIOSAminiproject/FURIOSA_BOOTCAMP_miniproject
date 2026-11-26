@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { TUTOR_QA_DATABASE } from '../../services/transformerStudioService';
-import { Sparkles, Send, Bot, User, BookOpen, HelpCircle, Check, ArrowRight } from 'lucide-react';
+import { Sparkles, Send, Bot, User, BookOpen, ArrowRight } from 'lucide-react';
 
 interface ChatMessage {
   id: string;

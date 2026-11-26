@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Send, Sparkles, Network, ArrowRight, Check, Bot } from 'lucide-react';
+import { Sparkles, Network } from 'lucide-react';
 import { AGENT_CORE_CODES } from '../../services/transformerStudioService';
 
 export const MultiAgentNeuralDispatcher: React.FC = () => {

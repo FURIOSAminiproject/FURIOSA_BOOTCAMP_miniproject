@@ -18,15 +18,12 @@ import {
   Play,
   Sparkles,
   Terminal,
-  BookOpen,
   Layers,
-  ShieldCheck,
   Download,
   ExternalLink,
-  Cpu,
   FileCode,
   CheckCircle2,
-  Columns
+  Columns,
 } from 'lucide-react';
 
 export const AgentCoreCodeInspector: React.FC = () => {

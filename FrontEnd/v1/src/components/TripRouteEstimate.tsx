@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Clock3 } from "lucide-react";
 import type { SearchPlace } from "../services/route-explorer";
 import type { LocationRouteMode } from "../types/location";

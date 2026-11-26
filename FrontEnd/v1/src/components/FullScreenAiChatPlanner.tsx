@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Bot,
@@ -6,15 +6,10 @@ import {
   RotateCcw,
   Sparkles,
   MapPin,
-  Calendar,
   Compass,
   ArrowRight,
   Clock,
   Car,
-  Coffee,
-  Utensils,
-  Camera,
-  CheckCircle2,
   Check,
   Loader2,
   CheckCircle,

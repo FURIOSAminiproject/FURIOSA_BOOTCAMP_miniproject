@@ -283,10 +283,6 @@ function AppContent() {
               navigate('/trips/new?mode=chat');
             }}
             onOpenTripArchive={() => handleSelectTab('PLAN')}
-            onQuickExplore={startTrip}
-            onSelectPlan={plan => startTrip(plan.request.destination)}
-            onSelectDestination={startTrip}
-            onOpenStudio={() => handleSelectTab('STUDIO')}
           />
         )}
 

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { ImageOff } from "lucide-react";
 import { placeImageUrl } from "../services/place-image";
 

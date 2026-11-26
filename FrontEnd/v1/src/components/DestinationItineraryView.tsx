@@ -1,4 +1,3 @@
-import React from "react";
 import { Calendar, MapPin, Clock, BedDouble, ArrowUpRight, CloudSun } from "lucide-react";
 import type {
   DestinationItinerary,
@@ -54,7 +53,7 @@ export function DestinationItineraryView({
         </p>
       </header>
       <div className="grid gap-5 lg:grid-cols-2">
-        {itinerary.days.map((day, idx) => {
+        {itinerary.days.map(day => {
           const dayWeather = weatherForecast?.find(forecast => forecast.date === day.date);
           return (
             <article

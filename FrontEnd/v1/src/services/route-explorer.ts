@@ -106,7 +106,7 @@ function malformed(): never {
 }
 
 /** JSON을 타입 단언으로 통과시키지 않고 좌표와 화면에서 쓸 필드를 검사한다. */
-export function parseSearchPlace(value: unknown): SearchPlace {
+function parseSearchPlace(value: unknown): SearchPlace {
   if (
     !record(value) ||
     !isLocationCoordinates(value) ||

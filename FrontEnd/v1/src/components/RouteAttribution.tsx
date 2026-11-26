@@ -1,4 +1,3 @@
-import React from "react";
 
 /** 검색 결과와 경로를 표시하는 두 화면에서 공통 출처·라이선스 표기를 유지한다. */
 export function RouteAttribution() {

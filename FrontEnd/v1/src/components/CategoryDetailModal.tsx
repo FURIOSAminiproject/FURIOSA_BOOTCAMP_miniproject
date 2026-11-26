@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Check, Search, X } from "lucide-react";
 import type { PlaceCategory } from "../services/route-explorer";
 import {

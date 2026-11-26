@@ -1,4 +1,3 @@
-import React from 'react';
 import type { WeatherPredictionReport } from '../services/weatherPredictionService';
 export function ModelWeatherPanel({ report, loading, error, retry }: { report: WeatherPredictionReport | null; loading: boolean; error: string; retry: () => void }) {
   const number = (value: number) => value.toLocaleString('ko-KR', { maximumFractionDigits: 1 });

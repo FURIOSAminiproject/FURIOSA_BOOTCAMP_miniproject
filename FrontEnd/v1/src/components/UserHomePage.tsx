@@ -1,19 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Bot,
   Compass,
   ArrowRight,
-  Sparkles,
-  MapPin,
-  Calendar,
-  Clock,
-  Car,
-  Coffee,
-  Utensils,
-  Camera,
   FolderHeart,
 } from 'lucide-react';
-import { FullTravelPlan } from '../types/travel';
 import { AuthUser } from '../services/authService';
 
 interface UserHomePageProps {
@@ -21,10 +12,6 @@ interface UserHomePageProps {
   onStartRequest: () => void;
   onStartChat: () => void;
   onOpenTripArchive: () => void;
-  onQuickExplore: (destination: string) => void;
-  onSelectPlan: (plan: FullTravelPlan) => void;
-  onSelectDestination: (destination: string) => void;
-  onOpenStudio?: () => void;
 }
 
 export const UserHomePage: React.FC<UserHomePageProps> = ({
@@ -32,10 +19,6 @@ export const UserHomePage: React.FC<UserHomePageProps> = ({
   onStartRequest,
   onStartChat,
   onOpenTripArchive,
-  onQuickExplore,
-  onSelectPlan,
-  onSelectDestination,
-  onOpenStudio,
 }) => {
   const userName = currentUser?.name || (currentUser?.email ? currentUser.email.split('@')[0] : '여행자');
 

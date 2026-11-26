@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   ArrowRightLeft,
@@ -11,7 +11,6 @@ import {
   MapPin,
   Route,
   SlidersHorizontal,
-  Sparkles,
   Utensils,
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -54,7 +53,7 @@ function addDays(dateStr: string, days: number): string {
 }
 
 const EMPTY_ROUTES: ComparedRoute[] = [];
-export const formatRouteDistance = (meters: number) =>
+const formatRouteDistance = (meters: number) =>
   meters < 1000 ? `${Math.round(meters)}m` : `${(meters / 1000).toFixed(1)}km`;
 
 /** /trips/new. 서버가 실제 사용하는 좌표·이동 방식·카테고리·반경만 입력받는다. */

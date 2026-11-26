@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { computeScaledDotProductAttention } from '../../services/transformerStudioService';
-import { Calculator, Play, RefreshCw, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Calculator, RefreshCw, Sparkles, CheckCircle2 } from 'lucide-react';
 
 export const LiveMatrixMathSandbox: React.FC = () => {
   // 3 tokens, d_k = 3

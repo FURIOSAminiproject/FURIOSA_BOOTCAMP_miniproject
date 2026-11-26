@@ -1,4 +1,3 @@
-import React from "react";
 import {
   BASE_MAP_LEGEND,
   MAP_POINT_COLORS,
