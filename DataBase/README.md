@@ -124,3 +124,9 @@ DBeaver에서 PostgreSQL 연결을 만들고 실제 환경 파일과 같은 호�
 현재 인증 구현의 기준은 [User 엔티티](../BackEnd/NestJS/src/users/entities/user.entity.ts)입니다. [테이블 명세](table_spec_2026-10-18.md)는 최신 장소·분류·후기 DDL과 기존 회원·여행 초안을 구분해 설명합니다. 명세의 UUID 목표 설계와 현재 정수 자동 증가 회원 선언은 서로 다르며, 기존 회원의 실제 타입·OAuth 컬럼·NULL 허용 여부는 엔티티·실제 DB와 대조해야 합니다.
 
 기존 users 테이블에는 [OAuth 변경 SQL](../BackEnd/NestJS/migrations/20261019_add_oauth_columns.sql)이 email/password_hash의 NULL 허용, auth_provider/provider_subject 컬럼, 공급자·식별자 유니크 인덱스를 적용합니다. users 테이블 생성은 포함하지 않습니다. 실제 DB의 컬럼 타입·기본값·권한을 확인한 뒤 DB 관리자가 별도 적용합니다. 앱이나 배포는 자동 실행하지 않습니다. 사용자 저장에는 해당 테이블·ID 생성에 필요한 쓰기 권한도 필요합니다.
+
+## PostGIS 추가 (2026-10-29)
+
+[관리자 수동 마이그레이션](migrations/20261029_add_places_postgis.sql)은 기존 v2 장소 테이블에 `location geography(Point,4326)` 생성 컬럼과 GiST 인덱스를 추가하고 PostGIS 확장을 활성화한다. OS에 PostgreSQL 버전에 맞는 PostGIS 패키지를 먼저 설치해야 한다. 이 변경 후 places는 기존 32개에 생성 컬럼 1개를 더해 33개 컬럼이며 원본 v2 DDL 자체는 변경하지 않았다. 기존 위도·경도 INSERT/UPDATE 시 location도 자동 계산한다. `IF NOT EXISTS`는 이름이 같은 기존 컬럼/인덱스의 잘못된 정의를 수정하지 않는다.
+
+사용자의 개발 DB 실행 로그에서 PostGIS 3.6.1, location 생성 및 GiST 인덱스, 전체 1,002건 중 location 1,001건을 확인했다. 위치 없는 1건은 좌표 확인이 필요하다. 사용자 지시에 따라 추가 반영 대상은 운영 DB(`travel_prod`)뿐이다. SQL은 다른 DB에서 실행되면 오류를 내며 변경을 막는다. 운영 DB 접속은 이 PC에서 타임아웃이 발생해 아직 적용하지 못했다. 앱 기동 시 자동 실행하지 않는다. NestJS의 반경·거리 조회는 이 스키마가 필요하다.

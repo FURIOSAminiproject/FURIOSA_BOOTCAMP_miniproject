@@ -13,6 +13,7 @@ export default defineConfig(({ mode }) => {
   const enableTls = env.ENABLE_TLS === 'true';
   const defaultBackend = enableTls ? 'https://127.0.0.1:3001' : 'http://127.0.0.1:3001';
   const proxy = {
+    '/fastapi': { target: env.FASTAPI_URL || 'http://127.0.0.1:8000', changeOrigin: true, rewrite: (url: string) => url.replace(/^\/fastapi/, '') },
     '/api': {
       target: env.BACKEND_URL || defaultBackend,
       changeOrigin: true,

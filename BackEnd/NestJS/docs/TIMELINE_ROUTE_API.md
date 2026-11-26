@@ -199,11 +199,11 @@ GET /api/places/nearby?lat=35.7901&lng=129.3321&radius=3000&contentTypes=39&limi
    오차 없는 부동소수점 위경도 좌표(소수점 7자리)를 산출.
 
 ### 3.2 반경 및 카테고리 검색 SQL ([explorer.repository.ts](../src/route-explorer/explorer.repository.ts))
-- **PostGIS 확장 없이도 고속 동작**:
-  1. 위도/경도 바운딩 박스(Bounding Box)로 인덱스를 타서 1차 필터링.
-  2. `WITH RECURSIVE selected` 절로 입력된 상위 카테고리(`categoryIds`)의 모든 하위 중·소분류 ID를 재귀 추출하여 교집합 검색.
-  3. 구면 삼각법(Haversine Formula)으로 정확한 지표면 직선거리($m$) 계산 후 오름차순 정렬:
-     $$D = 6371008.8 \times \arccos\left(\cos(\text{lat}_1)\cos(\text{lat}_2)\cos(\text{lon}_2 - \text{lon}_1) + \sin(\text{lat}_1)\sin(\text{lat}_2)\right)$$
+- **PostGIS geography 기반 공간 검색** (2026-10-29 변경):
+  1. 기존 위도·경도에서 자동 생성되는 `places.location geography(Point,4326)`과 GiST 인덱스를 사용한다. [수동 마이그레이션](../../../DataBase/migrations/20261029_add_places_postgis.sql)이 필요하며 서버가 DDL을 자동 실행하지 않는다.
+  2. `WITH RECURSIVE selected`로 상위 카테고리의 하위 분류를 포함하고 활성 장소·콘텐츠 유형 조건을 적용한다.
+  3. 보간된 거점을 경도·위도 순서의 Point로 만들어 `ST_DWithin`으로 반경(m)을 필터링한다. `ST_Distance`의 측지거리(m)와 장소 ID로 정렬한 뒤 LIMIT을 적용한다. 경로 비교는 같은 방식으로 전체 경로 LineString과의 거리를 구한다.
+  4. 이 거리는 도로 접근 거리·우회 시간의 실측값이 아니다. PostGIS/컬럼이 없거나 조회가 실패하면 추천 오류로 알린다.
 
 ---
 

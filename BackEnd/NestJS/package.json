@@ -33,7 +33,8 @@
     "db:check:prod": "node scripts/check-db.cjs prod",
     "tour:ingest": "node scripts/tour-ingest.cjs",
     "test:legacy": "node --test test/*.test.cjs",
-    "test:unit": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand"
+    "test:unit": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand",
+    "db:check:postgis": "node scripts/check-postgis.cjs"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

@@ -1,4 +1,12 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Inject,
+  Post,
+  UseInterceptors,
+} from '@nestjs/common';
 import {
   ChatRequestDto,
   ChatResponseDto,
@@ -11,11 +19,14 @@ import {
   type ItineraryRevisionRequest,
   type ItineraryRevisionResponse,
 } from './itinerary-revision.service';
+import { RevisionRateLimitInterceptor } from './revision-request-limits';
 
 @Controller('chat')
 export class ChatController {
   constructor(
+    @Inject(ChatService)
     private readonly chatService: ChatService,
+    @Inject(ItineraryRevisionService)
     private readonly revisions: ItineraryRevisionService,
   ) {}
 
@@ -34,6 +45,7 @@ export class ChatController {
   }
 
   @Post('revise')
+  @UseInterceptors(RevisionRateLimitInterceptor)
   @HttpCode(HttpStatus.OK)
   async revise(
     @Body() body: ItineraryRevisionRequest,

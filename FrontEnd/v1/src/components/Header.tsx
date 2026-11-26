@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Compass, LogOut, LogIn, Menu, X } from 'lucide-react';
 import { AuthUser } from '../services/authService';
 
-type HeaderTab = 'EXPLORE' | 'REQUEST' | 'PLAN' | 'ARCHIVE' | 'ADMIN' | 'USER' | 'STUDIO' | 'WEATHER_STUDIO' | 'ROUTES';
+export type HeaderTab = 'EXPLORE' | 'REQUEST' | 'PLAN' | 'ARCHIVE' | 'ADMIN' | 'USER' | 'STUDIO' | 'WEATHER_STUDIO' | 'ROUTES';
 
 interface HeaderProps {
   currentTab: HeaderTab;

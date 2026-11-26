@@ -7,7 +7,6 @@ interface HeroBannerProps {
   onOpenTripArchive?: () => void;
   onQuickExplore?: (destination: string) => void;
   onOpenStudio?: () => void;
-  onOpenWeatherStudio?: () => void;
   onStartChat?: () => void;
 }
 

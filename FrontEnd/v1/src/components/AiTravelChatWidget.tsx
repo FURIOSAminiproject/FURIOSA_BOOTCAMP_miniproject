@@ -158,6 +158,17 @@ export function AiTravelChatWidget() {
       });
 
       if (!response.ok) {
+        if (response.status === 429) {
+          const error: unknown = await response.json().catch(() => null);
+          const message =
+            error &&
+            typeof error === "object" &&
+            "message" in error &&
+            typeof error.message === "string"
+              ? error.message.slice(0, 500)
+              : "일정 수정 요청이 많습니다. 약 1분 후 다시 시도해 주세요.";
+          throw new Error(message);
+        }
         throw new Error(`서버 응답 오류 (${response.status})`);
       }
 

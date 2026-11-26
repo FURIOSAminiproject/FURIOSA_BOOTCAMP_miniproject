@@ -1,6 +1,7 @@
 import type { SearchPlace, Preference } from "../services/route-explorer";
 
 export interface DestinationPlace extends SearchPlace {
+  imageUrl?: string | null;
   contentTypeId: number;
   categoryName: string | null;
   distanceMeters: number;

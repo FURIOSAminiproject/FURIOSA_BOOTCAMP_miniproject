@@ -27,7 +27,6 @@ interface UserHomePageProps {
   onSelectPlan: (plan: FullTravelPlan) => void;
   onSelectDestination: (destination: string) => void;
   onOpenStudio?: () => void;
-  onOpenWeatherStudio?: () => void;
 }
 
 export const UserHomePage: React.FC<UserHomePageProps> = ({
@@ -39,7 +38,6 @@ export const UserHomePage: React.FC<UserHomePageProps> = ({
   onSelectPlan,
   onSelectDestination,
   onOpenStudio,
-  onOpenWeatherStudio,
 }) => {
   const userName = currentUser?.name || (currentUser?.email ? currentUser.email.split('@')[0] : '여행자');
 

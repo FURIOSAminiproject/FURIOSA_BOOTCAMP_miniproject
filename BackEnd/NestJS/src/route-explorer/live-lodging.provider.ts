@@ -1,5 +1,6 @@
 import { TourApiClient, tourConfig } from '../places/tour-api.client';
 import type { SpotPlace } from './explorer.types';
+import { placeImageUrl } from './place-image';
 
 type Center = { latitude: number; longitude: number };
 type TourPageReader = Pick<TourApiClient, 'page'>;
@@ -64,6 +65,7 @@ export class LiveLodgingProvider {
       results.push({
         id: `tourapi:${contentId}`,
         name,
+        imageUrl: placeImageUrl(item.firstimage),
         address: [item.addr1, item.addr2]
           .filter((part): part is string => typeof part === 'string')
           .join(' ')

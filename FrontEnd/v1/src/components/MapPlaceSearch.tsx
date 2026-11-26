@@ -12,12 +12,14 @@ export function MapPlaceSearch({
   value,
   onQueryChange,
   onSelect,
+  actionButton,
 }: {
   label: string;
   query: string;
   value: SearchPlace | null;
   onQueryChange: (query: string) => void;
   onSelect: (place: SearchPlace) => void;
+  actionButton?: React.ReactNode;
 }) {
   const inputId = useId();
   const listId = `${inputId}-suggestions`;
@@ -139,47 +141,50 @@ export function MapPlaceSearch({
       >
         {label}
       </label>
-      <div className="relative">
-        <Search
-          aria-hidden="true"
-          className="pointer-events-none absolute left-3.5 top-3.5 h-4 w-4 text-stone-400"
-        />
-        <input
-          id={inputId}
-          aria-label={`${label} 검색어`}
-          role="combobox"
-          aria-autocomplete="list"
-          aria-expanded={expanded}
-          aria-controls={expanded ? listId : undefined}
-          aria-activedescendant={
-            expanded && activeIndex >= 0
-              ? `${listId}-${activeIndex}`
-              : undefined
-          }
-          aria-describedby={statusId}
-          type="text"
-          autoComplete="off"
-          maxLength={100}
-          value={query}
-          placeholder="장소명 또는 주소를 입력하세요"
-          onFocus={() => setOpen(true)}
-          onKeyDown={onKeyDown}
-          onCompositionStart={() => {
-            composingRef.current = true;
-            setComposing(true);
-            clearSuggestions();
-          }}
-          onCompositionEnd={() => {
-            composingRef.current = false;
-            setComposing(false);
-          }}
-          onChange={(event) => {
-            clearSuggestions();
-            setOpen(true);
-            onQueryChange(event.target.value);
-          }}
-          className="w-full min-w-0 rounded-xl border border-stone-300 bg-white pl-10 pr-3.5 py-3 text-sm outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100"
-        />
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1 min-w-0">
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute left-3.5 top-3.5 h-4 w-4 text-stone-400"
+          />
+          <input
+            id={inputId}
+            aria-label={`${label} 검색어`}
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={expanded}
+            aria-controls={expanded ? listId : undefined}
+            aria-activedescendant={
+              expanded && activeIndex >= 0
+                ? `${listId}-${activeIndex}`
+                : undefined
+            }
+            aria-describedby={statusId}
+            type="text"
+            autoComplete="off"
+            maxLength={100}
+            value={query}
+            placeholder="장소명 또는 주소를 입력하세요"
+            onFocus={() => setOpen(true)}
+            onKeyDown={onKeyDown}
+            onCompositionStart={() => {
+              composingRef.current = true;
+              setComposing(true);
+              clearSuggestions();
+            }}
+            onCompositionEnd={() => {
+              composingRef.current = false;
+              setComposing(false);
+            }}
+            onChange={(event) => {
+              clearSuggestions();
+              setOpen(true);
+              onQueryChange(event.target.value);
+            }}
+            className="w-full min-w-0 rounded-xl border border-stone-300 bg-white pl-10 pr-3.5 py-3 text-sm outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100"
+          />
+        </div>
+        {actionButton}
       </div>
       {expanded && (
         <ul

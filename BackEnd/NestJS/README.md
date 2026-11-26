@@ -4,7 +4,56 @@ NestJS 12, TypeScript 6, TypeORM, PostgreSQL 드라이버와 `@google/genai`를 
 
 ## 대화형 플래너와 도착 후 일정 (2026-10-28)
 
-`POST /api/chat/revise`는 결과 화면의 수정 대화용이다. 기존 `/api/chat`이 설명문만 반환하는 것과 달리 현재 날짜별 일정, 도착 좌표, 이동 수단, 최근 대화를 받아 AI가 등록 장소 ID와 방문 시각을 제안한다. 도착지 주변 관광·음식 후보를 읽기 전용으로 보강하고 서버가 날짜·장소 종류·시간·중복을 검사해 유효한 변경만 `itinerary`로 반환한다. `changed=false`이면 원래 일정은 그대로다. 경로선·출발 조건·예약은 수정하지 않는다.
+2026-11-03: 장소 추천 응답의 `imageUrl`을 기존 `places.main_image_url`에서 제공한다. 경로·길목·날짜별 방문·숙박 후보와 AI 수정 결과에 연결하며 사진 없는 장소도 유지한다. [사진 응답 계약](src/route-explorer/README.md#장소-대표-사진-2026-11-03)을 참고한다. DB 스키마와 배치 수집 설정은 변경하지 않는다.
+
+### 일정 수정의 Function calling과 호출 제한 (2026-11-02)
+
+`Gemini → Function calling → NestJS 읽기 전용 함수 → DB → Gemini 수정안 → 서버 검증`으로 처리한다. 별도 MCP 서버는 사용하지 않는다. 기존 사전 후보 자동 보강·JSON `searchRequest`·스키마 400 호환 재시도를 이 경로로 대체했다. Function calling을 지원하지 않는 모델의 오류는 사용자에게 알리고 일정을 유지한다.
+
+- `get_current_itinerary()`를 첫 호출로 강제한다. 현재 화면에서 검증·복사한 요청 전용 스냅샷의 날짜, 일차, 마지막 날, 실제 방문 이름·kind·개수를 반환한다. 일정은 아직 브라우저 메모리에 있으므로 DB의 저장 여행 조회가 아니다. 다른 여행/사용자 ID는 받지 않는다. 과거 대화보다 이 스냅샷을 우선한다.
+- `search_places({kind, dayNumber?, keyword?, expand?})`는 cafe/food/sightseeing, 실제 여행 일차, 최대 50자 검색어, 확대 희망 여부만 받는다. SQL·테이블·URL·좌표·반경·limit·알 수 없는 필드는 거부한다. 모델이 직접 HTTP나 DB 연결을 실행하지 않는다.
+- 서버가 자동차 5km→20km, 도보 1km→5km로 범위를 정한다. 조회에 성공한 0건만 자동으로 한 번 확대하고 DB 실패는 후보 부재로 해석하지 않는다. 목적지와 지정 일차 첫·마지막 방문지 최대 3곳을 기준으로 조회하되 결과는 목적지 반경도 제한한다. 같은 조건은 요청 내 캐시를 사용한다. 검색 단계 총 2회·SELECT 최대 6개다.
+- 기존 `ExplorerRepository.revisionCandidates`의 고정·매개변수 바인딩 SELECT를 요청 전용 `READ ONLY` 트랜잭션에서 실행한다. 활성/좌표/종류/분류 계층/이름 검색/기존 후보 제외를 LIMIT 전에 적용하고 LIKE 와일드카드는 문자로 처리한다. `SET LOCAL statement_timeout=3초`, `lock_timeout=0.5초`를 적용하고 연결을 반환한다. 쓰기·스키마 변경·외부 URL 호출·데이터 수집 도구는 없다.
+- 검색 단계당 최대 12개 새 후보, 총 80개를 유지하고 이미 모델에 제공한 ID를 제거하지 않는다. 모델 응답 content와 thoughtSignature, functionCall.id를 보존하고 같은 id로 결과를 돌려준다. 도구 사용 중 JSON 응답 스키마를 함께 강제하지 않는다. 마지막 허용 호출은 도구 없이 JSON 최종안만 받는다.
+
+요청당 공급자 호출 최대 5회, 도구 호출 6회, 한 응답의 도구 호출 2개, AI·도구 실행 시간 예산 45초, 제공자 개별 대기 최대 15초와 출력 4096토큰이다. SDK 자동 재시도는 끈다. 도구 인자 1KB·결과 96KB·모델 content 64KB를 넘으면 중단한다. 알 수 없는 도구·실행 코드·파일 등의 모델 part도 차단한다. 기한은 단계 사이와 공급자 AbortSignal로 검사하고 SQL은 별도 문장 타임아웃을 적용한다.
+
+비로그인 사용을 유지한다. `/api/chat/revise`에 IP당 분당 10회, 프로세스 전체 분당 30회, 동시 처리 3건, 실제 수정용 공급자 호출 분당 120회 제한을 적용한다. IP/전체/동시 요청 초과는 HTTP 429이며 프론트에 대기 안내를 표시한다. 브라우저 연결 종료만으로 실행 중 작업의 슬롯을 해제하지 않는다. IP는 메모리에만 보관하며 기존 신뢰 프록시 1홉 설정을 따른다. 현재 Compose의 백엔드 포트는 localhost에만 바인딩한다. 여러 서버/프로세스로 늘리면 이 제한을 Redis 등 공유 저장소로 옮겨야 한다. 재시작하면 시간창이 초기화된다. 다른 AI API의 사용량까지 제한하는 장치는 아니다.
+
+### 수정 검증과 이유 안내
+
+최종 수정안은 기존 서버 검증으로 날짜·장소 ID·유형·중복·도착 시각·09:00~20:00·방문 사이 최소 5분·하루 6곳·체류 30~180분을 검사하고 날짜별로 병합한다. 생략한 날짜는 보존하며, `visits=[]`는 해당 날짜 전체 삭제다. 허용되지 않은 수정은 전체 거절한다. 실제 경로 이동시간·영업시간을 보장하는 검증은 아니다.
+
+빈 수정안은 `reason`과 필요한 대상 일차/종류를 함께 받는다. `no_existing_visit`는 현재 방문 개수, `no_candidates`는 해당 일차/종류의 실제 검색 완료·0건 결과와 대조한다. 현재 관광지가 있는데 없다는 식의 이유나 방문 유형 불일치는 한 번만 보정을 요청한다. 여전히 근거가 맞지 않으면 그 AI 설명을 전달하지 않고 이유가 현재 정보와 맞지 않음을 알린다. DB 검색 실패와 0건, 후보 부족, 시간·중복·일수 제약, 공급자 한도/권한/파싱 오류는 구분해 안내한다. 자연어 설명 전체의 사실성을 증명하는 장치는 아니며 도구 권한과 실제 반영 결과는 서버가 제한한다.
+
+`ai_revision_tool_started/completed`에서 허용 도구 이름·호출 순번·검색 단계·후보 수를 확인하고, `ai_revision_candidate_search_*`에서 종류·반경·지점 수·실패 수를 확인한다. `ai_revision_repair_started`는 보정 시작, `ai_revision_completed`는 최종 적용/거절과 실제 생성·도구·검색 횟수다. `ai_revision_failed.executionCode`는 도구 형식/권한/인자/예산 차단을 구분한다. 요청 제한은 `ai_revision_request_throttled`다. 키·IP·대화·장소·검색어·SQL 원문은 로그에 기록하지 않는다.
+
+검증은 Node 22에서 기존 일정 병합·거절·진단 회귀, 읽기 전용 연결 수명, 도구 인자/종류 차단, 제한 범위 확대·실패 구분·캐시, 호출 제한과 연결 종료, 로그인 없는 HTTP 200→429, 실제 Google SDK와 로컬 HTTP 도구 왕복을 사용한다. 기존 JSON 스키마 호환/사전 보강 전용 테스트는 새 도구 프로토콜 검사로 대체했다. 실제 EC2 PostgreSQL·외부 Gemini·배포 성공은 별도 확인 대상이다.
+
+Node 22.23.3에서 Node 테스트 99개와 Jest 8개, 총 107개 및 운영 빌드를 통과했다. 프론트 타입 검사와 운영 빌드도 통과했다. 프로토콜 구현은 Google의 [Function calling](https://ai.google.dev/gemini-api/docs/generate-content/function-calling)과 [thought signature 보존 안내](https://ai.google.dev/gemini-api/docs/generate-content/thought-signatures)를 따른다.
+
+### AI 진단 로그 (2026-11-02)
+
+일반 상담·생성 플래너·수정 플래너·도착 후 일정 큐레이터는 `[AiDiagnostics]`의 JSON 로그를 남긴다. 같은 처리의 로그는 `requestId`로 연결하며 `operation`은 `chat`, `planner`, `revision`, `curation`이다. 설정 도우미를 단독 실행하면 `configuration`이다. API 응답 계약과 기존 모델·키 선택 순서는 유지한다.
+
+- 설정: `ai_configuration_lookup_completed/failed`에 `app_model_config`·`ai_model_config`의 활성 행 존재 여부 또는 `dbCode`·`dbReason`을 남긴다. `ai_configuration_resolved`의 `keySource`, `modelSource`, `keyPresent`, `model`로 환경변수·DB 중 실제 선택된 출처를 확인한다. 두 출처는 서로 다를 수 있다. 테이블 누락 `42P01`, 권한 부족 `42501`, 비밀번호 인증 실패 `28P01`을 구분한다. 행이 있으면 다음 테이블을 조회하지 않는 기존 우선순위를 유지한다.
+- 호출: `ai_provider_request_started/completed/failed`에 모델, 소요 시간, HTTP 상태, 허용한 공급자 오류 코드, 종료·차단 사유, 토큰 수를 남긴다. Google이 상세 정보를 제공한 429에는 `quotaViolations`의 일/분 단위·요청/토큰·무료/유료 구분·한도와 `retryAfterSeconds`가 포함된다. 상세 정보가 없으면 429만으로 어떤 한도인지 단정하지 않는다.
+- 수정: `ai_revision_*`에서 입력 검증, 후보 수·조회 실패, JSON 파싱, 일정 검증, 최종 적용 여부를 추적한다. `ai_revision_failed.stage`는 `provider`, `tool`, `parse`, `validation`다. `ai_revision_validation_rejected.reason`은 알 수 없는 장소, 중복 장소·날짜, 시간 겹침, 도착 전, 장소 유형 불일치 등을 구분하고 필요한 경우 0부터 시작하는 배열 위치를 남긴다. 빈 제안·동일 제안은 `ai_revision_no_change`로 구분한다.
+- 생성·큐레이션: `ai_planner_completed`, `ai_curation_completed`의 `aiUsed=false`, `reason=error_fallback`은 AI 실패 후 로컬 처리로 이어졌다는 뜻이다. 화면이 정상 진행되는 것만으로 AI 성공을 판단하지 않는다.
+
+키 원문·일부·해시, DB 비밀번호·접속 주소, 대화·일정·장소 원문, 공급자 오류 원문과 stack은 기록하지 않는다. 입력·출력은 길이·개수와 허용한 메타데이터로만 남긴다. 상세 단계 로그는 운영에서도 기본 출력되므로 요청량에 비례해 로그량이 증가한다. 이 범위는 공통 Gemini 설정을 사용하는 네 경로이며 기존 `travel-engine.ts`·`poetry.service.ts`의 독립 호출은 포함하지 않는다.
+
+배포된 컨테이너에서 문제를 한 번 재현한 직후 다음 로그를 공유하면 된다. `AiDiagnostics`가 없으면 새 백엔드 이미지의 배포 여부를 먼저 확인한다.
+
+```bash
+docker logs --since 10m --tail 1500 travel-backend 2>&1 | grep 'AiDiagnostics'
+```
+
+`test/ai-diagnostics.test.cjs`는 설정 우선순위·누락 테이블·권한 오류·복원한 DB 설정·429 상세·JSON 파싱 실패·수정 거부·생성 및 큐레이션 폴백·민감 정보 미출력을 대역으로 검증한다. 실제 운영 DB·Gemini 호출 성공을 대체하는 검증은 아니다.
+
+`POST /api/chat/revise`는 결과 화면의 수정 대화용이다. 기존 `/api/chat`이 설명문만 반환하는 것과 달리 현재 날짜별 일정, 도착 좌표, 이동 수단, 최근 대화를 받아 AI가 등록 장소 ID와 방문 시각을 제안한다. 도착지 주변 관광·음식 후보를 읽기 전용으로 보강하고 서버가 날짜·장소 종류·시간·중복을 검사해 유효한 변경만 `itinerary`로 반환한다. AI는 변경한 날짜만 보내며 각 날짜의 `visits`에는 유지할 방문을 포함한 최종 목록을 보낸다. 서버는 날짜로 병합해 생략한 날짜를 보존하고, 프론트에는 항상 전체 날짜의 일정을 반환한다. `visits=[]`는 해당 날짜의 방문 전체 삭제이며, 없는 날짜·날짜 중복·다른 날짜의 장소 중복·잘못된 시간은 수정 전체를 거부한다. `changed=false`이면 원래 일정은 그대로다. 경로선·출발 조건·예약은 수정하지 않는다.
+
+2026-11-02 수정: ChatController의 서비스 토큰을 `@Inject`로 명시해 `tsx`를 사용하는 `start:local`·`start:dev`에서도 일반 상담·플래너·일정 수정 서비스를 주입한다. 모델에는 날짜·장소 ID·방문 필드의 JSON 스키마를 제공한다. 변경하지 않은 기존 날짜는 재작성하지 않아 해당 날짜의 제약 때문에 다른 날짜의 유효한 수정까지 버리지 않는다. 검증은 외부 DB·Gemini를 모킹한 테스트이며 운영 배포·실제 모델 응답 성공과는 구분한다.
 
 `POST /api/chat/planner`는 출발·도착지 → 날짜·기간·출발 시각 → 이동 수단 → 취향 순서로 질문합니다. `currentDraft.modeConfirmed=true`와 유효한 자동차/도보 선택이 있어야 이동 수단 확인을 완료합니다. 기본값·모델의 isReady·요청 단계 번호만으로 질문을 생략하지 않습니다. 모호한 답변·대중교통은 자동차로 바꾸지 않고 다시 묻습니다. 기간 답변을 취향으로 저장하지 않습니다. 날짜 계산은 운영체제 시간대와 무관한 달력 날짜를 사용합니다.
 
@@ -247,3 +296,9 @@ docker run -d --name travel-backend --env-file .env.production --add-host host.d
 코드 주석에는 작성자 이름을 반복해서 넣지 않습니다. 작성자와 변경 이력은 Git 기록을 기준으로 확인하며, 팀의 기능 담당자 명단이 필요하면 README에서 별도로 관리합니다.
 
 장소·경로의 추가 경계값 검사에서 발견한 입력·페이지 누락·요금·캐시 오류를 수정했다. [2026-10-26 심화 검증 보고서](docs/PLACE_ROUTING_TEST_REPORT_2026-10-26.md)에 재현 사례, 수정, 전체 130개 통과 결과와 운영 확인 범위를 기록했다.
+
+## PostGIS 장소 검색 (2026-10-29)
+
+경로 주변·거점 주변·시간대·도착지 일정의 DB 장소 조회는 `ST_DWithin`과 `ST_Distance`를 사용한다. PostGIS 확장, 위도·경도에서 생성되는 `places.location geography(Point,4326)` 컬럼, GiST 인덱스가 필요하다. 관리자용 [수동 적용 SQL](../../DataBase/migrations/20261029_add_places_postgis.sql)을 운영 DB(`travel_prod`)에서만 적용하며 TypeORM의 자동 DDL은 계속 비활성화한다. 사용자 로그에서 개발 DB 적용과 공간 좌표 1,001건/전체 1,002건을 확인했다. 운영 DB 적용은 별도다.
+
+이 폴더에서 `npm run build` 후 `npm run db:check:postgis -- production`로 실제 DB를 읽기 전용 점검한다. 기본 모드는 production이며 기존 환경 파일 규칙을 따른다. 이 PC에서는 운영 DB 접속도 타임아웃이 발생해 운영 DDL은 아직 적용하지 못했다. API 응답 필드는 유지하며 경로 거리는 PostGIS 측지거리(m)다. [검색 구조·검증 한계](src/route-explorer/README.md)를 참고한다.

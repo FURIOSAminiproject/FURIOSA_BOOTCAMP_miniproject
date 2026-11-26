@@ -4,23 +4,35 @@ import {
   ArrowUpRight,
   Calendar,
   Clock,
+  Cloud,
+  CloudRain,
+  CloudSun,
   Coffee,
   Compass,
   Flag,
   MapPin,
   Pencil,
   Plus,
+  RefreshCw,
   Route,
   Sparkles,
+  Sun,
+  Thermometer,
+  Umbrella,
   Utensils,
+  Wind,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { type Preference, type SearchPlace } from "../services/route-explorer";
-import { useTripWorkspace } from "./TripWorkspaceContext";
+import { useTripWorkspace, TRIP_RESULT_BACKUP_KEY } from "./TripWorkspaceContext";
 import { TripFlowHeader } from "./TripFlowHeader";
 import { RouteExplorerMap, ROUTE_COLORS } from "./RouteExplorerMap";
 import { RouteAttribution } from "./RouteAttribution";
 import { DestinationItineraryView } from "./DestinationItineraryView";
+import { PlacePhoto } from "./PlacePhoto";
+import { DestinationWeatherPreviewModal } from "./DestinationWeatherPreviewModal";
+import { useWeatherPrediction } from '../services/useWeatherPrediction';
+import { ModelWeatherPanel } from './ModelWeatherPanel';
 
 const LABELS: Record<Preference, string> = {
   recommended: "권장 경로",
@@ -42,11 +54,42 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
   const [focusedPlace, setFocusedPlace] = useState<SearchPlace | null>(null);
   const mapSection = useRef<HTMLElement>(null);
   useEffect(() => setFocusedPlace(null), [state.result?.destinationItinerary]);
+
+  // 새로고침 시 state.result가 아직 메모리에 복원되지 않았을 경우 백업 캐시에서 즉시 자동 복원
+  useEffect(() => {
+    if (!state.result && typeof window !== "undefined") {
+      try {
+        const backup =
+          localStorage.getItem(TRIP_RESULT_BACKUP_KEY) ||
+          sessionStorage.getItem(TRIP_RESULT_BACKUP_KEY);
+        if (backup) {
+          const parsed = JSON.parse(backup);
+          if (parsed && parsed.comparison) {
+            dispatch({ type: "complete", result: parsed });
+          }
+        }
+      } catch (err) {
+        console.warn("TripResultsPage: 백업 결과 복원 실패", err);
+      }
+    }
+  }, [state.result, dispatch]);
+
+  const targetDestination = state.result
+    ? state.result.request.points[1]
+    : state.draft.destination;
+  const targetStartDate = state.result?.startDate || state.draft.startDate;
+  const targetEndDate = state.result?.endDate || state.draft.endDate;
+
   const create = () => {
     dispatch({ type: "new" });
     navigate("/trips/new");
   };
   const edit = () => navigate("/trips/new");
+
+  const [weatherModalOpen, setWeatherModalOpen] = useState(false);
+
+  const weather = useWeatherPrediction(state.result ? targetDestination : null, targetStartDate, targetEndDate);
+
   if (!state.result)
     return (
       <div className="space-y-7">
@@ -66,14 +109,26 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
             <br />두 가지 경로와 그 길 주변의 여행 장소를 한눈에 비교할 수
             있어요.
           </p>
-          <button
-            type="button"
-            onClick={edit}
-            className="mt-7 inline-flex items-center gap-2 rounded-xl bg-[#064e43] px-6 py-3.5 text-sm font-bold text-white hover:bg-[#085a4e]"
-          >
-            여행 계획 시작하기
-            <ArrowRight className="h-4 w-4" />
-          </button>
+          <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={edit}
+              className="inline-flex items-center gap-2 rounded-xl bg-[#064e43] px-6 py-3.5 text-sm font-bold text-white hover:bg-[#085a4e]"
+            >
+              여행 계획 시작하기
+              <ArrowRight className="h-4 w-4" />
+            </button>
+            {targetDestination && (
+              <button
+                type="button"
+                onClick={() => setWeatherModalOpen(true)}
+                className="inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-5 py-3.5 text-sm font-bold text-emerald-900 hover:bg-emerald-100 shadow-2xs"
+              >
+                <CloudSun className="h-4 w-4 text-emerald-700" />
+                {targetDestination.name} 날씨 미리보기
+              </button>
+            )}
+          </div>
           <p className="mt-4 text-xs text-stone-400">
             조회 결과는 현재 탭에서 유지됩니다. 새로고침하면 다시 조회해 주세요.
           </p>
@@ -108,6 +163,13 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
             </article>
           ))}
         </div>
+        <DestinationWeatherPreviewModal
+          isOpen={weatherModalOpen}
+          onClose={() => setWeatherModalOpen(false)}
+          destination={targetDestination}
+          startDate={targetStartDate}
+          endDate={targetEndDate}
+        />
       </div>
     );
 
@@ -145,11 +207,20 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
               마음에 드는 장소를 지도에서 살펴보세요.
             </p>
           </div>
-          <div className="flex shrink-0 gap-2">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setWeatherModalOpen(true)}
+              className="inline-flex items-center gap-1 sm:gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-2.5 sm:px-3 py-2 sm:py-2.5 text-xs font-bold text-emerald-900 hover:bg-emerald-100 transition shadow-2xs"
+              title="도착지 AI 날씨 예보"
+            >
+              <CloudSun className="h-4 w-4 text-emerald-700" />
+              도착지 날씨 AI
+            </button>
             <button
               type="button"
               onClick={edit}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-stone-200 px-3 py-2.5 text-xs font-semibold hover:bg-stone-50"
+              className="inline-flex items-center gap-1 sm:gap-1.5 rounded-xl border border-stone-200 bg-white px-2.5 sm:px-3 py-2 sm:py-2.5 text-xs font-semibold hover:bg-stone-50"
             >
               <Pencil className="h-3.5 w-3.5" />
               조건 수정
@@ -157,7 +228,7 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
             <button
               type="button"
               onClick={create}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-[#064e43] px-3 py-2.5 text-xs font-semibold text-white"
+              className="inline-flex items-center gap-1 sm:gap-1.5 rounded-xl bg-[#064e43] px-2.5 sm:px-3 py-2 sm:py-2.5 text-xs font-semibold text-white"
             >
               <Plus className="h-3.5 w-3.5" />새 여행
             </button>
@@ -165,8 +236,24 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
         </div>
         <div className="grid gap-3 border-t border-stone-100 pt-5 sm:grid-cols-2">
           <Endpoint label="출발" place={origin} />
-          <Endpoint label="도착" place={destination} />
+          <Endpoint
+            label="도착"
+            place={destination}
+            action={
+              <button
+                type="button"
+                onClick={() => setWeatherModalOpen(true)}
+                className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-white px-2.5 py-1.5 text-[11px] font-bold text-emerald-800 hover:bg-emerald-50 transition shadow-2xs"
+                title="도착지 날씨 미리보기"
+              >
+                <CloudSun className="h-3.5 w-3.5 text-emerald-600" />
+                날씨 AI
+              </button>
+            }
+          />
         </div>
+
+        {destination && <ModelWeatherPanel {...weather} />}
         <div className="flex flex-wrap gap-2 text-xs text-stone-600">
           {startDate && endDate && (
             <span className="rounded-full bg-emerald-100 font-semibold px-3 py-1.5 text-emerald-950 flex items-center gap-1.5 border border-emerald-200">
@@ -302,6 +389,8 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
             state.draft.destinationQuery ||
             "도착지"
           }
+          weatherForecast={weather.report?.dailyForecast}
+          onOpenWeather={() => setWeatherModalOpen(true)}
           onFocusPlace={(place) => {
             setFocusedPlace(place);
             mapSection.current?.scrollIntoView({
@@ -408,9 +497,10 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
                       {stop.places.map((place) => (
                         <li
                           key={place.id}
-                          className="flex items-center justify-between rounded-xl border border-stone-200/90 bg-white p-3 text-xs hover:border-emerald-300 transition shadow-2xs"
+                          className="flex items-center gap-3 rounded-xl border border-stone-200/90 bg-white p-3 text-xs hover:border-emerald-300 transition shadow-2xs"
                         >
-                          <div className="min-w-0 pr-2">
+                          <PlacePhoto name={place.name} imageUrl={place.imageUrl} compact />
+                          <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5">
                               <span className="font-bold text-stone-900 truncate">
                                 {place.name}
@@ -515,6 +605,7 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
                   key={place.id}
                   className="flex flex-col rounded-2xl border border-stone-200 bg-white p-5 hover:border-emerald-200 transition"
                 >
+                  <PlacePhoto name={place.name} imageUrl={place.imageUrl} className="mb-4" />
                   <div className="flex items-center justify-between gap-2">
                     <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-800">
                       {place.categoryName ?? "관광 장소"}
@@ -579,23 +670,41 @@ export function TripResultsPage({ embedded = false }: { embedded?: boolean }) {
           </p>
         )}
       </div>
+      <DestinationWeatherPreviewModal
+        isOpen={weatherModalOpen}
+        onClose={() => setWeatherModalOpen(false)}
+        destination={destination}
+        startDate={startDate}
+        endDate={endDate}
+      />
       <RouteAttribution />
     </div>
   );
 }
 
-function Endpoint({ label, place }: { label: string; place: SearchPlace }) {
+function Endpoint({
+  label,
+  place,
+  action,
+}: {
+  label: string;
+  place: SearchPlace;
+  action?: React.ReactNode;
+}) {
   return (
-    <div className="flex items-start gap-3 rounded-xl bg-[#faf7f2] p-3.5">
-      <span className="mt-0.5 rounded-lg bg-white px-2 py-1 text-[11px] font-bold text-stone-500">
-        {label}
-      </span>
-      <div className="min-w-0">
-        <p className="text-sm font-bold break-words">{place.name}</p>
-        <p className="mt-1 text-xs leading-relaxed text-stone-500">
-          {place.address}
-        </p>
+    <div className="flex items-start justify-between gap-3 rounded-xl bg-[#faf7f2] p-3.5">
+      <div className="flex items-start gap-3 min-w-0">
+        <span className="mt-0.5 rounded-lg bg-white px-2 py-1 text-[11px] font-bold text-stone-500 shrink-0">
+          {label}
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-bold break-words">{place.name}</p>
+          <p className="mt-1 text-xs leading-relaxed text-stone-500 truncate">
+            {place.address}
+          </p>
+        </div>
       </div>
+      {action && <div className="shrink-0">{action}</div>}
     </div>
   );
 }
